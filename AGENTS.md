@@ -1,60 +1,40 @@
 # Fraktal: agent brief
 
-Procedural world generation for synthetic satellite data. Python first, with hot kernels
-isolated so a Rust or C++ core can replace them later (ADR-0005).
-
-## Build status
-
-Trust the code over the docs where they disagree, and update the docs in the same PR.
-
-| Area | State |
-|------|-------|
-| Plan, slices, ADRs | Written (PLAN.md, SLICES.md, docs/adr/) |
-| Deterministic RNG streams and feature IDs (`src/fraktal/ids.py`) | Built, tested |
-| CLI (`src/fraktal/cli.py`) | Skeleton: `version` works; five stage commands return exit 3. JSON envelope, exit codes 0/2/3/4 |
-| World model v0 (`src/fraktal/world.py`) | Building and landcover layers, provenance, GeoParquet round-trip, `world_id` |
-| Ingest, world model, renderer, benchmark | Not started (SLICES V1 onward) |
+Procedural world generation for synthetic satellite data. Python first, with numeric kernels
+isolated so a Rust or C++ core can replace them later. Early stage: check the Pandan board
+(key `FRK`) for what is built, and trust the code over the docs where they disagree, then
+fix the docs in the same PR.
 
 ## Commands
 
 ```bash
 make install           # uv sync --frozen
-make check             # pre-push gate: ruff, mypy --strict, fast tests
-make test              # fast layer only (no infra, no network)
+make check             # the pre-push gate: ruff, mypy --strict, fast tests. Run before pushing
 make test-integration  # subprocesses, external services, network
 make fmt               # apply ruff fixes and formatting
 ```
 
-Run `make check` before proposing a push. CI runs the same checks as separate jobs, plus
-integration, a dependency audit and a secrets scan.
+## Rules that are not obvious from the code
 
-## Conventions
-
-- **Branch per slice, PR only.** Branch off fresh `main`, one branch per SLICES.md slice. No direct
-  pushes to `main`. CI must be green before merge.
-- **Jian is the sole author.** Never add co-author trailers or tool attributions to commits, PRs
-  or files.
-- **Tests are layered.** Fast tests in `tests/unit` (temp files are fine). Anything needing subprocesses, external
-  services or network goes in `tests/integration` and carries `pytestmark = pytest.mark.integration`.
-- **Every bug becomes a failing test first.** Assert observable behaviour, not internals.
-- **Determinism is a contract (ADR-0003).** Randomness only via `fraktal.ids.substream`. Never use
-  a global RNG, wall-clock time or unordered iteration in world generation.
-- **Kernels (ADR-0005).** Heavy numeric code lives in `src/fraktal/kernels/`: arrays in, arrays
-  out, no paths, no global state, with a golden-output test. No pure-Python hot loops: vectorise
-  or use numba.
+- **Jian is the sole author.** No co-author trailers or tool attributions in commits, PRs or files.
+- **Branch per slice, PR only, rebase-merge** so each story keeps its own commit. CI must be green.
+- **Determinism is a contract** ([ADR-0003](docs/adr/0003-deterministic-worlds-with-stable-ids.md)). Randomness only via
+  `fraktal.ids.substream`. No global RNG, wall-clock time or unordered iteration in world generation.
+- **Kernels** ([ADR-0005](docs/adr/0005-python-first-with-a-kernel-seam-for-a-later-rust-core.md)) live in
+  `src/fraktal/kernels/`: arrays in, arrays out, no paths or global state, with a golden-output test.
+  No pure-Python hot loops: vectorise or use numba.
 - **Stages talk through files** (GeoParquet, Cloud-Optimized GeoTIFF), not in-memory objects.
-- **Secrets stay out of git.** Credentials come from environment variables only.
-- **Licences matter.** Check a dependency's or dataset's licence before adding it (ADR-0007).
+- **No benchmark leakage.** Held-out test-tile footprints must never enter a world used for
+  synthetic pretraining ([ADR-0006](docs/adr/0006-success-is-a-downstream-benchmark.md)).
+- **Pin GitHub Actions to full release tags** (`@v10.3.3`). Floating majors may not exist.
+- **Check licences** before adding a dependency or dataset ([ADR-0007](docs/adr/0007-sell-datasets-first-keep-the-engine-private.md)).
+- **Tests are layered:** `tests/unit` (temp files fine) and `tests/integration`
+  (`pytestmark = pytest.mark.integration`). Fix a bug with a failing test first.
+- **Secrets** come from environment variables only. Never commit `.env` or tokens.
 
-## Layout
+## Docs
 
-- `src/fraktal/`: package. `ids.py` RNG and IDs, `cli.py` entry point, `kernels/` numeric kernels.
-- `tests/unit`, `tests/integration`: the two test layers.
-- `docs/adr/`: decisions. Read the relevant ADR before changing what it covers.
-- `PLAN.md`, `SLICES.md`, `QUESTIONS.md`: plan, build order, decision register.
-
-## Docs map
-
-Scope and requirements: `PLAN.md`. What to build next and how it is accepted: `SLICES.md`.
-Why a choice was made: `docs/adr/`. Later bets (robotics/drone views, SAR, disaster pairs,
-agent simulation, digital twins): `PLAN.md` section "Later bets".
+`docs/PLAN.md` (scope and shape), `docs/SLICES.md` (build order and acceptance tests),
+`docs/adr/` (read the relevant ADR before changing what it covers), `docs/QUESTIONS.md`.
+Later bets (robotics/drone views, SAR, disaster pairs, agent simulation) are in
+`docs/PLAN.md` under "Later bets".
