@@ -24,7 +24,7 @@ typecheck: ## mypy strict
 test: ## Fast layer: no infra, no network
 	uv run pytest -m "not integration"
 
-test-integration: ## Slower layer: subprocesses, real files, network
+test-integration: ## Slower layer: subprocesses, external services, network
 	uv run pytest -m integration
 
 check: lint typecheck test ## The pre-push gate; mirrors the cheap CI jobs
