@@ -34,7 +34,7 @@ None. Round 1 closed.
 | Q12 | Agent simulation timing | DEFERRED | After the EO milestone; world schema ready for it (R8) | PLAN §Later bets |
 | Q13 | Sim-to-real gap handling | ASSUMED | Domain randomisation first, learned refinement only if needed | ADR-0004 |
 | Q14 | Benchmark bar | ASSUMED | Arm 3 beats arm 1 by 5+ IoU points and reaches 90% of arm 2; revised after V1 baseline | ADR-0006 |
-| Q15 | Benchmark dataset | ASSUMED | Chosen in V1 step 1 from SpaceNet, WHU, Open Cities AI; tropical test set sought in V4 | SLICES V1, V4 |
+| Q15 | Benchmark dataset | DECIDED | SpaceNet 2 Khartoum train for V1 (2026-11-02); a tropical test set is sought in V4 | ADR-0008, SLICES V4 |
 | Q16 | Python stack | ASSUMED | NumPy, numba, PyTorch, rasterio, shapely, geopandas, `uv` | ADR-0005 |
 | Q17 | Later bets (robotics/drone, SAR, disasters, agent sim, digital twins, refinement) | DEFERRED | Recorded in PLAN §Later bets; each needs its own ADR when started | PLAN §Later bets |
 

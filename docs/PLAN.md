@@ -1,6 +1,6 @@
 # Fraktal: Plan
 
-Status: draft (forks closed, awaiting review) · Milestone: MVP
+Status: agreed · Milestone: MVP
 
 ## Problem
 
@@ -118,7 +118,7 @@ Test at the fewest, highest seams. Behaviour, not internals.
 | Q9 | Optical RGB+NIR only, 0.5 m and 3 m | Different bands/GSD means renderer changes; days |
 | Q13 | Domain randomisation before learned refinement | If insufficient, adds a second system (weeks) |
 | Q14 | Benchmark bar: +5 IoU over real-10%, at least 90% of real-100% | Bar is revised after the V1 baseline; low |
-| Q15 | Benchmark data chosen in V1 step 1 | May not be tropical; regional transfer unproven until V4 |
+| Q15 | Decided in ADR-0008: SpaceNet 2 Khartoum for V1 | Not tropical; regional transfer unproven until V4 |
 
 ## Open risks
 

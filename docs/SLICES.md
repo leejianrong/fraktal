@@ -1,6 +1,6 @@
 # Fraktal: Slices
 
-Vertical increments. Each ends in something you can demonstrate. Slice 1 confronts the riskiest unknown: does synthetic imagery help a real model at all.
+Vertical increments. Each ends in something you can demonstrate. Progress is tracked on the Pandan board (key FRK), one epic per slice. Slice 1 confronts the riskiest unknown: does synthetic imagery help a real model at all.
 
 ## V1: Benchmark spine
 
@@ -10,17 +10,18 @@ Thin end-to-end loop on a small region with a crude renderer, plus the three-arm
 
 **Build plan**
 
-1. Pick the benchmark dataset from open candidates (SpaceNet, WHU building dataset, Open Cities AI). Record licence, region and GSD in the dataset notes.
+1. ~~Pick the benchmark dataset.~~ Done: SpaceNet 2 Khartoum, see ADR-0008.
 2. Project setup with `uv`, CLI skeleton (`ingest`, `generate`, `render`, `benchmark`, `inspect`) with JSON output and exit codes, `kernels` package skeleton.
-3. `ingest`: fetch a region's DEM (Copernicus GLO-30), WorldCover, and OSM building footprints; cache and clip.
+3. `ingest`: fetch SpaceNet 2 Khartoum, and the AOI's DEM (Copernicus GLO-30) and WorldCover; cache and clip. Building footprints come from the SpaceNet training-split labels, not OSM, so the benchmark labels and the world agree. OSM returns in V2.
 4. World model v0: building and land-cover layers with provenance, hashed IDs, named RNG sub-streams.
 5. Crude renderer: flat per-class reflectance on DSM, single sun direction, hard shadows. Label rasteriser on the same grid.
 6. Benchmark harness: fixed U-Net and training recipe, three arms, report JSON.
-7. Run: real-10%, real-100%, synthetic-pretrain then real-10%. Record the baseline and confirm or revise the Q14 bar.
+7. Pretraining worlds exclude footprints from held-out test tiles, with a check that fails if one leaks.
+8. Run: real-10%, real-100%, synthetic-pretrain then real-10%. Record the baseline and confirm or revise the Q14 bar.
 
 **Demo:** run `fraktal benchmark`; see a report with IoU for all three arms, and open a rendered tile and its mask side by side in QGIS.
 
-**Rests on assumptions:** Q15 (benchmark dataset), and if wrong a different dataset costs a day or two. Q14 (bar), revised on the first baseline.
+**Rests on assumptions:** Q14 (benchmark bar), revised on the first baseline. The dataset is decided (ADR-0008); if the licence review rejects it, switching costs a day or two.
 
 ### Test plan
 
