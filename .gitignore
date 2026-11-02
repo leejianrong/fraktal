@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+dist/
+*.egg-info/
+
+# Secrets and local config
+.env
+.env.*
+.mcp.json
+.claude/settings.local.json
+
+# Generated and downloaded data
+data/
+out/
+*.tif
+*.parquet
