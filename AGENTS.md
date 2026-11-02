@@ -11,7 +11,8 @@ Trust the code over the docs where they disagree, and update the docs in the sam
 |------|-------|
 | Plan, slices, ADRs | Written (PLAN.md, SLICES.md, docs/adr/) |
 | Deterministic RNG streams and feature IDs (`src/fraktal/ids.py`) | Built, tested |
-| CLI | `--version` only |
+| CLI (`src/fraktal/cli.py`) | Skeleton: `version` works; five stage commands return exit 3. JSON envelope, exit codes 0/2/3/4 |
+| World model v0 (`src/fraktal/world.py`) | Building and landcover layers, provenance, GeoParquet round-trip, `world_id` |
 | Ingest, world model, renderer, benchmark | Not started (SLICES V1 onward) |
 
 ## Commands
@@ -20,7 +21,7 @@ Trust the code over the docs where they disagree, and update the docs in the sam
 make install           # uv sync --frozen
 make check             # pre-push gate: ruff, mypy --strict, fast tests
 make test              # fast layer only (no infra, no network)
-make test-integration  # subprocesses, real files, network
+make test-integration  # subprocesses, external services, network
 make fmt               # apply ruff fixes and formatting
 ```
 
@@ -33,8 +34,8 @@ integration, a dependency audit and a secrets scan.
   pushes to `main`. CI must be green before merge.
 - **Jian is the sole author.** Never add co-author trailers or tool attributions to commits, PRs
   or files.
-- **Tests are layered.** Fast tests in `tests/unit`. Anything needing subprocesses, real files or
-  network goes in `tests/integration` and carries `pytestmark = pytest.mark.integration`.
+- **Tests are layered.** Fast tests in `tests/unit` (temp files are fine). Anything needing subprocesses, external
+  services or network goes in `tests/integration` and carries `pytestmark = pytest.mark.integration`.
 - **Every bug becomes a failing test first.** Assert observable behaviour, not internals.
 - **Determinism is a contract (ADR-0003).** Randomness only via `fraktal.ids.substream`. Never use
   a global RNG, wall-clock time or unordered iteration in world generation.
