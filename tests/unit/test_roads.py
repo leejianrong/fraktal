@@ -118,3 +118,42 @@ def test_centres_sit_on_dry_ground_and_failure_is_loud() -> None:
         make(dem, flooded)
     with pytest.raises(RoadError, match="same shape"):
         make(dem, dry((10, 10)))
+
+
+def turning_length(roads: Any) -> float:
+    """Total absolute heading change along the arterials: large for staircases, small when fair."""
+    total = 0.0
+    for line in roads.loc[roads.road_class == "arterial", "geometry"]:
+        pts = np.array(line.coords)
+        d = np.diff(pts, axis=0)
+        d = d[np.hypot(d[:, 0], d[:, 1]) > 1e-6]
+        heading = np.arctan2(d[:, 1], d[:, 0])
+        total += float(np.abs(np.diff(np.unwrap(heading))).sum())
+    return total
+
+
+def test_smoothing_keeps_the_network_connected_and_off_the_water_and_cuts_turning() -> None:
+    dem, land = gentle(), dry((300, 300))
+    land[:, 140:150] = WATER
+    raw = make(dem, land, config=RoadConfig(smooth_tolerance_cells=0.0))
+    fair = make(dem, land)
+    assert components(fair) == 1
+    assert len(raw) == len(fair)  # same segments, only their shape changes
+    assert turning_length(fair) < turning_length(raw)
+    for _, road in fair.iterrows():
+        if road.bridge == 0.0:
+            for x, y in road.geometry.coords:
+                r, c = cell_of(x, y)
+                assert land[r, c] != WATER
+
+
+def test_smoothing_keeps_arterial_end_points() -> None:
+    dem, land = gentle(), dry((300, 300))
+    raw = make(dem, land, config=RoadConfig(smooth_tolerance_cells=0.0))
+    fair = make(dem, land)
+
+    def ends(roads: Any) -> set[tuple[tuple[float, float], tuple[float, float]]]:
+        lines = roads.loc[roads.road_class == "arterial", "geometry"]
+        return {(g.coords[0], g.coords[-1]) for g in lines}
+
+    assert ends(raw) == ends(fair)

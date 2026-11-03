@@ -217,3 +217,14 @@ What the plots show:
   set, as it was before. Randomised scenes are low in contrast (0.51 gap), so the randomised
   ranges need re-tuning against the palette.
 - Next generator work: building density, painted roads, then contrast ranges.
+
+## FRK-31: fairer arterials and parcels that tolerate curves
+
+Arterials get Douglas-Peucker simplification and three rounds of corner cutting (end points kept;
+a smoothed line that would touch water falls back to the raw path), and local streets start on the
+smoothed line with the junction added as a shared vertex. The bigger win was in the parcel check:
+a straight parcel edge clips a sliver off a curved carriageway, and the old test rejected any
+overlap above 1e-6 m², so curved roads lost most parcels. The check now allows 3% of the parcel
+area. Parcels per 2 km world, FRK-27 against now (seeds 0, 1, 2): 478 to 705, 284 to 493, 220 to 532.
+Buildings: 321 to 515, 215 to 357, 155 to 387. Arterial-only parcel counts are mixed (214 to 198,
+175 to 112, 108 to 168 against raw paths with the new tolerance), so the gain comes from the check.

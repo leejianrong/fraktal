@@ -15,7 +15,8 @@ from typing import Any
 import geopandas as gpd
 import numpy as np
 from affine import Affine
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point
+from shapely.ops import unary_union
 
 from fraktal.ids import substream
 from fraktal.kernels.pathing import least_cost_path
@@ -39,7 +40,9 @@ class RoadConfig:
     local_length_m: tuple[float, float] = (60.0, 220.0)
     local_probability: float = 0.85
     max_local_slope_deg: float = 18.0
-    bridge_cost: float = 40.0  # an arterial pays this per water cell, against about 1 on flat land
+    smooth_tolerance_cells: float = 1.5  # simplify first; 0 keeps the raw path
+    smooth_rounds: int = 3
+    bridge_cost: float = 40.0  # per water cell for an arterial; about 1 on flat land
 
 
 def _cost(slope: Any, water: Any, allow_water: bool, config: RoadConfig) -> Any:
@@ -114,6 +117,59 @@ def _xy(cells: Any, transform: Affine) -> list[tuple[float, float]]:
     return out
 
 
+def _chaikin(points: list[tuple[float, float]], rounds: int) -> list[tuple[float, float]]:
+    """Corner cutting: each round replaces every corner by points a quarter of the way along."""
+    for _ in range(rounds):
+        cut = [points[0]]
+        for (x0, y0), (x1, y1) in zip(points[:-1], points[1:], strict=True):
+            cut.append((0.75 * x0 + 0.25 * x1, 0.75 * y0 + 0.25 * y1))
+            cut.append((0.25 * x0 + 0.75 * x1, 0.25 * y0 + 0.75 * y1))
+        cut.append(points[-1])
+        points = cut
+    return points
+
+
+def smooth_arterial(
+    coords: list[tuple[float, float]], gsd_m: float, config: RoadConfig
+) -> list[tuple[float, float]]:
+    """Straighten a cell staircase: simplify, then cut corners. Both end points stay put."""
+    if len(coords) < 3 or config.smooth_tolerance_cells <= 0:
+        return coords
+    simple = LineString(coords).simplify(config.smooth_tolerance_cells * gsd_m)
+    return _chaikin(list(simple.coords), config.smooth_rounds)
+
+
+def _stays_dry(
+    coords: list[tuple[float, float]], water: Any, inverse: Affine, step_m: float
+) -> bool:
+    """True if no sample along the line, every ``step_m``, falls in a water cell."""
+    line = LineString(coords)
+    for d in np.arange(0.0, line.length + step_m, step_m):
+        p = line.interpolate(min(float(d), line.length))
+        col, row = inverse @ (p.x, p.y)
+        r, c = int(math.floor(row)), int(math.floor(col))
+        if 0 <= r < water.shape[0] and 0 <= c < water.shape[1] and water[r, c]:
+            return False
+    return True
+
+
+def _join_hooks(features: list[dict[str, Any]], hooks: list[Point]) -> None:
+    """Add each street junction as a vertex of the arterial it sits on, so the graph is shared."""
+    for hook in hooks:
+        for feature in features:
+            line = feature["geometry"]
+            if feature["road_class"] != "arterial" or line.distance(hook) > 1e-6:
+                continue
+            at = line.project(hook)
+            coords = list(line.coords)
+            along = [line.project(Point(c)) for c in coords]
+            if any(abs(a - at) < 1e-9 for a in along):
+                break
+            k = next(i for i, a in enumerate(along) if a > at)
+            feature["geometry"] = LineString([*coords[:k], (hook.x, hook.y), *coords[k:]])
+            break
+
+
 def build_roads(
     dem: Any,
     landcover: Any,
@@ -137,12 +193,20 @@ def build_roads(
     occupied = np.zeros(water.shape, dtype=bool)
     features: list[dict[str, Any]] = []
     arterials: list[Any] = []
+    smoothed: list[LineString] = []
+    inverse = ~transform
 
     def add(cells: Any, road_class: str, width: float, bridge: float) -> None:
         if len(cells) >= 2:
+            coords = _xy(cells, transform)
+            if road_class == "arterial" and bridge == 0.0:
+                fair = smooth_arterial(coords, gsd_m, config)
+                if fair is not coords and _stays_dry(fair, water, inverse, gsd_m / 2):
+                    coords = fair
+                smoothed.append(LineString(coords))
             features.append(
                 {
-                    "geometry": LineString(_xy(cells, transform)),
+                    "geometry": LineString(coords),
                     "provenance": PROVENANCE,
                     "road_class": road_class,
                     "width_m": width,
@@ -173,6 +237,8 @@ def build_roads(
             start = k
     rng = substream(seed, "roads:local")
     rows, cols = water.shape
+    trunk = unary_union(smoothed) if smoothed else None
+    hooks: list[Point] = []
     spacing = max(3, int(config.local_spacing_m / gsd_m))
     lo, hi = (v / gsd_m for v in config.local_length_m)
     for path in arterials:
@@ -199,5 +265,13 @@ def build_roads(
                     for r, c in cells[1:]:
                         occupied[r, c] = True
                     add(np.array(cells), "local", config.local_width_m, 0.0)
+                    if trunk is not None:  # start the street on the smoothed arterial itself
+                        feature = features[-1]
+                        first = Point(feature["geometry"].coords[0])
+                        hook = trunk.interpolate(trunk.project(first))
+                        tail = list(feature["geometry"].coords)[1:]
+                        feature["geometry"] = LineString([(hook.x, hook.y), *tail])
+                        hooks.append(hook)
             i += max(1, int(spacing * rng.uniform(0.7, 1.3)))
+    _join_hooks(features, hooks)
     return make_layer("road", world, features, crs)

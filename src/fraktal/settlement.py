@@ -33,6 +33,7 @@ class ParcelConfig:
     depth_m: tuple[float, float] = (22.0, 45.0)
     min_area_m2: float = 150.0
     local_only: bool = False  # parcels on arterials too by default
+    road_overlap_share: float = 0.03  # sliver a curved carriageway may clip off a parcel edge
 
 
 @dataclass(frozen=True)
@@ -112,7 +113,7 @@ def build_parcels(
     polys = [p for p, _, _ in candidates]
     tree = STRtree(polys)
     accepted = [False] * len(candidates)
-    for i, (poly, road_id, _) in enumerate(candidates):
+    for i, (poly, _, _) in enumerate(candidates):
         if poly.area < config.min_area_m2 or not poly.is_valid:
             continue
         if any(
@@ -120,12 +121,11 @@ def build_parcels(
             for x, y in [*poly.exterior.coords, (poly.centroid.x, poly.centroid.y)]
         ):
             continue
+        limit = max(1e-6, config.road_overlap_share * poly.area)
         crosses_road = any(
-            poly.intersection(carriageways[j][0]).area > 1e-6 and carriageways[j][1] != road_id
-            for j in road_tree.query(poly)
+            poly.intersection(carriageways[j][0]).area > limit for j in road_tree.query(poly)
         )
-        own = next(g for g, rid in carriageways if rid == road_id)
-        if crosses_road or poly.intersection(own).area > 1e-6:
+        if crosses_road:
             continue
         if any(
             accepted[j] and j != i and poly.intersection(polys[j]).area > 1e-6
