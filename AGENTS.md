@@ -31,6 +31,7 @@ make fmt               # apply ruff fixes and formatting
 - **Tests are layered:** `tests/unit` (temp files fine) and `tests/integration`
   (`pytestmark = pytest.mark.integration`). Fix a bug with a failing test first.
 - **Long jobs report progress.** Anything that can run for minutes emits `fraktal.log.emit` lines (stderr, never stdout) so a remote run can be watched.
+- **Benchmarks steer, they do not gate** ([ADR-0009](docs/adr/0009-build-for-coverage-and-measure-to-steer.md)). The working premise is that enough realism and generator degrees of freedom make synthetic data helpful. Keep building, keep measuring, record negative results, and widen the distribution rather than polishing one look.
 - **Secrets** come from environment variables only. Never commit `.env` or tokens.
 
 ## Docs
