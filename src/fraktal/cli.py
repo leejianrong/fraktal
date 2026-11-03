@@ -17,7 +17,18 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Any
 
-from fraktal import __version__, benchmark, chips, ingest, render, split, terrain, world
+from fraktal import (
+    __version__,
+    benchmark,
+    chips,
+    ingest,
+    render,
+    skeleton,
+    split,
+    synth,
+    terrain,
+    world,
+)
 
 
 class ExitCode(IntEnum):
@@ -155,12 +166,18 @@ def _benchmark(args: argparse.Namespace) -> Result:
         chips_dir = args.chips or chips.build_chips(args.data_dir, manifest)
         train_set, test_set = chips.load_splits(chips_dir)
         recipe = benchmark.Recipe(steps=args.steps) if args.steps else benchmark.Recipe()
-        report = benchmark.run_real_arms(train_set, test_set, recipe, args.seed, args.device)
+        synthetic = chips.load_all(args.synthetic) if args.synthetic else None
+        report = benchmark.run_arms(
+            train_set, test_set, recipe, args.seed, args.device, synthetic=synthetic
+        )
     except (OSError, ValueError, RuntimeError) as err:
         raise CliError(ExitCode.FAILURE, "benchmark_failed", str(err)) from err
     benchmark.write_report(report, out)
     iou = {name: round(arm["iou"], 4) for name, arm in report["arms"].items()}
-    return Result({"report": str(out), "iou": iou}, f"wrote {out}: IoU {iou}")
+    data: dict[str, Any] = {"report": str(out), "iou": iou}
+    if "comparison" in report:
+        data["comparison"] = report["comparison"]
+    return Result(data, f"wrote {out}: IoU {iou}")
 
 
 def _benchmark_args(parser: argparse.ArgumentParser) -> None:
@@ -170,7 +187,74 @@ def _benchmark_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--device", default="auto", help="auto, cpu or cuda")
     parser.add_argument("--split", type=Path, help="split manifest from `fraktal split`")
     parser.add_argument("--chips", type=Path, help="prebuilt chips directory (skips building)")
+    parser.add_argument("--synthetic", type=Path, help="synthetic chips dir (adds arm 3)")
     parser.add_argument("--out", type=Path, help="report path")
+
+
+def _split_manifest(args: argparse.Namespace) -> Path:
+    path: Path = args.split or args.data_dir / "spacenet2" / "khartoum-split.json"
+    return path
+
+
+def _generate(args: argparse.Namespace) -> Result:
+    out = args.out or args.data_dir / "worlds" / f"{skeleton.WORLD_ID}.parquet"
+    try:
+        layer = skeleton.build_skeleton(args.data_dir, _split_manifest(args), args.seed)
+        world.write_layer(layer, "building", out)
+    except (OSError, ValueError) as err:
+        raise CliError(ExitCode.FAILURE, "generate_failed", str(err)) from err
+    info = skeleton.describe(layer)
+    return Result({"world": str(out), **info}, f"wrote {out}: {info['buildings']} buildings")
+
+
+def _generate_args(parser: argparse.ArgumentParser) -> None:
+    _data_dir_arg(parser)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--split", type=Path, help="split manifest from `fraktal split`")
+    parser.add_argument("--out", type=Path, help="world GeoParquet path")
+
+
+def _synth(args: argparse.Namespace) -> Result:
+    terrain_dir = args.data_dir / "terrain" / "khartoum"
+    out = args.out or args.data_dir / "synthetic"
+    manifest = _split_manifest(args)
+    config = render.RenderConfig(
+        gsd_m=args.gsd_m,
+        tile_px=args.tile_px,
+        size_m=args.size_m,
+        sun_azimuth_deg=args.sun_azimuth,
+        sun_elevation_deg=args.sun_elevation,
+    )
+    try:
+        if not (terrain_dir / terrain.MARKER).is_file():
+            raise FileNotFoundError(f"no terrain under {terrain_dir}; run `fraktal ingest`")
+        layer = skeleton.build_skeleton(args.data_dir, manifest, args.seed)
+        centers = synth.pick_centers(manifest, args.seed, args.size_m)
+        meta = synth.synthesize(
+            terrain_dir,
+            layer,
+            centers,
+            args.regions,
+            skeleton.held_out_footprints(manifest, str(layer.crs)),
+            skeleton.train_coverage(manifest, str(layer.crs)),
+            out,
+            config,
+        )
+    except (OSError, ValueError) as err:
+        raise CliError(ExitCode.FAILURE, "synth_failed", str(err)) from err
+    n, dropped = len(meta["tiles"]), len(meta["dropped"])
+    data = {"chips": str(out / "chips"), "tiles": n, "dropped": dropped}
+    return Result(data, f"wrote {n} synthetic chips to {out / 'chips'} ({dropped} dropped)")
+
+
+def _synth_args(parser: argparse.ArgumentParser) -> None:
+    _generate_args(parser)
+    parser.add_argument("--regions", type=int, default=3, help="regions to render")
+    parser.add_argument("--size-m", type=float, default=2000.0)
+    parser.add_argument("--gsd-m", type=float, default=0.3, help="match the real imagery GSD")
+    parser.add_argument("--tile-px", type=int, default=650)
+    parser.add_argument("--sun-azimuth", type=float, default=135.0)
+    parser.add_argument("--sun-elevation", type=float, default=50.0)
 
 
 def _terrain_center(terrain_dir: Path) -> tuple[float, float]:
@@ -214,13 +298,16 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "split": _split_args,
     "render": _render_args,
     "benchmark": _benchmark_args,
+    "generate": _generate_args,
+    "synth": _synth_args,
 }
 
 COMMANDS: dict[str, tuple[str, Handler]] = {
     "version": ("Print the version", _version),
     "ingest": ("Fetch and cache real source data", _ingest),
     "split": ("Split the real tiles into train and held-out test", _split),
-    "generate": ("Generate a world from a seed and config", _not_implemented("generate")),
+    "generate": ("Generate a world from a seed and config", _generate),
+    "synth": ("Render synthetic pretraining chips from the world", _synth),
     "render": ("Render a world to imagery and labels", _render),
     "benchmark": ("Run the downstream benchmark", _benchmark),
     "inspect": ("Inspect a world, dataset or report", _not_implemented("inspect")),

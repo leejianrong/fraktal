@@ -223,32 +223,68 @@ def resolve_device(requested: str) -> str:
     return requested
 
 
-def run_real_arms(
+def run_arms(
     train_source: TileSource,
     test_source: TileSource,
     recipe: Recipe,
     seed: int,
     device: str = "auto",
     fraction: float = 0.1,
+    synthetic: TileSource | None = None,
 ) -> dict[str, Any]:
-    """Arms 1 and 2: real-only at ``fraction`` of the training tiles and at 100%."""
+    """Arm 1 (real at ``fraction``), arm 2 (real 100%) and, given synthetic tiles, arm 3.
+
+    Arm 3 pretrains on the synthetic tiles for ``recipe.steps`` steps, then fine-tunes on the
+    same real subset as arm 1 for another ``recipe.steps``. The extra pretraining compute is
+    the thing being tested, and the report says so.
+    """
     device = resolve_device(device)
     arms: dict[str, Any] = {}
-    for name, frac in (("real_10pct", fraction), ("real_100pct", 1.0)):
-        indices = choose_subset(len(train_source), frac, seed)
+    subset = choose_subset(len(train_source), fraction, seed)
+    for name, indices in (
+        ("real_10pct", subset),
+        ("real_100pct", list(range(len(train_source)))),
+    ):
         model, trace = train(Subset(train_source, indices), recipe, seed, device)
         arms[name] = {
             "iou": evaluate(model, test_source, recipe, device),
             "train_tiles": len(indices),
             "final_loss": trace[-1],
         }
-    return {
+    report: dict[str, Any] = {
         "schema": 1,
         "seed": seed,
         "device": device,
         "recipe": dataclasses.asdict(recipe),
         "test_tiles": len(test_source),
         "arms": arms,
+    }
+    if synthetic is not None:
+        pre, pre_trace = train(synthetic, recipe, seed, device)
+        state = {k: v.detach().cpu().clone() for k, v in pre.state_dict().items()}
+        zero_shot = evaluate(pre, test_source, recipe, device)
+        model, trace = train(Subset(train_source, subset), recipe, seed, device, init_state=state)
+        arms["synthetic_pretrain_then_real_10pct"] = {
+            "iou": evaluate(model, test_source, recipe, device),
+            "train_tiles": len(subset),
+            "synthetic_tiles": len(synthetic),
+            "pretrain_steps": recipe.steps,
+            "finetune_steps": recipe.steps,
+            "pretrain_final_loss": pre_trace[-1],
+            "final_loss": trace[-1],
+        }
+        report["diagnostics"] = {"synthetic_only_zero_shot_iou": zero_shot}
+        report["comparison"] = compare(arms)
+    return report
+
+
+def compare(arms: dict[str, Any]) -> dict[str, float]:
+    """The ADR-0006 bar: arm 3 over arm 1 in IoU points, and arm 3 as a share of arm 2."""
+    a1, a2 = arms["real_10pct"]["iou"], arms["real_100pct"]["iou"]
+    a3 = arms["synthetic_pretrain_then_real_10pct"]["iou"]
+    return {
+        "arm3_minus_arm1_iou_points": 100 * (a3 - a1),
+        "arm3_share_of_arm2": a3 / a2 if a2 else 0.0,
     }
 
 

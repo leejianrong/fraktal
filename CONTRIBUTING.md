@@ -6,6 +6,7 @@ Requires [uv](https://docs.astral.sh/uv/).
 
 ```bash
 make install   # locked dependencies
+make install-train   # also PyTorch, only for the benchmark (large)
 make hooks     # pre-push gate (runs `make check`)
 make           # list all targets
 ```

@@ -12,7 +12,7 @@ from fraktal.benchmark import (  # noqa: E402
     build_unet,
     choose_subset,
     evaluate,
-    run_real_arms,
+    run_arms,
     train,
     write_report,
 )
@@ -75,7 +75,7 @@ def test_same_seed_same_result() -> None:
 
 
 def test_report_records_recipe_seed_and_both_arms(tmp_path: Path) -> None:
-    report = run_real_arms(Squares(10), Squares(3), TINY, seed=2, device="cpu")
+    report = run_arms(Squares(10), Squares(3), TINY, seed=2, device="cpu")
     assert set(report["arms"]) == {"real_10pct", "real_100pct"}
     assert report["arms"]["real_10pct"]["train_tiles"] == 1
     assert report["arms"]["real_100pct"]["train_tiles"] == 10
@@ -95,3 +95,15 @@ def test_too_small_tile_is_an_error() -> None:
 
     with pytest.raises(ValueError, match="smaller"):
         train(Tiny(), TINY, seed=0, device="cpu")
+
+
+def test_synthetic_arm_reports_a_comparison() -> None:
+    report = run_arms(
+        Squares(10), Squares(3), TINY, seed=2, device="cpu", synthetic=Squares(5, size=96)
+    )
+    arm = report["arms"]["synthetic_pretrain_then_real_10pct"]
+    assert arm["train_tiles"] == report["arms"]["real_10pct"]["train_tiles"]  # same real data
+    assert arm["synthetic_tiles"] == 5
+    assert arm["pretrain_steps"] == arm["finetune_steps"] == 60
+    assert set(report["comparison"]) == {"arm3_minus_arm1_iou_points", "arm3_share_of_arm2"}
+    assert "synthetic_only_zero_shot_iou" in report["diagnostics"]
