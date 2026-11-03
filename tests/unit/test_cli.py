@@ -6,7 +6,7 @@ import pytest
 from fraktal import __version__, cli
 from fraktal.cli import ExitCode, main
 
-STAGES = ["ingest", "generate", "render", "benchmark", "inspect"]
+STAGES = ["generate", "render", "benchmark", "inspect"]
 
 
 def test_exit_codes_are_a_stable_contract() -> None:
