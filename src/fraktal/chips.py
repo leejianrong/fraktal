@@ -25,7 +25,7 @@ SCHEMA = 1
 STRETCH_SAMPLE = 64
 
 
-def _tile_path(root: Path, tile_id: str) -> Path:
+def tile_path(root: Path, tile_id: str) -> Path:
     return root / IMAGERY_DIR / f"RGB-PanSharpen_AOI_5_Khartoum_{tile_id}.tif"
 
 
@@ -34,7 +34,7 @@ def stretch_range(root: Path, tile_ids: Sequence[str]) -> tuple[float, float]:
     step = max(1, len(tile_ids) // STRETCH_SAMPLE)
     values = []
     for tile_id in sorted(tile_ids)[::step]:
-        with rasterio.open(_tile_path(root, tile_id)) as src:
+        with rasterio.open(tile_path(root, tile_id)) as src:
             data = src.read()
         values.append(data[data > 0][::17])
     flat = np.concatenate(values)
@@ -67,7 +67,7 @@ def build_chips(data_dir: Path, manifest_path: Path, out_dir: Path | None = None
     for n, tile_id in enumerate(everything):
         if n and n % 200 == 0:
             emit("chips_progress", done=n, of=len(everything))
-        with rasterio.open(_tile_path(root, tile_id)) as src:
+        with rasterio.open(tile_path(root, tile_id)) as src:
             image = _to_uint8(src.read(), low, high)
             transform, shape = src.transform, src.shape
         labels = root / LABEL_DIR / f"buildings_AOI_5_Khartoum_{tile_id}.geojson"

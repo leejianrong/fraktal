@@ -178,3 +178,16 @@ At 1% real (8 tiles) the test can discriminate. Three seeds, 3000 steps per arm,
 **Consequence.** The result agrees with the 10% run: realism work through v6 raised the synthetic-only score from 0 to about 0.3 but did not make pretraining pay in the fine-tuned model. This is the risk the plan names (the sim-to-real gap is larger than randomisation can close). ADR-0009 sets the response: keep building for coverage and use these measurements to steer. The extremes (v7) and objects (v8) variants were not part of this run. They are the remaining realism levers on the list, and a further run including them at 1% would show whether they change the answer.
 
 **Operational note.** The relay transfer failed ("room not ready"), so the pod waited out the transfer timeout (about 25 minutes, roughly $0.25) before the wrapper terminated it. The numbers were recovered from the report printed in the pod logs, as designed. Total cost about $1.1.
+
+### FRK-23: palette fitted from the real train chips
+
+`fraktal palette` fits class colours and roof colours from the real train chips only (never test tiles): WorldCover classes warped onto each tile's grid give per-class mean colours away from buildings, and the pixels under building labels are clustered (seeded k-means, four colours with their shares). Values are stored as albedo, chip colour divided by the render tone, so the tone gain still applies on top. `fraktal synth --palette <file>` uses them; without a palette the hand-picked colours are unchanged. Fitted on 162 sampled train tiles: six classes had enough pixels (tree cover, grassland, cropland, built-up, bare ground, water) and four roof colours came out, from dark grey to very bright (which saturate, as real bright roofs do). Same three regions with `v8_objects` settings:
+
+| | Hand-picked colours | Fitted palette | Real |
+|---|---|---|---|
+| Colour W1 | 0.065 | 0.044 | |
+| Channel means (R, G, B) | 77, 115, 16 | 87, 129, 22 | 88, 118, 34 |
+| Grey contrast (std) | 38.5 | 43.7 | 35.6 |
+| Strong-edge share | 2.1% | 2.7% | 4.9% |
+
+Colour distance falls by a third and red and green now match. Blue is still low (22 against 34) and contrast now overshoots, because the extremes settings (FRK-21) were tuned against the old colours. Re-tuning contrast against the palette, and a blue-channel fix, are the obvious next steps. Downstream effect untested.
