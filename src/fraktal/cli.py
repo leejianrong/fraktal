@@ -229,6 +229,8 @@ def _synth(args: argparse.Namespace) -> Result:
         variation=args.variation,
         tone=tuple(args.tone),
         texture=args.texture,
+        haze=args.haze,
+        penumbra_m=args.penumbra,
     )
     try:
         if not (terrain_dir / terrain.MARKER).is_file():
@@ -268,6 +270,8 @@ def _synth_args(parser: argparse.ArgumentParser) -> None:
         default=render.KHARTOUM_TONE,
         help="per-channel gain (default matches the real Khartoum chips)",
     )
+    parser.add_argument("--haze", type=float, default=0.0, help="atmospheric optical depth")
+    parser.add_argument("--penumbra", type=float, default=0.0, help="shadow softness in metres")
     parser.add_argument(
         "--texture", type=float, default=0.7, help="sub-10 m texture strength (0 is flat)"
     )

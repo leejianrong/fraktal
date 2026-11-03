@@ -84,3 +84,14 @@ A `value_noise` kernel (`kernels/noise.py`, golden-tested) feeds a four-octave t
 | 0.7 (synth default) | 0.073 | 0.61 | 0.44 |
 
 Edge energy is still well short of real imagery, whose edges come from objects (cars, trees, roof detail) as much as from texture. Sensor effects (FRK-16) and object detail are the remaining levers.
+
+### FRK-15: sun, haze and soft shadows
+
+Haze (exponential transmittance, monotonic in optical depth, blending toward a sky colour) and soft shadow edges (a Gaussian blur kernel in `kernels/filters.py`) are in the renderer, off by default. Sun azimuth and elevation were already per-render parameters. Measured on the same three regions with haze 0.1 and penumbra 0.3 m:
+
+| | Colour W1 | Edge-energy gap | Noise gap |
+|---|---|---|---|
+| FRK-14 (no haze, hard shadows) | 0.073 | 0.61 | 0.44 |
+| With haze and penumbra | 0.080 | 0.66 | 0.68 |
+
+Both lower contrast, and the real Khartoum chips are high-contrast, so on this gauge they move away from the real data. They stay off by default. They are for randomisation ranges (FRK-17), and the ablation (FRK-18) will say whether they help the downstream model.
