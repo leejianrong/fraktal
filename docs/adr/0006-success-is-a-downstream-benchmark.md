@@ -68,3 +68,7 @@ The two seed-0 runs agree within 0.7 points, so run-to-run noise is under one po
 | Noise level | 24.2 | 17.6 |
 
 Distances: colour W1 0.205, edge-energy gap 0.86, noise gap 0.27. Real imagery is warm and high-contrast with strong local edges. The synthetic chips are grey and flat. The colour and edge-energy gaps are what FRK-13 to FRK-16 should close.
+
+### FRK-13: varied reflectance and tone
+
+Per-scene class reflectance gains (from named sub-streams), per-building roof material and brightness (from the stable feature id), and a per-channel tone matched to the real chips (the real Khartoum chips have a strong green cast, so the synthetic tone is calibrated to the benchmark's inputs, not to natural colour). Colour W1 fell from 0.205 to 0.095. Reflectance variation alone did not move it (0.213); the tone did. Edge-energy gap 0.90 and noise gap 0.47 remain, which is the work in FRK-14 to FRK-16.

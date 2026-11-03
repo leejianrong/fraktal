@@ -225,6 +225,9 @@ def _synth(args: argparse.Namespace) -> Result:
         size_m=args.size_m,
         sun_azimuth_deg=args.sun_azimuth,
         sun_elevation_deg=args.sun_elevation,
+        seed=args.seed,
+        variation=args.variation,
+        tone=tuple(args.tone),
     )
     try:
         if not (terrain_dir / terrain.MARKER).is_file():
@@ -256,6 +259,17 @@ def _synth_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--tile-px", type=int, default=650)
     parser.add_argument("--sun-azimuth", type=float, default=135.0)
     parser.add_argument("--sun-elevation", type=float, default=50.0)
+    parser.add_argument(
+        "--tone",
+        type=float,
+        nargs=3,
+        metavar=("R", "G", "B"),
+        default=render.KHARTOUM_TONE,
+        help="per-channel gain (default matches the real Khartoum chips)",
+    )
+    parser.add_argument(
+        "--variation", type=float, default=0.15, help="reflectance spread (0 is flat, V1 look)"
+    )
 
 
 def _compare(args: argparse.Namespace) -> Result:

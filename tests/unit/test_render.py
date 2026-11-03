@@ -172,10 +172,10 @@ def test_a_corrupted_tile_is_dropped_and_listed(
 
     real = render_module._building_rasters
 
-    def corrupt(buildings: gpd.GeoDataFrame, transform: object, side: int) -> tuple[object, object]:
-        height, mask = real(buildings, transform, side)
+    def corrupt(buildings: gpd.GeoDataFrame, transform: object, side: int) -> tuple[object, ...]:
+        height, mask, index = real(buildings, transform, side)
         mask[3, 3] ^= 1  # one wrong pixel in tile r00_c00
-        return height, mask
+        return height, mask, index
 
     monkeypatch.setattr(render_module, "_building_rasters", corrupt)
     out = tmp_path / "out"
@@ -194,3 +194,80 @@ def test_independent_mask_rejects_rotated_grids() -> None:
 
     with pytest.raises(ValueError, match="north-up"):
         independent_building_mask([box(0, 0, 1, 1)], Affine(1, 0.1, 0, 0, -1, 0), (2, 2))
+
+
+def test_variation_zero_keeps_the_flat_v1_look(tmp_path: Path, terrain: Path) -> None:
+    out = tmp_path / "flat"
+    render_region(terrain, one_building(CENTER, 10, 5.0), CENTER, out, SMALL)
+    with rasterio.open(out / "tiles" / "r00_c00.tif") as src:
+        rgb = src.read()
+    assert len({tuple(rgb[:, y, x]) for y in range(50) for x in range(50)}) <= 3
+
+
+def varied(seed: int, variation: float = 0.2) -> RenderConfig:
+    return RenderConfig(
+        gsd_m=1.0, tile_px=50, size_m=100.0, sun_azimuth_deg=270.0,
+        sun_elevation_deg=45.0, seed=seed, variation=variation,
+    )  # fmt: skip
+
+
+def read_hash(out: Path) -> str:
+    return hashlib.sha256((out / "tiles" / "r00_c00.tif").read_bytes()).hexdigest()
+
+
+def test_varied_render_is_deterministic_and_seed_dependent(tmp_path: Path, terrain: Path) -> None:
+    layer = one_building(CENTER, 10, 5.0)
+    hashes = []
+    for name, seed in [("a", 1), ("b", 1), ("c", 2)]:
+        out = tmp_path / name
+        render_region(terrain, layer, CENTER, out, varied(seed))
+        hashes.append(read_hash(out))
+    assert hashes[0] == hashes[1]
+    assert hashes[0] != hashes[2]
+
+
+def test_variation_leaves_the_labels_untouched(tmp_path: Path, terrain: Path) -> None:
+    layer = one_building(CENTER, 10, 5.0)
+    flat = render_region(terrain, layer, CENTER, tmp_path / "f", SMALL)
+    var = render_region(terrain, layer, CENTER, tmp_path / "v", varied(3))
+    assert [t["mask_sha256"] for t in flat["tiles"]] == [t["mask_sha256"] for t in var["tiles"]]
+
+
+def test_roof_table_is_stable_per_building_id() -> None:
+    from fraktal.render import ROOF_MATERIALS, roof_table
+
+    ids = ["00000000aaaa1111", "00000001ffff2222", "00000002000033333"[:16]]
+    full = roof_table(ids, 0.2)
+    again = roof_table(ids[:2], 0.2)
+    assert (full[1:3] == again[1:3]).all()
+    assert len({tuple(r) for r in full[1:]}) == 3
+    assert roof_table(ids, 0.0)[1].tolist() == list(ROOF_MATERIALS[0])
+
+
+def test_class_gains_vary_by_class_and_scale_with_variation() -> None:
+    from fraktal.render import class_gains
+
+    g = class_gains(5, 0.2)
+    assert not np.allclose(g[10], g[40])
+    assert (class_gains(5, 0.0) == 1).all()
+    assert np.abs(class_gains(5, 0.4)[10] - 1).sum() > np.abs(g[10] - 1).sum()
+
+
+def test_tone_scales_channels_and_defaults_to_neutral() -> None:
+    land = np.full((4, 4), 30, dtype="uint8")
+    none = np.zeros((4, 4), dtype="uint8")
+    neutral = shade(land, none, none)
+    toned = shade(land, none, none, tone=(0.5, 1.0, 0.0))
+    assert (toned[1] == neutral[1]).all()
+    assert (toned[2] == 0).all()
+    assert abs(int(toned[0, 0, 0]) - int(neutral[0, 0, 0]) // 2) <= 1
+
+
+def test_tone_reaches_the_written_image_when_varied(tmp_path: Path, terrain: Path) -> None:
+    layer = one_building(CENTER, 10, 5.0)
+    base = varied(1)
+    dark_blue = RenderConfig(**{**base.__dict__, "tone": (1.0, 1.0, 0.0)})
+    out = tmp_path / "t"
+    render_region(terrain, layer, CENTER, out, dark_blue)
+    with rasterio.open(out / "tiles" / "r00_c00.tif") as src:
+        assert (src.read(3) == 0).all()
