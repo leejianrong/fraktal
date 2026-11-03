@@ -117,12 +117,12 @@ Test at the fewest, highest seams. Behaviour, not internals.
 | Q7 | Dependency and licence picks, Blender only as optional subprocess | A licence surprise could block selling; days to weeks |
 | Q9 | Optical RGB+NIR only, 0.5 m and 3 m | Different bands/GSD means renderer changes; days |
 | Q13 | Domain randomisation before learned refinement | If insufficient, adds a second system (weeks) |
-| Q14 | Benchmark bar: +5 IoU over arm 1 and at least 90% of real-100%, measured where real-100% beats arm 1 by 10+ points | Revised after V1 (10% real was within 1 point of 100%). V3 ablation done: best variant level with arm 1, still undecidable at 10% real. A scarce-data run is needed before V4; low |
+| Q14 | Benchmark bar: +5 IoU over arm 1 and at least 90% of real-100%, measured where real-100% beats arm 1 by 10+ points | Revised after V1 (10% real was within 1 point of 100%). V3 ablation: level with arm 1 at 10% real (undecidable); at 1% real (decidable) the bar is missed. Premise review before V4; low |
 | Q15 | Decided in ADR-0008: SpaceNet 2 Khartoum for V1 | Not tropical; regional transfer unproven until V4 |
 
 ## Open risks
 
-- **Sim-to-real gap is larger than randomisation can close.** Revealed by V1 (crude render) and V3 (realism). V1 confirmed the gap (synthetic-only IoU about 0), so V3 now runs before V2. If V3 does not move the benchmark, the whole premise needs rethinking before V4.
+- **Sim-to-real gap is larger than randomisation can close.** Revealed by V1 (crude render) and V3 (realism). V1 confirmed the gap (synthetic-only IoU about 0), so V3 now runs before V2. V3 through v6 did not move the benchmark at 1% real (ADR-0006, 2026-11-03), so this risk has fired for the realism levers tried; v7 and v8 are untested downstream. If V3 does not move the benchmark, the whole premise needs rethinking before V4.
 - **Python performance ceiling.** Revealed in V5 (scale-out) and the first agent simulation. Mitigated by the kernel seam (ADR-0005).
 - **OSM/ODbL and benchmark-dataset licences** block a first sale. Resolved by the gate in V5.
 - **Benchmark region mismatch:** open benchmarks may be non-tropical, so transfer to SE Asia is unmeasured until a tropical real test set is found (V4).
