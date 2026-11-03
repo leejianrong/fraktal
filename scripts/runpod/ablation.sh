@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Pod-side job for the V3 realism ablation (FRK-18). Run it as RP_JOB_CMD under the runpod-jobs
-# `rp` wrapper. Needs COMMIT (a pushed sha); optional SEEDS (default "0 1"), STEPS, VARIANTS.
+# `rp` wrapper. Needs COMMIT (a pushed sha); optional SEEDS (default "0 1"), STEPS, VARIANTS
+# (space-separated names, default all) and FRACTION (real share for arms 1 and 3, default 0.1).
 # Nothing here reads or prints a secret.
 #
 # Watch it with scripts/runpod/status.sh <pod-id>. Failure signals, all grep-able in the logs:
@@ -14,6 +15,8 @@ set -uo pipefail
 : "${COMMIT:?set COMMIT to the sha to run}"
 SEEDS="${SEEDS:-0 1}"
 STEPS="${STEPS:-}"
+FRACTION="${FRACTION:-0.1}"
+VARIANTS="${VARIANTS:-}"
 RUN=/workspace/run
 mkdir -p "$RUN" && cd "$RUN"
 exec > >(tee -a "$RUN/job.log") 2>&1
@@ -90,7 +93,8 @@ stage split;  fraktal split --seed 0
 fraktal ablate --help > /dev/null   # fail now, not after the data is built, if the command is broken
 
 # Render every variant on the CPU in the background while the GPU trains the earlier ones.
-VARS=$(python -c "from fraktal.ablation import VARIANTS; print(' '.join(VARIANTS))")
+VARS="${VARIANTS:-$(python -c "from fraktal.ablation import VARIANTS; print(' '.join(VARIANTS))")}"
+VARLIST=($VARS)
 (
   for v in $VARS; do
     echo "synth_start $v"
@@ -109,14 +113,14 @@ SYNTH=$!
 # A short end-to-end smoke test of the real code path on the GPU as soon as the first variant
 # exists: if anything is broken it shows here, minutes in, not an hour in.
 stage "smoke (30 steps)"
-fraktal ablate --seeds 0 --variants v0_flat --steps 30 --device cuda --wait-secs 1800 \
+fraktal ablate --seeds 0 --variants "${VARLIST[0]}" --fraction "$FRACTION" --steps 30 --device cuda --wait-secs 1800 \
   --out results/smoke.json
 echo "smoke ok"
 
 stage "ablate (seeds $SEEDS)"
 EXTRA=()
 [ -n "$STEPS" ] && EXTRA=(--steps "$STEPS")
-timeout 11000 fraktal ablate --seeds $SEEDS --device cuda --wait-secs 3600 \
+timeout 11000 fraktal ablate --seeds $SEEDS --variants "${VARLIST[@]}" --fraction "$FRACTION" --device cuda --wait-secs 3600 \
   --out results/ablation.json "${EXTRA[@]}" 2>&1 | tee ablate.log || true
 test "$(python -c "import json;print(json.load(open('results/ablation.json'))['status'])")" = complete
 wait "$SYNTH" || true

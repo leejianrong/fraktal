@@ -55,6 +55,38 @@ def variant_config(name: str, base: RenderConfig) -> tuple[RenderConfig, bool]:
     return dataclasses.replace(base, **fields), False
 
 
+def subset_arm(fraction: float) -> str:
+    """Report key of the real-subset arm: ``real_10pct`` at 0.1, ``real_1pct`` at 0.01."""
+    return f"real_{fraction * 100:g}pct"
+
+
+def verdict(
+    runs: Sequence[dict[str, Any]], names: Sequence[str], fraction: float
+) -> dict[str, Any]:
+    """The ADR-0006 bar over the seeds so far: met, missed or undecidable, per variant.
+
+    The test only counts where arm 2 beats arm 1 by 10+ points; below that it says so.
+    """
+    key = subset_arm(fraction)
+    arm1 = sum(r["arms"][key]["iou"] for r in runs) / len(runs)
+    arm2 = sum(r["arms"]["real_100pct"]["iou"] for r in runs) / len(runs)
+    gap = 100 * (arm2 - arm1)
+    out: dict[str, Any] = {"arm2_minus_arm1_points": gap, "decidable": gap >= 10, "variants": {}}
+    for name in names:
+        done = [r["variants"][name]["arm3_iou"] for r in runs if name in r["variants"]]
+        if not done:
+            continue
+        arm3 = sum(done) / len(done)
+        lift, share = 100 * (arm3 - arm1), arm3 / arm2 if arm2 else 0.0
+        state = "undecidable" if gap < 10 else ("met" if lift >= 5 and share >= 0.9 else "missed")
+        out["variants"][name] = {
+            "arm3_minus_arm1_points": lift,
+            "share_of_arm2": share,
+            "bar": state,
+        }
+    return out
+
+
 class VariantNotReady(RuntimeError):
     pass
 
@@ -104,6 +136,7 @@ def run_ablation(
         "recipe": dataclasses.asdict(recipe),
         "device": device,
         "variants": list(names),
+        "fraction": fraction,
         "runs": [],
         "status": "running",
     }
@@ -112,12 +145,15 @@ def run_ablation(
         run: dict[str, Any] = {"seed": seed, "arms": {}, "variants": {}}
         report["runs"].append(run)
         subset = benchmark.choose_subset(len(train_source), fraction, seed)
+        arm1_key = subset_arm(fraction)
         for arm, indices in (
-            ("real_10pct", subset),
+            (arm1_key, subset),
             ("real_100pct", list(range(len(train_source)))),
         ):
             started = time.monotonic()
             emit("arm_start", arm=arm, seed=seed, train_tiles=len(indices))
+            if arm == arm1_key:
+                emit("ablation_subset", fraction=fraction, tiles=len(indices), of=len(train_source))
             model, trace = benchmark.train(
                 Subset(train_source, indices), recipe, seed, device, label=arm, log_every=log_every
             )
@@ -132,7 +168,7 @@ def run_ablation(
             )
             emit("ablation_result", seed=seed, arm=arm, iou=round(iou, 4))
             _write(report, out)
-        base = run["arms"]["real_10pct"]["iou"]
+        base = run["arms"][arm1_key]["iou"]
         for name in names:
             started = time.monotonic()
             source = chips_for(name)
@@ -174,6 +210,7 @@ def run_ablation(
                 vs_arm1_points=round(entry["arm3_minus_arm1_points"], 2),
                 zero_shot=round(zero_shot, 4),
             )
+            report["q14"] = verdict(report["runs"], names, fraction)
             _write(report, out)
     report["status"] = "complete"
     report["hardware"] = benchmark.hardware_stats(device)
