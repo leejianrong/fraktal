@@ -9,6 +9,7 @@ authors = [{ name = "Jian Rong Lee" }]
 requires-python = ">=3.10"
 dependencies = [
     "geopandas>=1.1.4",
+    "numba>=0.68.1",
     "numpy>=1.26",
     "pyarrow>=25.0.1",
     "rasterio>=1.4.4",

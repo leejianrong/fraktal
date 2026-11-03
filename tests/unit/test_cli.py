@@ -6,7 +6,7 @@ import pytest
 from fraktal import __version__, cli
 from fraktal.cli import ExitCode, main
 
-STAGES = ["generate", "render", "benchmark", "inspect"]
+STAGES = ["generate", "benchmark", "inspect"]
 
 
 def test_exit_codes_are_a_stable_contract() -> None:
@@ -44,7 +44,7 @@ def test_unimplemented_stage_exits_3_with_json_error(
 
 
 def test_human_errors_go_to_stderr(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["render"]) == ExitCode.NOT_IMPLEMENTED
+    assert main(["inspect"]) == ExitCode.NOT_IMPLEMENTED
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "not implemented" in captured.err
