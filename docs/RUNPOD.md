@@ -36,3 +36,16 @@ Quiet for more than a few minutes, or no heartbeat, means the pod is stuck: look
 The job prints each finished report between `RP_REPORT_BEGIN` and `RP_REPORT_END`, so the numbers
 are readable from the logs even if the relay transfer fails. Afterwards confirm
 `runpodctl pod list` no longer shows the pod.
+
+## The V3 ablation (`scripts/runpod/ablation.sh`)
+
+`fraktal ablate` runs arms 1 and 2 once per seed, then arm 3 for each realism variant
+(`fraktal.ablation.VARIANTS`, cumulative from the flat V1 render to the randomised one). The pod
+job renders the variants on the CPU in the background while the GPU trains earlier ones, runs a
+30-step smoke test as soon as the first variant exists, and publishes whatever it has even if a
+step fails. Launch it like the V1 job, with `COMMIT` and optionally `SEEDS` (default `0 1`).
+
+Failure signals in the logs: `STAGE failed`, `ERROR <what>` (a background synth died), `WARN`
+(no output for 10 minutes, GPU idle for 6 minutes during training, disk or RAM above 90%), and a
+heartbeat that stops. `scripts/runpod/status.sh <pod-id>` lists them along with each finished
+`ablation_result`.
