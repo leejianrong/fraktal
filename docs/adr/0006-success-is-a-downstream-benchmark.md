@@ -72,3 +72,15 @@ Distances: colour W1 0.205, edge-energy gap 0.86, noise gap 0.27. Real imagery i
 ### FRK-13: varied reflectance and tone
 
 Per-scene class reflectance gains (from named sub-streams), per-building roof material and brightness (from the stable feature id), and a per-channel tone matched to the real chips (the real Khartoum chips have a strong green cast, so the synthetic tone is calibrated to the benchmark's inputs, not to natural colour). Colour W1 fell from 0.205 to 0.095. Reflectance variation alone did not move it (0.213); the tone did. Edge-energy gap 0.90 and noise gap 0.47 remain, which is the work in FRK-14 to FRK-16.
+
+### FRK-14: texture below the 10 m grid
+
+A `value_noise` kernel (`kernels/noise.py`, golden-tested) feeds a four-octave texture field (40 m, 10 m, 2.5 m and 0.8 m cells) that modulates albedo per class. Measured on the same three regions:
+
+| Texture | Colour W1 | Edge-energy gap | Noise gap |
+|---|---|---|---|
+| 0 (FRK-13) | 0.095 | 0.90 | 0.47 |
+| 0.3 | 0.084 | 0.77 | 0.47 |
+| 0.7 (synth default) | 0.073 | 0.61 | 0.44 |
+
+Edge energy is still well short of real imagery, whose edges come from objects (cars, trees, roof detail) as much as from texture. Sensor effects (FRK-16) and object detail are the remaining levers.
