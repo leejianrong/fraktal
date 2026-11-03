@@ -26,6 +26,7 @@ from fraktal import (
     randomise,
     realism,
     render,
+    report,
     skeleton,
     split,
     synth,
@@ -241,6 +242,39 @@ def _ablate_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--out", type=Path, help="report path")
 
 
+def _report(args: argparse.Namespace) -> Result:
+    out: Path = args.out or args.data_dir / "reports"
+    try:
+        ablation_report = report.load_ablation(args.ablation)
+        real: list[Any] = []
+        variants: dict[str, list[Any]] = {}
+        root: Path = args.variants_dir or args.data_dir / "ablation"
+        real_dir = args.real or args.data_dir / "spacenet2" / "chips"
+        if (real_dir / "chips.json").is_file():
+            train = chips.load_splits(real_dir)[0]
+            real = [train.get(i)[0] for i in range(len(train))]
+            for name in ablation_report["variants"]:
+                if (root / name / "chips" / "chips.json").is_file():
+                    source = chips.load_all(root / name / "chips")
+                    variants[name] = [source.get(i)[0] for i in range(len(source))]
+        figures = report.build_figures(ablation_report, out / "figures", real, variants)
+        pdf = report.build_pdf(ablation_report, figures, out / "realism-report.pdf")
+    except (OSError, ValueError, KeyError, RuntimeError) as err:
+        raise CliError(ExitCode.FAILURE, "report_failed", str(err)) from err
+    data = {"pdf": str(pdf), "figures": {k: str(v) for k, v in figures.items()}}
+    return Result(data, f"wrote {pdf} ({len(figures)} figures)")
+
+
+def _report_args(parser: argparse.ArgumentParser) -> None:
+    _data_dir_arg(parser)
+    parser.add_argument("--ablation", type=Path, required=True, help="ablation.json from `ablate`")
+    parser.add_argument("--real", type=Path, help="real chips dir (default spacenet2/chips)")
+    parser.add_argument(
+        "--variants-dir", type=Path, help="holds <variant>/chips (default ablation/)"
+    )
+    parser.add_argument("--out", type=Path, help="output directory (default <data-dir>/reports)")
+
+
 def _split_manifest(args: argparse.Namespace) -> Path:
     path: Path = args.split or args.data_dir / "spacenet2" / "khartoum-split.json"
     return path
@@ -420,6 +454,7 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "synth": _synth_args,
     "compare": _compare_args,
     "ablate": _ablate_args,
+    "report": _report_args,
 }
 
 COMMANDS: dict[str, tuple[str, Handler]] = {
@@ -431,6 +466,7 @@ COMMANDS: dict[str, tuple[str, Handler]] = {
     "render": ("Render a world to imagery and labels", _render),
     "benchmark": ("Run the downstream benchmark", _benchmark),
     "ablate": ("Run the realism ablation benchmark", _ablate),
+    "report": ("Build the realism report PDF from an ablation", _report),
     "compare": ("Measure how far synthetic chips are from real imagery", _compare),
     "inspect": ("Inspect a world, dataset or report", _not_implemented("inspect")),
 }
