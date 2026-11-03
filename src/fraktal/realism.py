@@ -48,6 +48,21 @@ def noise_level(chip: Chip) -> float:
     return float(lap.std())
 
 
+def contrast_std(chip: Chip) -> float:
+    """Spread of the grey image: how dramatic the scene is."""
+    return float(_grey(chip).std())
+
+
+def clipped_share(chip: Chip) -> float:
+    """Share of pixels pinned at 0 or 255: no-data edges and saturated surfaces."""
+    return float(((chip == 0) | (chip == 255)).mean())
+
+
+def strong_edge_share(chip: Chip, threshold: float = 20.0) -> float:
+    """Share of horizontal steps above ``threshold`` DN: object and shadow boundaries."""
+    return float((np.abs(np.diff(_grey(chip), axis=1)) > threshold).mean())
+
+
 def _mean(values: Sequence[float]) -> float:
     return float(np.mean(values))
 
@@ -69,6 +84,9 @@ def compare(real: Sequence[Chip], synthetic: Sequence[Chip]) -> dict[str, Any]:
             "channel_std": [round(float(v), 2) for v in pixels.std(axis=(0, 2))],
             "edge_energy": round(_mean([edge_energy(c) for c in chips]), 3),
             "noise_level": round(_mean([noise_level(c) for c in chips]), 3),
+            "contrast_std": round(_mean([contrast_std(c) for c in chips]), 3),
+            "clipped_share": round(_mean([clipped_share(c) for c in chips]), 4),
+            "strong_edge_share": round(_mean([strong_edge_share(c) for c in chips]), 4),
         }
     r, s = stats["real"], stats["synthetic"]
     return {
@@ -77,6 +95,10 @@ def compare(real: Sequence[Chip], synthetic: Sequence[Chip]) -> dict[str, Any]:
             "colour_w1": round(colour_distance(real, synthetic), 4),
             "edge_energy_gap": round(_relative_gap(r["edge_energy"], s["edge_energy"]), 4),
             "noise_gap": round(_relative_gap(r["noise_level"], s["noise_level"]), 4),
+            "contrast_gap": round(_relative_gap(r["contrast_std"], s["contrast_std"]), 4),
+            "strong_edge_gap": round(
+                _relative_gap(r["strong_edge_share"], s["strong_edge_share"]), 4
+            ),
         },
     }
 

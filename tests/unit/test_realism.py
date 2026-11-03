@@ -74,3 +74,20 @@ def test_compare_command_reports_distances(
     assert code == 0
     assert out["data"]["distances"]["colour_w1"] > 0
     assert out["data"]["distances"]["noise_gap"] == pytest.approx(1.0)
+
+
+def test_clipping_contrast_and_strong_edges_are_measured() -> None:
+    from fraktal.realism import clipped_share, contrast_std, strong_edge_share
+
+    flat = chip(100)
+    assert clipped_share(flat) == 0 and contrast_std(flat) == 0 and strong_edge_share(flat) == 0
+    blank = chip(100)
+    blank[:, :32, :] = 0
+    assert clipped_share(blank) == pytest.approx(0.5)
+    assert contrast_std(blank) == pytest.approx(50, abs=1)
+    assert strong_edge_share(blank) == 0  # steps are vertical, the gauge looks along rows
+    stripes = chip(100)
+    stripes[:, :, ::2] = 200
+    assert strong_edge_share(stripes) == 1.0
+    report = compare([chip(100, 20)], [blank])
+    assert {"contrast_gap", "strong_edge_gap"} <= set(report["distances"])

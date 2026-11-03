@@ -17,7 +17,7 @@ from typing import Any
 from fraktal import benchmark, realism
 from fraktal.benchmark import Recipe, Subset, TileSource
 from fraktal.log import emit
-from fraktal.render import KHARTOUM_TONE, RenderConfig
+from fraktal.render import AMBIENT, KHARTOUM_TONE, RenderConfig
 
 NEUTRAL: dict[str, Any] = {
     "variation": 0.0,
@@ -27,6 +27,10 @@ NEUTRAL: dict[str, Any] = {
     "noise_sigma": 0.0,
     "haze": 0.0,
     "penumbra_m": 0.0,
+    "ambient": AMBIENT,
+    "contrast": 1.0,
+    "bright_roofs": 0.0,
+    "blank_prob": 0.0,
 }
 # Each variant adds one component to the one before it. The last draws them all per region.
 STEPS: tuple[tuple[str, dict[str, Any]], ...] = (
@@ -38,7 +42,16 @@ STEPS: tuple[tuple[str, dict[str, Any]], ...] = (
     ("v5_atmosphere", {"haze": 0.1, "penumbra_m": 0.3}),
 )
 RANDOMISED = "v6_randomised"
-VARIANTS: tuple[str, ...] = (*(name for name, _ in STEPS), RANDOMISED)
+# Brightness and darkness extremes on top of the atmosphere variant (FRK-21). Not part of the
+# randomised variant, which keeps its original definition so earlier results stay comparable.
+EXTREMES = "v7_extremes"
+EXTREME_FIELDS: dict[str, Any] = {
+    "ambient": 0.18,
+    "contrast": 1.25,
+    "bright_roofs": 0.15,
+    "blank_prob": 0.25,
+}
+VARIANTS: tuple[str, ...] = (*(name for name, _ in STEPS), RANDOMISED, EXTREMES)
 
 
 def variant_config(name: str, base: RenderConfig) -> tuple[RenderConfig, bool]:
@@ -50,6 +63,8 @@ def variant_config(name: str, base: RenderConfig) -> tuple[RenderConfig, bool]:
         fields.update(change)
         if step == name:
             break
+    if name == EXTREMES:
+        fields.update(EXTREME_FIELDS)
     if name == RANDOMISED:
         return dataclasses.replace(base, **fields), True
     return dataclasses.replace(base, **fields), False
