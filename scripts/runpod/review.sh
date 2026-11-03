@@ -94,9 +94,10 @@ mkdir -p data/review
 ( while true; do for f in data/review_*.log; do [ -f "$f" ] && echo "[$(basename "$f" .log)] $(tail -n 1 "$f" | cut -c1-160)"; done; sleep 90; done ) &
 for v in $VARIANTS; do
   render "proc_$v" --variant "$v" --procedural &
+  p1=$!
   render "skel_$v" --variant "$v" &
-  wait -n; wait -n || true
-  wait
+  p2=$!
+  wait "$p1" "$p2"  # never a bare `wait`: it would also wait on the heartbeat and streamer forever
 done
 
 stage figures
