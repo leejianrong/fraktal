@@ -14,7 +14,7 @@ from fraktal.ids import substream
 from fraktal.kernels.noise import lattice_shape, value_noise
 
 
-def _octaves(
+def octave_noise(
     shape: tuple[int, int],
     gsd_m: float,
     seed: int,
@@ -52,7 +52,9 @@ def fractal_terrain(
     persistence: float = 0.5,
 ) -> np.ndarray[Any, Any]:
     """A height field (metres, float32) with about ``relief_m`` of relief, from a seed alone."""
-    field = _octaves(shape, gsd_m, seed, "terrain", largest_cell_m, smallest_cell_m, persistence)
+    field = octave_noise(
+        shape, gsd_m, seed, "terrain", largest_cell_m, smallest_cell_m, persistence
+    )
     out: np.ndarray[Any, Any] = field * np.float32(relief_m / 2)
     return out
 
@@ -67,7 +69,7 @@ def add_detail(
     persistence: float = 0.55,
 ) -> np.ndarray[Any, Any]:
     """``dem`` plus fine relief below the real data's resolution (a 30 m DEM has none finer)."""
-    detail = _octaves(
+    detail = octave_noise(
         dem.shape, gsd_m, seed, "terrain-detail", largest_cell_m, smallest_cell_m, persistence
     )
     out: np.ndarray[Any, Any] = dem.astype(np.float32) + detail * np.float32(amplitude_m / 2)
