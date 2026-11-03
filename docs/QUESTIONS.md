@@ -37,7 +37,7 @@ None. Round 1 closed.
 | Q15 | Benchmark dataset | DECIDED | SpaceNet 2 Khartoum train for V1 (2026-11-02); a tropical test set is sought in V4 | ADR-0008, SLICES V4 |
 | Q16 | Python stack | ASSUMED | NumPy, numba, PyTorch, rasterio, shapely, geopandas, `uv` | ADR-0005 |
 | Q17 | Later bets (robotics/drone, SAR, disasters, agent sim, digital twins, refinement) | DEFERRED | Recorded in PLAN §Later bets; each needs its own ADR when started | PLAN §Later bets |
-| Q18 | Whole procedural 3D worlds, a reusable 3D asset library, and imagery and video from any viewpoint | DEFERRED (stated goal) | Long-term direction recorded in PLAN §Later bets (item 0). Open: asset sourcing and licences (build, commission or buy), renderer choice (Blender subprocess, GPU renderer or engine), video and camera-trajectory model, and what 2.5D work carries over. Needs its own ADR and slices when started; not held for the V3 benchmark (ADR-0009) | PLAN §Later bets |
+| Q18 | Whole procedural 3D worlds, a reusable 3D asset library, and imagery and video from any viewpoint | PROPOSED (ADR-0010; research in docs/research/3d-assets-and-realism.md) | Long-term direction recorded in PLAN §Later bets (item 0). Open: asset sourcing and licences (build, commission or buy), renderer choice (Blender subprocess, GPU renderer or engine), video and camera-trajectory model, and what 2.5D work carries over. ADR-0010 proposes a headless Blender renderer, our own building grammar and an owned or CC0 asset library; slices are filed once it is accepted. Not held for the V3 benchmark (ADR-0009) | PLAN §Later bets |
 
 ## Coverage
 
