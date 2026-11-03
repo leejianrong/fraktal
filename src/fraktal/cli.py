@@ -17,7 +17,7 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Any
 
-from fraktal import __version__, ingest
+from fraktal import __version__, ingest, split
 
 
 class ExitCode(IntEnum):
@@ -74,23 +74,52 @@ def _ingest(args: argparse.Namespace) -> Result:
     return Result(data, f"{result.status} {result.path}")
 
 
-def _ingest_args(parser: argparse.ArgumentParser) -> None:
+def _data_dir_arg(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--data-dir",
         type=Path,
         default=Path(os.environ.get("FRAKTAL_DATA_DIR", "data")),
         help="cache directory (default: $FRAKTAL_DATA_DIR or ./data, which git ignores)",
     )
+
+
+def _ingest_args(parser: argparse.ArgumentParser) -> None:
+    _data_dir_arg(parser)
     parser.add_argument(
         "--keep-archive", action="store_true", help="keep the tarball after extraction"
     )
 
 
-ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {"ingest": _ingest_args}
+def _split(args: argparse.Namespace) -> Result:
+    root = args.data_dir / "spacenet2" / "khartoum"
+    out = args.out or args.data_dir / "spacenet2" / "khartoum-split.json"
+    try:
+        tiles, crs = split.list_tiles(root)
+        manifest = split.build_manifest(tiles, crs, args.seed, args.test_fraction)
+    except (OSError, ValueError) as err:
+        raise CliError(ExitCode.FAILURE, "split_failed", str(err)) from err
+    split.write_manifest(manifest, out)
+    counts = manifest["counts"]
+    text = f"wrote {out}: {counts['train']} train, {counts['test']} test (seed {args.seed})"
+    return Result({"manifest": str(out), "seed": args.seed, "counts": counts}, text)
+
+
+def _split_args(parser: argparse.ArgumentParser) -> None:
+    _data_dir_arg(parser)
+    parser.add_argument("--seed", type=int, default=0, help="split seed (default 0)")
+    parser.add_argument("--test-fraction", type=float, default=0.2, help="held-out share")
+    parser.add_argument("--out", type=Path, help="manifest path")
+
+
+ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
+    "ingest": _ingest_args,
+    "split": _split_args,
+}
 
 COMMANDS: dict[str, tuple[str, Handler]] = {
     "version": ("Print the version", _version),
     "ingest": ("Fetch and cache real source data", _ingest),
+    "split": ("Split the real tiles into train and held-out test", _split),
     "generate": ("Generate a world from a seed and config", _not_implemented("generate")),
     "render": ("Render a world to imagery and labels", _not_implemented("render")),
     "benchmark": ("Run the downstream benchmark", _not_implemented("benchmark")),
