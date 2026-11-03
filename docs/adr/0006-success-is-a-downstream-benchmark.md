@@ -95,3 +95,14 @@ Haze (exponential transmittance, monotonic in optical depth, blending toward a s
 | With haze and penumbra | 0.080 | 0.66 | 0.68 |
 
 Both lower contrast, and the real Khartoum chips are high-contrast, so on this gauge they move away from the real data. They stay off by default. They are for randomisation ranges (FRK-17), and the ablation (FRK-18) will say whether they help the downstream model.
+
+### FRK-16: sensor model
+
+`fraktal.sensor` applies a Gaussian PSF blur (sigma in output pixels) to the region and additive Gaussian noise per tile, drawn from a per-tile named sub-stream. GSD is the render grid's `gsd_m`, so 0.5 m and 3 m renders keep their masks aligned (tests at both). With the synth defaults (PSF 0.8 px, noise 8 DN) on the same three regions:
+
+| | Colour W1 | Edge-energy gap | Noise gap |
+|---|---|---|---|
+| FRK-14 | 0.073 | 0.61 | 0.44 |
+| FRK-16 (PSF 0.8, noise 8) | 0.070 | 0.05 | 0.13 |
+
+Caution: edge energy and the Laplacian noise statistic respond directly to added noise, so they will drop whether or not the model gets better at the task. The gauge says the chips now have real-like fine-scale energy, not that they look real. Only the benchmark can tell (FRK-18).
