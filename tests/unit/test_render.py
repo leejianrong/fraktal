@@ -22,15 +22,18 @@ SMALL = RenderConfig(
 
 @pytest.fixture
 def terrain(tmp_path: Path) -> Path:
-    """A flat 380 m DEM and all-grass land cover covering a small box around CENTER."""
-    d = tmp_path / "terrain"
-    d.mkdir()
+    return terrain_at(tmp_path / "terrain", CENTER)
+
+
+def terrain_at(d: Path, center: tuple[float, float], land_class: int = 30) -> Path:
+    """A flat 380 m DEM and uniform land cover (about 1.1 km square) around ``center``."""
+    d.mkdir(parents=True)
     res = 1 / 12000
-    left, top = 32.52, 15.56
     size = 120
+    left, top = center[0] - size * res / 2, center[1] + size * res / 2
     for name, data, dtype in [
         ("dem.tif", np.full((size, size), 380.0), "float32"),
-        ("landcover.tif", np.full((size, size), 30), "uint8"),
+        ("landcover.tif", np.full((size, size), land_class), "uint8"),
     ]:
         with rasterio.open(
             d / name,

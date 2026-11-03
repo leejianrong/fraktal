@@ -24,6 +24,7 @@ from fraktal import (
     chips,
     ingest,
     palette,
+    procedural,
     randomise,
     realism,
     render,
@@ -316,7 +317,25 @@ def _split_manifest(args: argparse.Namespace) -> Path:
     return path
 
 
+def _generate_procedural(args: argparse.Namespace) -> Result:
+    if not args.center:
+        raise CliError(ExitCode.USAGE, "usage", "--fallback procedural needs --center LON LAT")
+    out: Path = args.out or args.data_dir / "worlds" / f"procedural-{args.seed}"
+    config = procedural.ProceduralConfig(size_m=args.size_m, gsd_m=args.gsd_m, aridity=args.aridity)
+    try:
+        manifest = procedural.generate_world(
+            out, (args.center[0], args.center[1]), args.seed, config, args.real_terrain
+        )
+    except (OSError, ValueError) as err:
+        raise CliError(ExitCode.FAILURE, "generate_failed", str(err)) from err
+    layers = {k: v["features"] for k, v in manifest["layers"].items()}
+    text = f"wrote {out}: " + ", ".join(f"{n} {k}s" for k, n in layers.items())
+    return Result({"world": str(out), "world_id": manifest["world_id"], "layers": layers}, text)
+
+
 def _generate(args: argparse.Namespace) -> Result:
+    if args.fallback == "procedural":
+        return _generate_procedural(args)
     out = args.out or args.data_dir / "worlds" / f"{skeleton.WORLD_ID}.parquet"
     try:
         layer = skeleton.build_skeleton(args.data_dir, _split_manifest(args), args.seed)
@@ -332,6 +351,23 @@ def _generate_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--split", type=Path, help="split manifest from `fraktal split`")
     parser.add_argument("--out", type=Path, help="world GeoParquet path")
+
+
+def _generate_cli_args(parser: argparse.ArgumentParser) -> None:
+    _generate_args(parser)
+    parser.add_argument(
+        "--fallback",
+        choices=["none", "procedural"],
+        default="none",
+        help="procedural builds a whole world from the seed instead of using real footprints",
+    )
+    parser.add_argument("--center", type=float, nargs=2, metavar=("LON", "LAT"))
+    parser.add_argument("--size-m", type=float, default=2000.0, help="procedural region side")
+    parser.add_argument("--gsd-m", type=float, default=5.0, help="procedural grid cell size")
+    parser.add_argument("--aridity", type=float, default=0.5, help="0 lush to 1 barren")
+    parser.add_argument(
+        "--real-terrain", type=Path, help="ingested terrain dir to keep real DEM and land cover"
+    )
 
 
 def _synth(args: argparse.Namespace) -> Result:
@@ -502,7 +538,7 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "split": _split_args,
     "render": _render_args,
     "benchmark": _benchmark_args,
-    "generate": _generate_args,
+    "generate": _generate_cli_args,
     "synth": _synth_args,
     "compare": _compare_args,
     "ablate": _ablate_args,
