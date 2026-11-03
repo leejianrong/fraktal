@@ -1,0 +1,182 @@
+"""Realism ablation (FRK-18): which V3 components help the downstream model?
+
+Variants add realism components cumulatively, from the flat V1 render to the randomised one.
+Arms 1 and 2 do not depend on synthetic data, so they run once per seed; each variant adds an
+arm 3 (synthetic pretrain, then the real 10% subset) and a synthetic-only zero-shot score. The
+report is rewritten after every result, so a failed run keeps what it finished.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import time
+from collections.abc import Callable, Sequence
+from pathlib import Path
+from typing import Any
+
+from fraktal import benchmark, realism
+from fraktal.benchmark import Recipe, Subset, TileSource
+from fraktal.log import emit
+from fraktal.render import KHARTOUM_TONE, RenderConfig
+
+NEUTRAL: dict[str, Any] = {
+    "variation": 0.0,
+    "tone": (1.0, 1.0, 1.0),
+    "texture": 0.0,
+    "psf_sigma_px": 0.0,
+    "noise_sigma": 0.0,
+    "haze": 0.0,
+    "penumbra_m": 0.0,
+}
+# Each variant adds one component to the one before it. The last draws them all per region.
+STEPS: tuple[tuple[str, dict[str, Any]], ...] = (
+    ("v0_flat", {}),
+    ("v1_tone", {"tone": KHARTOUM_TONE}),
+    ("v2_reflectance", {"variation": 0.15}),
+    ("v3_texture", {"texture": 0.7}),
+    ("v4_sensor", {"psf_sigma_px": 0.8, "noise_sigma": 8.0}),
+    ("v5_atmosphere", {"haze": 0.1, "penumbra_m": 0.3}),
+)
+RANDOMISED = "v6_randomised"
+VARIANTS: tuple[str, ...] = (*(name for name, _ in STEPS), RANDOMISED)
+
+
+def variant_config(name: str, base: RenderConfig) -> tuple[RenderConfig, bool]:
+    """The render config for a variant and whether its parameters are drawn per region."""
+    if name not in VARIANTS:
+        raise ValueError(f"unknown variant {name!r}; choose from {', '.join(VARIANTS)}")
+    fields: dict[str, Any] = dict(NEUTRAL)
+    for step, change in STEPS:
+        fields.update(change)
+        if step == name:
+            break
+    if name == RANDOMISED:
+        return dataclasses.replace(base, **fields), True
+    return dataclasses.replace(base, **fields), False
+
+
+class VariantNotReady(RuntimeError):
+    pass
+
+
+def wait_for_variant(
+    root: Path,
+    name: str,
+    timeout_s: float,
+    poll_s: float = 15.0,
+    sleep: Callable[[float], None] = time.sleep,
+) -> Path:
+    """Chips dir of a variant, waiting for the synth job that writes it. Fails fast on FAILED."""
+    chips = root / name / "chips"
+    started = time.monotonic()
+    while not (chips / "chips.json").is_file():
+        if (root / name / "FAILED").exists():
+            raise VariantNotReady(f"synth for {name} failed; see its log")
+        waited = time.monotonic() - started
+        if waited > timeout_s:
+            raise VariantNotReady(f"{name} not ready after {int(waited)} s")
+        emit("ablation_wait", variant=name, waited_s=int(waited))
+        sleep(poll_s)
+    return chips
+
+
+def _write(report: dict[str, Any], path: Path) -> None:
+    benchmark.write_report(report, path)
+
+
+def run_ablation(
+    train_source: TileSource,
+    test_source: TileSource,
+    recipe: Recipe,
+    seeds: Sequence[int],
+    device: str,
+    chips_for: Callable[[str], TileSource],
+    names: Sequence[str],
+    out: Path,
+    *,
+    real_chips: Sequence[Any] = (),
+    fraction: float = 0.1,
+    log_every: int = 100,
+) -> dict[str, Any]:
+    device = benchmark.resolve_device(device)
+    report: dict[str, Any] = {
+        "schema": 1,
+        "recipe": dataclasses.asdict(recipe),
+        "device": device,
+        "variants": list(names),
+        "runs": [],
+        "status": "running",
+    }
+    emit("ablation_start", seeds=list(seeds), variants=list(names), test_tiles=len(test_source))
+    for seed in seeds:
+        run: dict[str, Any] = {"seed": seed, "arms": {}, "variants": {}}
+        report["runs"].append(run)
+        subset = benchmark.choose_subset(len(train_source), fraction, seed)
+        for arm, indices in (
+            ("real_10pct", subset),
+            ("real_100pct", list(range(len(train_source)))),
+        ):
+            started = time.monotonic()
+            emit("arm_start", arm=arm, seed=seed, train_tiles=len(indices))
+            model, trace = benchmark.train(
+                Subset(train_source, indices), recipe, seed, device, label=arm, log_every=log_every
+            )
+            iou = benchmark.evaluate(model, test_source, recipe, device, label=arm)
+            run["arms"][arm] = {"iou": iou, "final_loss": trace[-1]}
+            emit(
+                "arm_done",
+                arm=arm,
+                seed=seed,
+                iou=round(iou, 4),
+                seconds=round(time.monotonic() - started),
+            )
+            emit("ablation_result", seed=seed, arm=arm, iou=round(iou, 4))
+            _write(report, out)
+        base = run["arms"]["real_10pct"]["iou"]
+        for name in names:
+            started = time.monotonic()
+            source = chips_for(name)
+            emit("arm_start", arm=name, seed=seed, synthetic_tiles=len(source))
+            pre, _ = benchmark.train(
+                source, recipe, seed, device, label=f"{name}:pretrain", log_every=log_every
+            )
+            state = {k: v.detach().cpu().clone() for k, v in pre.state_dict().items()}
+            zero_shot = benchmark.evaluate(
+                pre, test_source, recipe, device, label=f"{name}:zero_shot"
+            )
+            model, trace = benchmark.train(
+                Subset(train_source, subset),
+                recipe,
+                seed,
+                device,
+                init_state=state,
+                label=f"{name}:finetune",
+                log_every=log_every,
+            )
+            iou = benchmark.evaluate(model, test_source, recipe, device, label=name)
+            entry: dict[str, Any] = {
+                "arm3_iou": iou,
+                "arm3_minus_arm1_points": 100 * (iou - base),
+                "zero_shot_iou": zero_shot,
+                "synthetic_tiles": len(source),
+                "final_loss": trace[-1],
+                "seconds": round(time.monotonic() - started, 1),
+            }
+            if real_chips:
+                synthetic = [source.get(i)[0] for i in range(min(len(source), 100))]
+                entry["gauge"] = realism.compare(list(real_chips), synthetic)["distances"]
+            run["variants"][name] = entry
+            emit(
+                "ablation_result",
+                seed=seed,
+                variant=name,
+                arm3_iou=round(iou, 4),
+                vs_arm1_points=round(entry["arm3_minus_arm1_points"], 2),
+                zero_shot=round(zero_shot, 4),
+            )
+            _write(report, out)
+    report["status"] = "complete"
+    report["hardware"] = benchmark.hardware_stats(device)
+    _write(report, out)
+    emit("ablation_done", runs=len(report["runs"]))
+    return report

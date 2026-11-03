@@ -32,7 +32,7 @@ def test_failure_path_exits_3_and_keeps_stdout_machine_readable() -> None:
 
 
 @pytest.mark.parametrize(
-    "stage", ["ingest", "generate", "render", "benchmark", "compare", "inspect"]
+    "stage", ["ingest", "generate", "render", "benchmark", "compare", "ablate", "inspect"]
 )
 def test_every_stage_has_help(stage: str) -> None:
     result = run(stage, "--help")

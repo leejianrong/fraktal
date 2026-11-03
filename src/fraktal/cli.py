@@ -19,6 +19,7 @@ from typing import Any
 
 from fraktal import (
     __version__,
+    ablation,
     benchmark,
     chips,
     ingest,
@@ -193,6 +194,49 @@ def _benchmark_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--out", type=Path, help="report path")
 
 
+def _ablate(args: argparse.Namespace) -> Result:
+    manifest = args.split or args.data_dir / "spacenet2" / "khartoum-split.json"
+    out = args.out or args.data_dir / "ablation" / "ablation.json"
+    names = args.variants or list(ablation.VARIANTS)
+    root: Path = args.variants_dir or args.data_dir / "ablation"
+    try:
+        chips_dir = args.chips or chips.build_chips(args.data_dir, manifest)
+        train_set, test_set = chips.load_splits(chips_dir)
+        recipe = benchmark.Recipe(steps=args.steps) if args.steps else benchmark.Recipe()
+        real = realism.sample([train_set.get(i)[0] for i in range(len(train_set))], 100)
+        report = ablation.run_ablation(
+            train_set,
+            test_set,
+            recipe,
+            args.seeds,
+            args.device,
+            lambda name: chips.load_all(ablation.wait_for_variant(root, name, args.wait_secs)),
+            names,
+            out,
+            real_chips=real,
+        )
+    except (OSError, ValueError, RuntimeError) as err:
+        raise CliError(ExitCode.FAILURE, "ablation_failed", str(err)) from err
+    return Result({"report": str(out), "runs": len(report["runs"])}, f"wrote {out}")
+
+
+def _ablate_args(parser: argparse.ArgumentParser) -> None:
+    _data_dir_arg(parser)
+    parser.add_argument("--seeds", type=int, nargs="+", default=[0])
+    parser.add_argument("--variants", nargs="+", choices=ablation.VARIANTS)
+    parser.add_argument(
+        "--variants-dir", type=Path, help="holds <variant>/chips (default ablation/)"
+    )
+    parser.add_argument(
+        "--wait-secs", type=float, default=3600, help="wait per variant's synth job"
+    )
+    parser.add_argument("--steps", type=int)
+    parser.add_argument("--device", default="auto")
+    parser.add_argument("--split", type=Path)
+    parser.add_argument("--chips", type=Path)
+    parser.add_argument("--out", type=Path, help="report path")
+
+
 def _split_manifest(args: argparse.Namespace) -> Path:
     path: Path = args.split or args.data_dir / "spacenet2" / "khartoum-split.json"
     return path
@@ -235,6 +279,9 @@ def _synth(args: argparse.Namespace) -> Result:
         noise_sigma=args.noise,
         penumbra_m=args.penumbra,
     )
+    randomised = args.randomise
+    if args.variant:
+        config, randomised = ablation.variant_config(args.variant, config)
     try:
         if not (terrain_dir / terrain.MARKER).is_file():
             raise FileNotFoundError(f"no terrain under {terrain_dir}; run `fraktal ingest`")
@@ -249,7 +296,7 @@ def _synth(args: argparse.Namespace) -> Result:
             skeleton.train_coverage(manifest, str(layer.crs)),
             out,
             config,
-            ranges=randomise.Ranges() if args.randomise else None,
+            ranges=randomise.Ranges() if randomised else None,
             seed=args.seed,
         )
     except (OSError, ValueError) as err:
@@ -274,6 +321,11 @@ def _synth_args(parser: argparse.ArgumentParser) -> None:
         metavar=("R", "G", "B"),
         default=render.KHARTOUM_TONE,
         help="per-channel gain (default matches the real Khartoum chips)",
+    )
+    parser.add_argument(
+        "--variant",
+        choices=ablation.VARIANTS,
+        help="an ablation preset (overrides the realism flags below)",
     )
     parser.add_argument(
         "--randomise",
@@ -363,6 +415,7 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "generate": _generate_args,
     "synth": _synth_args,
     "compare": _compare_args,
+    "ablate": _ablate_args,
 }
 
 COMMANDS: dict[str, tuple[str, Handler]] = {
@@ -373,6 +426,7 @@ COMMANDS: dict[str, tuple[str, Handler]] = {
     "synth": ("Render synthetic pretraining chips from the world", _synth),
     "render": ("Render a world to imagery and labels", _render),
     "benchmark": ("Run the downstream benchmark", _benchmark),
+    "ablate": ("Run the realism ablation benchmark", _ablate),
     "compare": ("Measure how far synthetic chips are from real imagery", _compare),
     "inspect": ("Inspect a world, dataset or report", _not_implemented("inspect")),
 }

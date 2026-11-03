@@ -6,7 +6,25 @@ import contextlib
 import json
 import sys
 
-PROGRESS = ("train_progress", "download_progress", "chips_progress", "synth_region_done")
+PROGRESS = (
+    "train_progress",
+    "download_progress",
+    "chips_progress",
+    "synth_region_done",
+    "ablation_wait",
+)
+
+
+def _gap_s(earlier: str, later: str) -> float:
+    from datetime import datetime
+
+    def parse(ts: str) -> datetime:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00")[:32])
+
+    try:
+        return (parse(later) - parse(earlier)).total_seconds()
+    except ValueError:
+        return 0.0
 
 
 def main() -> None:
@@ -37,7 +55,35 @@ def main() -> None:
     for e in (e for e in events if e["event"] == "arm_done"):
         print(f"  arm_done {e['arm']}: iou={e['iou']}")
 
-    markers = ("Traceback", "STAGE failed", "self-terminating")
+    for e in (e for e in events if e["event"] == "ablation_result"):
+        detail = {k: v for k, v in e.items() if k != "event"}
+        print(f"  result {detail}")
+    for x in [x for x in lines if x.startswith(("synth_start", "synth_done"))][-3:]:
+        print("  " + x)
+
+    warns = [x for x in lines if x.startswith("WARN ")]
+    if warns:
+        print(f"WARNINGS ({len(warns)}, latest first):")
+        for x in reversed(warns[-3:]):
+            print("  " + x[:160])
+    heartbeats = [ts for ts, text in rows if text.startswith("hb ")]
+    if (
+        heartbeats
+        and rows
+        and rows[-1][0] > heartbeats[-1]
+        and _gap_s(heartbeats[-1], rows[-1][0]) > 180
+    ):
+        print(
+            f"WARNING: last heartbeat {heartbeats[-1]} is far behind the newest line {rows[-1][0]}"
+        )
+
+    markers = (
+        "Traceback",
+        "STAGE failed",
+        "STAGE finished with FAILURE",
+        "ERROR ",
+        "self-terminating",
+    )
     bad = [x for x in lines if any(m in x for m in markers)]
     if bad:
         print("PROBLEM:")
