@@ -250,3 +250,29 @@ ranges gain ambient, contrast, bright-roof share and no-data chance, neutral by 
 original v6 draws are unchanged), plus `randomise.WIDE` and the variant `v9_randomised_wide`
 (objects, roof stripes, extremes drawn per region). Earlier v7 and v8 chips were rendered with
 the old pivot, so rendered sets from before FRK-33 are not comparable at equal contrast.
+
+## FRK-34: review re-run after roads, parcels and wide extremes
+
+Same CPU-pod review as FRK-30 (6 regions, palette from train chips, one pod, about $0.20),
+now with FRK-31 to FRK-33 in place. Real chips: grey-level std 34.2, channel means
+92 / 124 / 36. "proc" is procedural buildings and roads, "skel" is the real-footprint skeleton.
+
+| set | chips | colour W1 | edge gap | noise gap | contrast gap | strong-edge gap | grey std | channel means |
+|---|---|---|---|---|---|---|---|---|
+| proc v8_objects | 41 | 0.040 | 0.077 | 0.140 | 0.016 | 0.658 | 34.8 | 95 / 132 / 38 |
+| proc v9_randomised_wide | 41 | 0.061 | 0.101 | 0.018 | 0.113 | 0.332 | 38.1 | 107 / 147 / 40 |
+| skel v8_objects | 7 | 0.046 | 0.041 | 0.100 | 0.372 | 0.374 | 46.9 | 103 / 140 / 44 |
+| skel v9_randomised_wide | 7 | 0.064 | 0.105 | 0.010 | 0.530 | 0.181 | 52.3 | 110 / 145 / 45 |
+
+Against FRK-30 (procedural sets): contrast gap 0.109 to 0.016 (v8) and 0.507 to 0.113 (randomised);
+colour distance 0.068 to 0.040 (v8); blue mean 15 to 38 for v8, against 36 real; strong-edge gap
+0.72 to 0.66 (v8) and 0.70 to 0.33 (randomised). The skeleton sets over-shoot on contrast because
+their regions are dense with large roofs, which the procedural scenes are not.
+
+What is still wrong, from the chip strip:
+- Procedural scenes remain sparse: bare ground with scattered trees and few buildings, where real
+  chips are dense blocks. Building density per parcel and parcel coverage need raising.
+- Trees are scattered uniformly; real trees line streets and cluster around buildings.
+- Edge-energy gap grew (0.12 for v8) because the scenes have fewer hard edges, not more blur.
+- Roof and ground textures are still smooth next to real imagery (see the 3D assets note,
+  docs/research/3d-assets-and-realism.md).
