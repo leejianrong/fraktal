@@ -22,7 +22,7 @@ from shapely.strtree import STRtree
 
 from fraktal.ids import substream
 from fraktal.log import emit
-from fraktal.procedural import ProceduralConfig, generate_world, read_buildings
+from fraktal.procedural import ProceduralConfig, generate_world, read_buildings, read_roads
 from fraktal.randomise import Ranges, sample_config
 from fraktal.render import RenderConfig, render_region
 from fraktal.split import read_manifest
@@ -140,7 +140,12 @@ def synthesize(
                 world_dir = out_dir / "worlds" / f"world_{rendered:02d}"
                 generate_world(world_dir, center, seed * 1000 + rendered, procedural, terrain_dir)
                 manifest = render_region(
-                    world_dir, read_buildings(world_dir), center, region_dir, scene
+                    world_dir,
+                    read_buildings(world_dir),
+                    center,
+                    region_dir,
+                    scene,
+                    roads=read_roads(world_dir),
                 )
             else:
                 assert layer is not None

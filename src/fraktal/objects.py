@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 
 from fraktal.ids import substream
+from fraktal.kernels.filters import gaussian_blur
 from fraktal.kernels.objects import paint_objects
 
 TREES_PER_HA = 25.0
@@ -30,10 +31,29 @@ def _pick(
     return np.nonzero(ok)[0]
 
 
+CARS_PER_ROAD_HA = 14.0  # vehicles per hectare of road surface when roads are painted
+
+
+def road_heading(road: Any, gsd_m: float) -> Any:
+    """Direction of the road at each pixel, radians, from the gradient of the blurred road mask."""
+    blurred = gaussian_blur((road > 0).astype("float32"), max(2.0, 4.0 / gsd_m))
+    grad_row, grad_col = np.gradient(blurred)
+    return np.arctan2(grad_col, -grad_row)  # perpendicular to the gradient, as (col, row) angle
+
+
 def place(
-    landcover: Any, building_mask: Any, gsd_m: float, density: float, seed: int
+    landcover: Any,
+    building_mask: Any,
+    gsd_m: float,
+    density: float,
+    seed: int,
+    road: Any = None,
 ) -> tuple[Any, Any, Any]:
-    """Shapes, heights and colours of trees then cars, for ``paint_objects``."""
+    """Shapes, heights and colours of trees then cars, for ``paint_objects``.
+
+    With a ``road`` raster (non-zero on roads) vehicles stand on the road, along its direction;
+    without one they keep to built-up and bare ground as before.
+    """
     rows_px, cols_px = landcover.shape
     hectares = rows_px * cols_px * gsd_m**2 / 1e4
     parts: list[tuple[Any, Any, Any]] = []
@@ -42,10 +62,18 @@ def place(
         ("cars", CARS_PER_HA, CAR_CLASSES),
     ):
         rng = substream(seed, f"objects:{name}")
-        n = int(per_ha * density * hectares)
-        rows = rng.integers(0, rows_px, n)
-        cols = rng.integers(0, cols_px, n)
-        keep = _pick(landcover, building_mask, rows, cols, classes)
+        on_road = name == "cars" and road is not None
+        if on_road:
+            road_rows, road_cols = np.nonzero(road)
+            n = int(CARS_PER_ROAD_HA * density * len(road_rows) * gsd_m**2 / 1e4)
+            pick = rng.integers(0, max(1, len(road_rows)), n)
+            rows, cols = road_rows[pick], road_cols[pick]
+            keep = np.nonzero(building_mask[rows, cols] == 0)[0]
+        else:
+            n = int(per_ha * density * hectares)
+            rows = rng.integers(0, rows_px, n)
+            cols = rng.integers(0, cols_px, n)
+            keep = _pick(landcover, building_mask, rows, cols, classes)
         rows, cols = rows[keep], cols[keep]
         k = len(keep)
         if name == "trees":
@@ -58,6 +86,9 @@ def place(
             length = np.full(k, 2.25 / gsd_m)
             width = np.full(k, 0.95 / gsd_m)
             angle = rng.uniform(0, np.pi, n)[keep]
+            if on_road:
+                heading = road_heading(road, gsd_m)
+                angle = heading[rows, cols] + rng.normal(0.0, 0.05, n)[keep]
             shapes = np.column_stack([rows, cols, length, width, angle, np.ones(k)])
             heights = np.full(k, 1.5)
             colours = CAR_COLOURS[rng.integers(0, len(CAR_COLOURS), n)[keep]]
@@ -70,10 +101,15 @@ def place(
 
 
 def scatter(
-    landcover: Any, building_mask: Any, gsd_m: float, density: float, seed: int
+    landcover: Any,
+    building_mask: Any,
+    gsd_m: float,
+    density: float,
+    seed: int,
+    road: Any = None,
 ) -> tuple[Any, Any, Any]:
     """Height (m), colour and coverage rasters for the trees and cars of one region."""
-    shapes, heights, colours = place(landcover, building_mask, gsd_m, density, seed)
+    shapes, heights, colours = place(landcover, building_mask, gsd_m, density, seed, road)
     return paint_objects(landcover.shape, shapes, heights, colours, building_mask)
 
 

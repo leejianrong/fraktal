@@ -412,3 +412,38 @@ def test_extremes_are_deterministic(tmp_path: Path, terrain: Path) -> None:
     b = render_region(terrain, layer, CENTER, tmp_path / "b", cfg)
     assert a["tiles"] == b["tiles"]
     assert read_hash(tmp_path / "a") == read_hash(tmp_path / "b")
+
+
+def test_roads_are_painted_by_class_and_leave_the_labels_alone(
+    tmp_path: Path, terrain: Path
+) -> None:
+    from pyproj import Transformer
+    from shapely.geometry import LineString
+
+    epsg = utm_epsg(*CENTER)
+    x, y = Transformer.from_crs(4326, epsg, always_xy=True).transform(*CENTER)
+    lines = [
+        {"geometry": LineString([(x - 60, y + 20), (x + 60, y + 20)]), "road_class": "arterial",
+         "width_m": 12.0, "bridge": 0.0, "provenance": "procedural:test"},
+        {"geometry": LineString([(x - 60, y - 20), (x + 60, y - 20)]), "road_class": "local",
+         "width_m": 6.0, "bridge": 0.0, "provenance": "procedural:test"},
+    ]  # fmt: skip
+    roads = make_layer("road", "w", lines, f"EPSG:{epsg}")
+    buildings = one_building(CENTER, 10.0, 8.0)
+    plain = render_region(terrain, buildings, CENTER, tmp_path / "plain", SMALL)
+    painted = render_region(terrain, buildings, CENTER, tmp_path / "paint", SMALL, roads=roads)
+    assert len(plain["tiles"]) == len(painted["tiles"])
+    with rasterio.open(tmp_path / "plain" / "tiles" / "r00_c00.tif") as a:
+        flat = a.read()
+    with rasterio.open(tmp_path / "paint" / "tiles" / "r00_c00.tif") as b:
+        rgb = b.read()
+    assert (flat != rgb).any()  # roads changed the picture
+    for name in ("buildings", "landcover"):  # labels are identical with and without roads
+        dirs = (tmp_path / "plain", tmp_path / "paint")
+        files = [t / "tiles" / f"r00_c00_{name}.tif" for t in dirs]
+        with rasterio.open(files[0]) as a, rasterio.open(files[1]) as b:
+            assert (a.read() == b.read()).all()
+    again = render_region(terrain, buildings, CENTER, tmp_path / "again", SMALL, roads=roads)
+    with rasterio.open(tmp_path / "again" / "tiles" / "r00_c00.tif") as c:
+        assert (c.read() == rgb).all()
+    assert again["tiles"]
