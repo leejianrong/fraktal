@@ -55,3 +55,16 @@ The two seed-0 runs agree within 0.7 points, so run-to-run noise is under one po
 - Synthetic-only IoU on real tiles is reported in every run as a realism gauge. V1 value: about 0. A target for it is set when V3 starts, from what the realism work achieves.
 
 **Consequences.** V1 is a valid, repeatable measurement of the pipeline and a clear first answer: the crude renderer does not transfer. The next measurement is the same three arms at the scarce-data fraction, which costs a few GPU minutes. Whether to invest in V3 realism work is decided after that run. This update does not change the plan itself.
+
+## Update 2026-11-03: realism gauge baseline (FRK-12)
+
+`fraktal compare` measures how far synthetic chips are from real ones without a GPU. Baseline on the V1 chips (100 per side):
+
+| Statistic | Real | V1 synthetic |
+|---|---|---|
+| Channel mean (R, G, B) | 88, 118, 34 | 133, 126, 109 |
+| Channel std | 62, 68, 31 | 41, 32, 25 |
+| Edge energy | 6.1 | 0.85 |
+| Noise level | 24.2 | 17.6 |
+
+Distances: colour W1 0.205, edge-energy gap 0.86, noise gap 0.27. Real imagery is warm and high-contrast with strong local edges. The synthetic chips are grey and flat. The colour and edge-energy gaps are what FRK-13 to FRK-16 should close.

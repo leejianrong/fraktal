@@ -22,6 +22,7 @@ from fraktal import (
     benchmark,
     chips,
     ingest,
+    realism,
     render,
     skeleton,
     split,
@@ -257,6 +258,32 @@ def _synth_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--sun-elevation", type=float, default=50.0)
 
 
+def _compare(args: argparse.Namespace) -> Result:
+    try:
+        real_dir = args.real or args.data_dir / "spacenet2" / "chips"
+        real = chips.load_splits(real_dir)[0]
+        synthetic = chips.load_all(args.synthetic or args.data_dir / "synthetic" / "chips")
+        report = realism.compare(
+            realism.sample([real.get(i)[0] for i in range(len(real))], args.limit),
+            realism.sample([synthetic.get(i)[0] for i in range(len(synthetic))], args.limit),
+        )
+    except (OSError, ValueError, KeyError) as err:
+        raise CliError(ExitCode.FAILURE, "compare_failed", str(err)) from err
+    d = report["distances"]
+    text = (
+        f"colour W1 {d['colour_w1']}, edge-energy gap {d['edge_energy_gap']}, "
+        f"noise gap {d['noise_gap']} (0 is a perfect match)"
+    )
+    return Result(report, text)
+
+
+def _compare_args(parser: argparse.ArgumentParser) -> None:
+    _data_dir_arg(parser)
+    parser.add_argument("--real", type=Path, help="real chips dir (default spacenet2/chips)")
+    parser.add_argument("--synthetic", type=Path, help="synthetic chips dir")
+    parser.add_argument("--limit", type=int, default=100, help="chips sampled per side")
+
+
 def _terrain_center(terrain_dir: Path) -> tuple[float, float]:
     left, bottom, right, top = json.loads((terrain_dir / terrain.MARKER).read_text())["bounds"]
     return ((left + right) / 2, (bottom + top) / 2)
@@ -300,6 +327,7 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "benchmark": _benchmark_args,
     "generate": _generate_args,
     "synth": _synth_args,
+    "compare": _compare_args,
 }
 
 COMMANDS: dict[str, tuple[str, Handler]] = {
@@ -310,6 +338,7 @@ COMMANDS: dict[str, tuple[str, Handler]] = {
     "synth": ("Render synthetic pretraining chips from the world", _synth),
     "render": ("Render a world to imagery and labels", _render),
     "benchmark": ("Run the downstream benchmark", _benchmark),
+    "compare": ("Measure how far synthetic chips are from real imagery", _compare),
     "inspect": ("Inspect a world, dataset or report", _not_implemented("inspect")),
 }
 
