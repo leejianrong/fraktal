@@ -9,13 +9,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import IntEnum
+from pathlib import Path
 from typing import Any
 
-from fraktal import __version__
+from fraktal import __version__, ingest
 
 
 class ExitCode(IntEnum):
@@ -57,9 +59,38 @@ def _not_implemented(name: str) -> Handler:
     return handler
 
 
+def _ingest(args: argparse.Namespace) -> Result:
+    try:
+        result = ingest.ingest(args.data_dir, keep_archive=args.keep_archive)
+    except OSError as err:
+        raise CliError(ExitCode.FAILURE, "ingest_failed", str(err)) from err
+    data = {
+        "dataset": ingest.DATASET,
+        "status": result.status,
+        "path": str(result.path),
+        "archive_bytes": result.bytes,
+        "resumed_from": result.resumed_from,
+    }
+    return Result(data, f"{result.status} {result.path}")
+
+
+def _ingest_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=Path(os.environ.get("FRAKTAL_DATA_DIR", "data")),
+        help="cache directory (default: $FRAKTAL_DATA_DIR or ./data, which git ignores)",
+    )
+    parser.add_argument(
+        "--keep-archive", action="store_true", help="keep the tarball after extraction"
+    )
+
+
+ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {"ingest": _ingest_args}
+
 COMMANDS: dict[str, tuple[str, Handler]] = {
     "version": ("Print the version", _version),
-    "ingest": ("Fetch and cache real source data", _not_implemented("ingest")),
+    "ingest": ("Fetch and cache real source data", _ingest),
     "generate": ("Generate a world from a seed and config", _not_implemented("generate")),
     "render": ("Render a world to imagery and labels", _not_implemented("render")),
     "benchmark": ("Run the downstream benchmark", _not_implemented("benchmark")),
@@ -74,7 +105,9 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--json", action="store_true", help="print a JSON result envelope")
     sub = parser.add_subparsers(dest="command", required=True, metavar="<command>")
     for name, (help_text, _handler) in COMMANDS.items():
-        sub.add_parser(name, help=help_text, parents=[common])
+        command = sub.add_parser(name, help=help_text, parents=[common])
+        if name in ARGS:
+            ARGS[name](command)
     return parser
 
 
