@@ -23,6 +23,7 @@ from fraktal import (
     benchmark,
     chips,
     ingest,
+    palette,
     randomise,
     realism,
     render,
@@ -275,6 +276,41 @@ def _report_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--out", type=Path, help="output directory (default <data-dir>/reports)")
 
 
+def _palette(args: argparse.Namespace) -> Result:
+    out: Path = args.out or args.data_dir / "spacenet2" / "palette.json"
+    root = args.data_dir / "spacenet2" / "khartoum"
+    try:
+        chips_dir = args.chips or args.data_dir / "spacenet2" / "chips"
+        train = chips.load_splits(chips_dir)[0]  # train tiles only: no test tile reaches a world
+        paths = {t: chips.tile_path(root, t) for t in train.ids}
+        landcover = args.data_dir / "terrain" / "khartoum" / "landcover.tif"
+        if not landcover.is_file():
+            raise FileNotFoundError(f"no land cover at {landcover}; run `fraktal ingest`")
+        fitted = palette.fit(train, paths, landcover, tuple(args.tone), args.seed, args.max_tiles)
+        palette.write(fitted, out, train.ids)
+    except (OSError, ValueError, KeyError) as err:
+        raise CliError(ExitCode.FAILURE, "palette_failed", str(err)) from err
+    data = {
+        "palette": str(out),
+        "classes": sorted(fitted.classes),
+        "roof_colours": len(fitted.roofs),
+    }
+    return Result(
+        data, f"wrote {out}: {len(fitted.classes)} classes, {len(fitted.roofs)} roof colours"
+    )
+
+
+def _palette_args(parser: argparse.ArgumentParser) -> None:
+    _data_dir_arg(parser)
+    parser.add_argument("--chips", type=Path, help="chips dir (default spacenet2/chips)")
+    parser.add_argument(
+        "--tone", type=float, nargs=3, default=render.KHARTOUM_TONE, metavar=("R", "G", "B")
+    )
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--max-tiles", type=int, default=150, help="train tiles sampled")
+    parser.add_argument("--out", type=Path, help="palette path")
+
+
 def _split_manifest(args: argparse.Namespace) -> Path:
     path: Path = args.split or args.data_dir / "spacenet2" / "khartoum-split.json"
     return path
@@ -322,6 +358,7 @@ def _synth(args: argparse.Namespace) -> Result:
         blank_prob=args.blank_prob,
         objects=args.objects,
         roof_detail=args.roof_detail,
+        palette=palette.read(args.palette) if args.palette else None,
     )
     randomised = args.randomise
     if args.variant:
@@ -383,6 +420,7 @@ def _synth_args(parser: argparse.ArgumentParser) -> None:
         "--bright-roofs", type=float, default=0.0, help="share of very bright roofs"
     )
     parser.add_argument("--blank-prob", type=float, default=0.0, help="chance of a no-data edge")
+    parser.add_argument("--palette", type=Path, help="palette from `fraktal palette`")
     parser.add_argument("--objects", type=float, default=0.0, help="tree and vehicle density")
     parser.add_argument("--roof-detail", type=float, default=0.0, help="roof stripe strength")
     parser.add_argument("--psf", type=float, default=0.8, help="sensor blur sigma in pixels")
@@ -469,6 +507,7 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "compare": _compare_args,
     "ablate": _ablate_args,
     "report": _report_args,
+    "palette": _palette_args,
 }
 
 COMMANDS: dict[str, tuple[str, Handler]] = {
@@ -481,6 +520,7 @@ COMMANDS: dict[str, tuple[str, Handler]] = {
     "benchmark": ("Run the downstream benchmark", _benchmark),
     "ablate": ("Run the realism ablation benchmark", _ablate),
     "report": ("Build the realism report PDF from an ablation", _report),
+    "palette": ("Fit render colours from the real train chips", _palette),
     "compare": ("Measure how far synthetic chips are from real imagery", _compare),
     "inspect": ("Inspect a world, dataset or report", _not_implemented("inspect")),
 }

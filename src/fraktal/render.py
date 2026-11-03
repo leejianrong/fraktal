@@ -28,6 +28,7 @@ from fraktal.kernels.noise import lattice_shape, value_noise
 from fraktal.kernels.shadow import shadow_mask
 from fraktal.labels import independent_building_mask
 from fraktal.objects import roof_pattern, scatter
+from fraktal.palette import Palette
 from fraktal.sensor import add_noise, apply_psf, blank_wedge
 from fraktal.terrain import TerrainError
 
@@ -97,6 +98,7 @@ class RenderConfig:
     blank_max_fraction: float = 0.3  # largest share of a tile the no-data region can cover
     objects: float = 0.0  # density of trees and vehicles; 0 is none, 1 is the default density
     roof_detail: float = 0.0  # strength of ridge and corrugation stripes on roofs
+    palette: Palette | None = None  # class and roof colours fitted from real train chips
 
 
 def utm_epsg(lon: float, lat: float) -> int:
@@ -170,7 +172,22 @@ def _building_rasters(
     return height, mask, index
 
 
-def roof_table(ids: Any, variation: float, bright_fraction: float = 0.0) -> Any:
+def _roof_base(fid: str, palette: Palette | None) -> tuple[float, float, float]:
+    """A building's base roof colour: from the fitted palette (by share) or the default set."""
+    if palette is None or not palette.roofs:
+        return ROOF_MATERIALS[int(fid[:8], 16) % len(ROOF_MATERIALS)]
+    draw = int(fid[:8], 16) / 0xFFFFFFFF
+    edge = 0.0
+    for colour, share in palette.roofs:
+        edge += share
+        if draw <= edge:
+            return colour
+    return palette.roofs[-1][0]
+
+
+def roof_table(
+    ids: Any, variation: float, bright_fraction: float = 0.0, palette: Palette | None = None
+) -> Any:
     """Roof colour per building (row i -> entry i + 1; entry 0 is unused), from each stable id.
 
     Material and brightness come from the building's id, so a building keeps its roof however
@@ -178,7 +195,7 @@ def roof_table(ids: Any, variation: float, bright_fraction: float = 0.0) -> Any:
     """
     table = np.zeros((len(ids) + 1, 3), dtype="float32")
     for i, fid in enumerate(ids):
-        base = np.array(ROOF_MATERIALS[int(str(fid)[:8], 16) % len(ROOF_MATERIALS)])
+        base = np.array(_roof_base(str(fid), palette))
         brightness = 1.0 + variation * (int(str(fid)[8:12], 16) / 65535 * 2 - 1)
         if int(str(fid)[12:16], 16) / 65535 < bright_fraction:
             brightness *= BRIGHT_ROOF_GAIN
@@ -234,6 +251,7 @@ def shade(
     contrast: float = 1.0,
     scene_objects: Any = None,
     roof_gain: Any = None,
+    palette: Palette | None = None,
 ) -> Any:
     """Per-class reflectance, darkened inside cast shadows. Returns (3, H, W) uint8.
 
@@ -244,6 +262,9 @@ def shade(
     table = np.zeros((256, 3), dtype="float32")
     for code, rgb in LANDCOVER_RGB.items():
         table[code] = rgb
+    if palette is not None:
+        for code, rgb in palette.classes.items():
+            table[code] = rgb
     table[0] = (255.0, 0.0, 255.0)  # unmapped land cover is loud, not silent
     if gains is not None:
         table = table * gains
@@ -363,9 +384,12 @@ def render_region(
         "contrast": config.contrast,
         "scene_objects": scene_objects,
         "roof_gain": roof_gain,
+        "palette": config.palette,
     }
     if config.variation > 0:
-        roofs = roof_table(local["id"].to_numpy(), config.variation, config.bright_roofs)[index]
+        roofs = roof_table(
+            local["id"].to_numpy(), config.variation, config.bright_roofs, config.palette
+        )[index]
         gains = class_gains(config.seed, config.variation)
         rgb = shade(landcover, mask, shadow, gains=gains, roofs=roofs, **common)
     else:
@@ -446,6 +470,7 @@ def render_region(
         "blank_prob": config.blank_prob,
         "objects": config.objects,
         "roof_detail": config.roof_detail,
+        "palette": config.palette is not None,
         "buildings": len(local),
         "tiles": records,
         "dropped": dropped,
