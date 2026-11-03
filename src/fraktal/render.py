@@ -23,6 +23,7 @@ from rasterio.transform import Affine, from_origin
 from rasterio.warp import reproject
 
 from fraktal.kernels.shadow import shadow_mask
+from fraktal.labels import independent_building_mask
 from fraktal.terrain import TerrainError
 
 DEFAULT_HEIGHT_M = 6.0
@@ -146,6 +147,27 @@ def _write_tile(path: Path, data: Any, transform: Affine, epsg: int) -> None:
         dst.write(bands)
 
 
+def _validate_tile(
+    paths: list[Path],
+    mask: Any,
+    geometries: list[Any],
+    transform: Affine,
+    shape: tuple[int, int],
+) -> str | None:
+    """Why a tile must be dropped, or None. Checks alignment, then the independent mask."""
+    seen = set()
+    for path in paths:
+        with rasterio.open(path) as src:
+            seen.add((src.crs.to_string(), tuple(src.transform)[:6], src.height, src.width))
+    if len(seen) != 1:
+        return "image and masks differ in CRS, transform or size"
+    expected = independent_building_mask(geometries, transform, shape)
+    wrong = int((expected != mask).sum())
+    if wrong:
+        return f"building mask differs from the independent rasterisation in {wrong} pixels"
+    return None
+
+
 def render_region(
     terrain_dir: Path,
     buildings: gpd.GeoDataFrame,
@@ -166,7 +188,9 @@ def render_region(
 
     tile_dir = out_dir / "tiles"
     tile_dir.mkdir(parents=True, exist_ok=True)
-    records = []
+    geometries = list(local.geometry)
+    records: list[dict[str, Any]] = []
+    dropped: list[dict[str, str]] = []
     n = config.tile_px
     for row in range(tiles):
         for col in range(tiles):
@@ -174,9 +198,21 @@ def render_region(
             tile_transform = transform @ Affine.translation(col * n, row * n)
             name = f"r{row:02d}_c{col:02d}"
             tile_mask = np.ascontiguousarray(mask[window])
-            tile_rgb = rgb[:, window[0], window[1]]
-            _write_tile(tile_dir / f"{name}.tif", tile_rgb, tile_transform, epsg)
-            _write_tile(tile_dir / f"{name}_buildings.tif", tile_mask, tile_transform, epsg)
+            paths = {
+                "": (tile_dir / f"{name}.tif", rgb[:, window[0], window[1]]),
+                "_buildings": (tile_dir / f"{name}_buildings.tif", tile_mask),
+                "_landcover": (tile_dir / f"{name}_landcover.tif", landcover[window]),
+            }
+            for path, data in paths.values():
+                _write_tile(path, data, tile_transform, epsg)
+            reason = _validate_tile(
+                [p for p, _ in paths.values()], tile_mask, geometries, tile_transform, (n, n)
+            )
+            if reason:
+                for path, _ in paths.values():
+                    path.unlink()
+                dropped.append({"tile": name, "reason": reason})
+                continue
             records.append(
                 {
                     "tile": name,
@@ -194,6 +230,7 @@ def render_region(
         "sun": {"azimuth_deg": config.sun_azimuth_deg, "elevation_deg": config.sun_elevation_deg},
         "buildings": len(local),
         "tiles": records,
+        "dropped": dropped,
     }
     (out_dir / "render.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     return manifest

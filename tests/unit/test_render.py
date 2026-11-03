@@ -136,3 +136,61 @@ def test_cli_render_requires_terrain(tmp_path: Path, capsys: pytest.CaptureFixtu
     args = ["render", "--data-dir", str(tmp_path), "--buildings", str(tmp_path / "b.parquet")]
     assert cli.main([*args, "--json"]) == 4
     assert json.loads(capsys.readouterr().out)["error"]["kind"] == "render_failed"
+
+
+def test_label_masks_equal_the_independent_rasterisation(tmp_path: Path, terrain: Path) -> None:
+    from fraktal.labels import independent_building_mask
+
+    buildings = one_building(CENTER, 13.3, 9.0)
+    out = tmp_path / "out"
+    manifest = render_region(terrain, buildings, CENTER, out, SMALL)
+    assert manifest["dropped"] == []
+    epsg, transform, _ = region_grid(CENTER, SMALL)
+    local = buildings.to_crs(epsg)
+    for rec in manifest["tiles"]:
+        with rasterio.open(out / "tiles" / f"{rec['tile']}_buildings.tif") as src:
+            expected = independent_building_mask(list(local.geometry), src.transform, src.shape)
+            assert (src.read(1) == expected).all()
+    assert sum(r["building_pixels"] for r in manifest["tiles"]) > 0
+
+
+def test_mask_and_image_share_crs_transform_and_size(tmp_path: Path, terrain: Path) -> None:
+    out = tmp_path / "out"
+    render_region(terrain, one_building(CENTER, 10, 5.0), CENTER, out, SMALL)
+    for stem in ("r00_c00", "r01_c01"):
+        grids = []
+        for suffix in ("", "_buildings", "_landcover"):
+            with rasterio.open(out / "tiles" / f"{stem}{suffix}.tif") as src:
+                grids.append((src.crs, src.transform, src.shape))
+        assert len(set(grids)) == 1
+
+
+def test_a_corrupted_tile_is_dropped_and_listed(
+    tmp_path: Path, terrain: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from fraktal import render as render_module
+
+    real = render_module._building_rasters
+
+    def corrupt(buildings: gpd.GeoDataFrame, transform: object, side: int) -> tuple[object, object]:
+        height, mask = real(buildings, transform, side)
+        mask[3, 3] ^= 1  # one wrong pixel in tile r00_c00
+        return height, mask
+
+    monkeypatch.setattr(render_module, "_building_rasters", corrupt)
+    out = tmp_path / "out"
+    manifest = render_region(terrain, one_building(CENTER, 10, 5.0), CENTER, out, SMALL)
+    assert [d["tile"] for d in manifest["dropped"]] == ["r00_c00"]
+    assert "independent rasterisation" in manifest["dropped"][0]["reason"]
+    assert "r00_c00" not in {t["tile"] for t in manifest["tiles"]}
+    assert not list((out / "tiles").glob("r00_c00*"))
+    assert len(manifest["tiles"]) == 3
+
+
+def test_independent_mask_rejects_rotated_grids() -> None:
+    from rasterio.transform import Affine
+
+    from fraktal.labels import independent_building_mask
+
+    with pytest.raises(ValueError, match="north-up"):
+        independent_building_mask([box(0, 0, 1, 1)], Affine(1, 0.1, 0, 0, -1, 0), (2, 2))
