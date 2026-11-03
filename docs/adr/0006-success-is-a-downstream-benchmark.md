@@ -191,3 +191,29 @@ At 1% real (8 tiles) the test can discriminate. Three seeds, 3000 steps per arm,
 | Strong-edge share | 2.1% | 2.7% | 4.9% |
 
 Colour distance falls by a third and red and green now match. Blue is still low (22 against 34) and contrast now overshoots, because the extremes settings (FRK-21) were tuned against the old colours. Re-tuning contrast against the palette, and a blue-channel fix, are the obvious next steps. Downstream effect untested.
+
+## FRK-30: procedural buildings, reviewed without training
+
+Per [ADR-0009](0009-build-for-coverage-and-measure-to-steer.md) and the rule to train only at big
+milestones, this was judged with the gauge, distribution plots and chip strips, not a GPU run.
+`fraktal synth --procedural` renders each region over its own generated world. The job ran on a
+CPU pod (`scripts/runpod/review.sh`, 16 vCPU, about $0.56/hr), 6 regions per set, palette fitted
+from train chips.
+
+| set | chips | colour W1 | edge gap | noise gap | contrast gap | strong-edge gap |
+|---|---|---|---|---|---|---|
+| skeleton v8_objects | 7 | 0.039 | 0.009 | 0.132 | 0.318 | 0.425 |
+| procedural v8_objects | 41 | 0.068 | 0.121 | 0.181 | 0.109 | 0.724 |
+| skeleton v6_randomised | 7 | 0.058 | 0.006 | 0.060 | 0.149 | 0.630 |
+| procedural v6_randomised | 41 | 0.076 | 0.005 | 0.010 | 0.507 | 0.698 |
+
+What the plots show:
+- Procedural labels are complete everywhere, so 6 regions gave 41 chips against 7 for the skeleton
+  (the training-tile filter drops the rest). Coverage is the point of the procedural path.
+- Procedural scenes are mostly bare ground with scattered trees and a few buildings. Real chips
+  are dense blocks with roads and courtyards. Parcels line few arterials (FRK-31), and roads are
+  not painted onto the render (FRK-32).
+- Colour is close but a little worse than skeleton. Strong-edge share is the largest gap in every
+  set, as it was before. Randomised scenes are low in contrast (0.51 gap), so the randomised
+  ranges need re-tuning against the palette.
+- Next generator work: building density, painted roads, then contrast ranges.
