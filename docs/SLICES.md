@@ -129,6 +129,7 @@ Make the worlds specifically tropical SE Asian, and measure regional transfer.
 **Build plan**
 
 1. Biome rules for five types: dense urban, informal settlement, plantation (oil palm), paddy, mangrove/coast.
+   Plumbing is in place (FRK-36): `src/fraktal/biomes.py` holds named presets (each a full `ProceduralConfig`), `generate --biome NAME --biome-config FILE.json` selects and overrides one, unknown names or keys fail loudly, and the biome is recorded in `world.json`. A preset is data; add one to `BIOMES` per biome story.
 2. Informal settlement generator (irregular parcels, tin and tile roofs, tight spacing).
 3. Plantation and paddy patterns (regular rows and terraced fields) with seasonal states.
 4. Find or assemble a small tropical real test set (candidates: Open Cities AI, local OSM-labelled areas); record licence.
