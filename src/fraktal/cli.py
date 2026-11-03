@@ -23,6 +23,7 @@ from fraktal import (
     benchmark,
     chips,
     ingest,
+    inspection,
     palette,
     procedural,
     randomise,
@@ -312,6 +313,27 @@ def _palette_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--out", type=Path, help="palette path")
 
 
+def _inspect(args: argparse.Namespace) -> Result:
+    try:
+        if args.id:
+            found = inspection.find_feature(args.path, args.id)
+            return Result(
+                found,
+                f"{found['kind']} {found['id']}: {found['geometry']['type']}, "
+                f"provenance {found['provenance']}, {found['properties']}",
+            )
+        summary = inspection.summarise(args.path)
+    except (OSError, ValueError, KeyError) as err:
+        raise CliError(ExitCode.FAILURE, "inspect_failed", str(err)) from err
+    text = "; ".join(f"{k}: {v['features']}" for k, v in summary["layers"].items())
+    return Result(summary, f"{args.path}: {text}")
+
+
+def _inspect_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("path", type=Path, help="a world directory or one layer file")
+    parser.add_argument("--id", help="feature id (or a unique prefix of 6+ characters)")
+
+
 def _split_manifest(args: argparse.Namespace) -> Path:
     path: Path = args.split or args.data_dir / "spacenet2" / "khartoum-split.json"
     return path
@@ -544,6 +566,7 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "ablate": _ablate_args,
     "report": _report_args,
     "palette": _palette_args,
+    "inspect": _inspect_args,
 }
 
 COMMANDS: dict[str, tuple[str, Handler]] = {
@@ -558,7 +581,7 @@ COMMANDS: dict[str, tuple[str, Handler]] = {
     "report": ("Build the realism report PDF from an ablation", _report),
     "palette": ("Fit render colours from the real train chips", _palette),
     "compare": ("Measure how far synthetic chips are from real imagery", _compare),
-    "inspect": ("Inspect a world, dataset or report", _not_implemented("inspect")),
+    "inspect": ("Look up a feature by ID, or summarise a world", _inspect),
 }
 
 

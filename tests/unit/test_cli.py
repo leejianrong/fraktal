@@ -6,7 +6,7 @@ import pytest
 from fraktal import __version__, cli
 from fraktal.cli import ExitCode, main
 
-STAGES = ["inspect"]
+STAGES = ["version"]  # a stand-in: every real command is implemented
 
 
 def test_exit_codes_are_a_stable_contract() -> None:
@@ -33,8 +33,9 @@ def test_version_human_output(capsys: pytest.CaptureFixture[str]) -> None:
 
 @pytest.mark.parametrize("stage", STAGES)
 def test_unimplemented_stage_exits_3_with_json_error(
-    stage: str, capsys: pytest.CaptureFixture[str]
+    stage: str, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setitem(cli.COMMANDS, stage, ("stub", cli._not_implemented(stage)))
     assert main([stage, "--json"]) == ExitCode.NOT_IMPLEMENTED
     envelope = json.loads(capsys.readouterr().out)
     assert envelope["ok"] is False
@@ -43,8 +44,11 @@ def test_unimplemented_stage_exits_3_with_json_error(
     assert stage in envelope["error"]["message"]
 
 
-def test_human_errors_go_to_stderr(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["inspect"]) == ExitCode.NOT_IMPLEMENTED
+def test_human_errors_go_to_stderr(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setitem(cli.COMMANDS, "version", ("stub", cli._not_implemented("version")))
+    assert main(["version"]) == ExitCode.NOT_IMPLEMENTED
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "not implemented" in captured.err

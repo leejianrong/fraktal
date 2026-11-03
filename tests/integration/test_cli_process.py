@@ -25,10 +25,10 @@ def test_success_path_prints_a_parseable_envelope() -> None:
     assert json.loads(result.stdout)["ok"] is True
 
 
-def test_failure_path_exits_3_and_keeps_stdout_machine_readable() -> None:
-    result = run("inspect", "--json")
-    assert result.returncode == 3
-    assert json.loads(result.stdout)["error"]["kind"] == "not_implemented"
+def test_failure_path_exits_4_and_keeps_stdout_machine_readable() -> None:
+    result = run("inspect", "/no/such/world", "--json")
+    assert result.returncode == 4
+    assert json.loads(result.stdout)["error"]["kind"] == "inspect_failed"
 
 
 @pytest.mark.parametrize(
