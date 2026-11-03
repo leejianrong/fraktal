@@ -230,6 +230,8 @@ def _synth(args: argparse.Namespace) -> Result:
         tone=tuple(args.tone),
         texture=args.texture,
         haze=args.haze,
+        psf_sigma_px=args.psf,
+        noise_sigma=args.noise,
         penumbra_m=args.penumbra,
     )
     try:
@@ -270,6 +272,8 @@ def _synth_args(parser: argparse.ArgumentParser) -> None:
         default=render.KHARTOUM_TONE,
         help="per-channel gain (default matches the real Khartoum chips)",
     )
+    parser.add_argument("--psf", type=float, default=0.8, help="sensor blur sigma in pixels")
+    parser.add_argument("--noise", type=float, default=8.0, help="sensor noise std in DN")
     parser.add_argument("--haze", type=float, default=0.0, help="atmospheric optical depth")
     parser.add_argument("--penumbra", type=float, default=0.0, help="shadow softness in metres")
     parser.add_argument(

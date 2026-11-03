@@ -27,6 +27,7 @@ from fraktal.kernels.filters import gaussian_blur
 from fraktal.kernels.noise import lattice_shape, value_noise
 from fraktal.kernels.shadow import shadow_mask
 from fraktal.labels import independent_building_mask
+from fraktal.sensor import add_noise, apply_psf
 from fraktal.terrain import TerrainError
 
 DEFAULT_HEIGHT_M = 6.0
@@ -83,6 +84,8 @@ class RenderConfig:
     variation: float = 0.0  # 0 is the flat V1 look; 0.15 is a typical spread of reflectance
     tone: tuple[float, float, float] = (1.0, 1.0, 1.0)  # per-channel gain on the final image
     haze: float = 0.0  # optical depth of the atmosphere; 0 is clear, 0.2 is hazy
+    psf_sigma_px: float = 0.0  # sensor blur (Gaussian sigma in output pixels); 0 is none
+    noise_sigma: float = 0.0  # sensor noise (std in digital numbers); 0 is none
     penumbra_m: float = 0.0  # shadow edge softness (blur sigma in metres); 0 is a hard edge
     texture: float = 0.0  # strength of sub-10 m texture; 0 is flat, 0.7 is the synth default
 
@@ -326,6 +329,8 @@ def render_region(
     else:
         rgb = shade(landcover, mask, shadow, tone=config.tone, texture=texture, haze=haze)
 
+    rgb = apply_psf(rgb, config.psf_sigma_px)
+
     tile_dir = out_dir / "tiles"
     tile_dir.mkdir(parents=True, exist_ok=True)
     geometries = list(local.geometry)
@@ -339,7 +344,10 @@ def render_region(
             name = f"r{row:02d}_c{col:02d}"
             tile_mask = np.ascontiguousarray(mask[window])
             paths = {
-                "": (tile_dir / f"{name}.tif", rgb[:, window[0], window[1]]),
+                "": (
+                    tile_dir / f"{name}.tif",
+                    add_noise(rgb[:, window[0], window[1]], config.noise_sigma, config.seed, name),
+                ),
                 "_buildings": (tile_dir / f"{name}_buildings.tif", tile_mask),
                 "_landcover": (tile_dir / f"{name}_landcover.tif", landcover[window]),
             }
@@ -373,6 +381,8 @@ def render_region(
         "tone": list(config.tone),
         "texture": config.texture,
         "haze": config.haze,
+        "psf_sigma_px": config.psf_sigma_px,
+        "noise_sigma": config.noise_sigma,
         "penumbra_m": config.penumbra_m,
         "buildings": len(local),
         "tiles": records,
