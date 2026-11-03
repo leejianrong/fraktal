@@ -29,3 +29,29 @@ Initial bar, to be confirmed after the first baseline: arm 3 beats arm 1 by at l
 ## Consequences
 
 An objective pass/fail from the first slice, and a regression test for every later renderer change. The costs: a real benchmark dataset must be obtained and its licence checked (some, like xView, are non-commercial), and the chosen dataset may not be tropical, so regional transfer is a separate open risk. One task also means the MVP says nothing yet about land cover, roads or change detection.
+
+## Update 2026-11-03: V1 results and the revised bar
+
+V1 ran on SpaceNet 2 Khartoum (ADR-0008): 810 train and 202 held-out test tiles, a fixed U-Net (about 2M parameters), 3000 optimiser steps per stage, on one RunPod A40. Arm 3 pretrained on 141 synthetic chips (crude renderer, ADR-0004) and then fine-tuned on the same 81 real tiles as arm 1. Pixel IoU on the test tiles:
+
+| Run | Arm 1: real 10% | Arm 2: real 100% | Arm 3: synthetic then real 10% | Arm 3 minus arm 1 | Arm 3 / arm 2 | Synthetic-only IoU |
+|-----|------|------|------|------|------|------|
+| seed 0 | 0.6265 | 0.6353 | 0.6101 | -1.64 pts | 0.960 | 0.000005 |
+| seed 0, repeated | 0.6241 | 0.6331 | 0.6170 | -0.72 pts | 0.974 | 0.000309 |
+| seed 1 | 0.6319 | 0.6422 | 0.6192 | -1.27 pts | 0.964 | 0.000008 |
+
+The two seed-0 runs agree within 0.7 points, so run-to-run noise is under one point. Only two seeds are independent, so treat the spread as a rough guide.
+
+**What the numbers say.**
+
+1. **The original bar is not met.** Arm 3 sits 0.7 to 1.6 points below arm 1, not 5 above it. Synthetic pretraining from the V1 renderer slightly hurt.
+2. **The 10% regime cannot discriminate.** Arm 2 beats arm 1 by under 1 point (0.9, 0.9, 1.0). Ten percent of the real tiles is already almost as good as all of them for this model and recipe, so there is no room for any data source to add 5 points, and "90% of arm 2" is passed by arm 1 alone (about 98.6%).
+3. **The synthetic domain gap is very large.** A model trained only on the synthetic chips scores about 0 IoU on real tiles. It finds essentially no real buildings. The V1 renderer produces flat colours and 10 m land cover, and the network learns cues that do not exist in real imagery.
+
+**Revised bar.** The thresholds stay, and one precondition is added so the test can say something:
+
+- The comparison counts only in a regime where real data is scarce: arm 2 must beat arm 1 by at least 10 IoU points. Arm 1 uses the smallest real fraction that satisfies this. A first candidate is 1% (about 8 tiles); this has not been measured.
+- In that regime, arm 3 must beat arm 1 by at least 5 IoU points and reach at least 90% of arm 2.
+- Synthetic-only IoU on real tiles is reported in every run as a realism gauge. V1 value: about 0. A target for it is set when V3 starts, from what the realism work achieves.
+
+**Consequences.** V1 is a valid, repeatable measurement of the pipeline and a clear first answer: the crude renderer does not transfer. The next measurement is the same three arms at the scarce-data fraction, which costs a few GPU minutes. Whether to invest in V3 realism work is decided after that run. This update does not change the plan itself.
