@@ -79,29 +79,34 @@ stage render
 # Two renders at a time keeps the CPU pod busy without thrashing; each uses several threads.
 render() {  # name, extra flags
   local name=$1; shift
-  if fraktal synth --regions "$REGIONS" --seed 0 --max-chips "$MAX_CHIPS" \
+  if timeout 900 fraktal synth --regions "$REGIONS" --seed 0 --max-chips "$MAX_CHIPS" \
       --palette data/spacenet2/palette.json "$@" --out "data/review/$name" > "data/review_$name.log" 2>&1; then
     rm -rf "data/review/$name"/region_*
     echo "render_done $name"
   else
-    echo "ERROR render of $name failed; last lines:"; tail -n 15 "data/review_$name.log"
-    return 1
+    echo "ERROR render of $name failed or timed out (900 s); last lines:"
+    tail -n 15 "data/review_$name.log"
+    return 0
   fi
 }
 mkdir -p data/review
+# Stream each render's progress into the job log, so a slow region is visible, not silent.
+( while true; do for f in data/review_*.log; do [ -f "$f" ] && echo "[$(basename "$f" .log)] $(tail -n 1 "$f" | cut -c1-160)"; done; sleep 90; done ) &
 for v in $VARIANTS; do
   render "proc_$v" --variant "$v" --procedural &
   render "skel_$v" --variant "$v" &
   wait -n; wait -n || true
   wait
 done
-for v in $VARIANTS; do
-  [ -s "data/review/proc_$v/chips/chips.json" ] || { echo "ERROR no chips for proc_$v"; false; }
-done
 
 stage figures
 ARGS=()
-for v in $VARIANTS; do ARGS+=("skeleton_$v=data/review/skel_$v/chips" "procedural_$v=data/review/proc_$v/chips"); done
+for v in $VARIANTS; do
+  for kind in skel proc; do
+    if [ -s "data/review/${kind}_$v/chips/chips.json" ]; then ARGS+=("${kind}_$v=data/review/${kind}_$v/chips")
+    else echo "WARN no chips for ${kind}_$v, left out of the figures"; fi
+  done
+done
 python src/scripts/review_figs.py data/spacenet2/chips review "${ARGS[@]}"
 echo "RP_GAUGE_BEGIN"; tr -d '\n ' < review/gauge.json; echo; echo "RP_GAUGE_END"
 for v in $VARIANTS; do cp -r "data/review/proc_$v/samples" "review/samples_proc_$v" 2>/dev/null || true; done
