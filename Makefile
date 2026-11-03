@@ -1,11 +1,14 @@
 .DEFAULT_GOAL := help
-.PHONY: help install hooks lint fmt typecheck test test-integration check
+.PHONY: help install install-train hooks lint fmt typecheck test test-integration check
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
 
 install: ## Create the venv and install locked dependencies
 	uv sync --frozen
+
+install-train: ## Also install PyTorch for the benchmark (large download)
+	uv sync --frozen --group train
 
 hooks: ## Install the pre-push hook
 	git config core.hooksPath .githooks

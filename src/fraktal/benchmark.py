@@ -1,0 +1,257 @@
+"""The downstream benchmark (ADR-0006): a fixed small U-Net and a fixed recipe.
+
+Only the training data changes between arms. Every arm gets the same number of optimiser steps,
+so a 10% arm is not handicapped by seeing fewer batches. PyTorch is imported lazily so the rest
+of the package works without the optional ``train`` dependency group.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import json
+from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Protocol
+
+import numpy as np
+
+from fraktal.ids import substream
+
+
+class TileSource(Protocol):
+    """Chips for one split: uint8 images (3, H, W) and uint8 masks (H, W) with values 0 or 1."""
+
+    def __len__(self) -> int: ...
+
+    def get(self, index: int) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]: ...
+
+
+class Subset:
+    def __init__(self, source: TileSource, indices: Sequence[int]) -> None:
+        self.source = source
+        self.indices = list(indices)
+
+    def __len__(self) -> int:
+        return len(self.indices)
+
+    def get(self, index: int) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+        return self.source.get(self.indices[index])
+
+
+@dataclass(frozen=True)
+class Recipe:
+    """Everything that must be identical across arms. Recorded in every report."""
+
+    steps: int = 3000
+    batch_size: int = 16
+    patch_px: int = 256
+    base_channels: int = 16
+    lr: float = 1e-3
+    weight_decay: float = 1e-4
+    eval_patch_px: int = 512
+    threshold: float = 0.5
+
+
+def require_torch() -> Any:
+    try:
+        import torch
+    except ImportError as err:  # pragma: no cover - depends on the environment
+        raise RuntimeError(
+            "PyTorch is not installed; run `uv sync --group train` (see CONTRIBUTING.md)"
+        ) from err
+    return torch
+
+
+def choose_subset(n: int, fraction: float, seed: int) -> list[int]:
+    """A seeded, sorted subset of ``n`` items; at least one item."""
+    if not 0 < fraction <= 1:
+        raise ValueError("fraction must be in (0, 1]")
+    k = min(n, max(1, round(n * fraction)))
+    picked = substream(seed, "benchmark-subset").permutation(n)[:k]
+    return sorted(int(i) for i in picked)
+
+
+def build_unet(base: int = 16) -> Any:
+    """A four-level U-Net with batch norm; about 2M parameters at ``base=16``."""
+    torch = require_torch()
+    from torch import nn
+
+    def block(cin: int, cout: int) -> Any:
+        return nn.Sequential(
+            nn.Conv2d(cin, cout, 3, padding=1, bias=False),
+            nn.BatchNorm2d(cout),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(cout, cout, 3, padding=1, bias=False),
+            nn.BatchNorm2d(cout),
+            nn.ReLU(inplace=True),
+        )
+
+    class UNet(nn.Module):  # type: ignore[misc,unused-ignore]
+        def __init__(self) -> None:
+            super().__init__()
+            widths = [base, base * 2, base * 4, base * 8]
+            self.down = nn.ModuleList()
+            cin = 3
+            for w in widths:
+                self.down.append(block(cin, w))
+                cin = w
+            self.mid = block(widths[-1], widths[-1] * 2)
+            self.up = nn.ModuleList()
+            self.merge = nn.ModuleList()
+            cin = widths[-1] * 2
+            for w in reversed(widths):
+                self.up.append(nn.ConvTranspose2d(cin, w, 2, stride=2))
+                self.merge.append(block(w * 2, w))
+                cin = w
+            self.head = nn.Conv2d(base, 1, 1)
+            self.pool = nn.MaxPool2d(2)
+
+        def forward(self, x: Any) -> Any:
+            skips = []
+            for down in self.down:
+                x = down(x)
+                skips.append(x)
+                x = self.pool(x)
+            x = self.mid(x)
+            for up, merge in zip(self.up, self.merge, strict=True):
+                x = up(x)
+                x = merge(torch.cat([x, skips.pop()], dim=1))
+            return self.head(x)
+
+    return UNet()
+
+
+def _loss(logits: Any, target: Any) -> Any:
+    torch = require_torch()
+    bce = torch.nn.functional.binary_cross_entropy_with_logits(logits, target)
+    prob = torch.sigmoid(logits)
+    inter = (prob * target).sum()
+    dice = 1 - (2 * inter + 1) / (prob.sum() + target.sum() + 1)
+    return bce + dice
+
+
+def _batch(
+    source: TileSource, recipe: Recipe, rng: np.random.Generator
+) -> tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]:
+    p = recipe.patch_px
+    images = np.empty((recipe.batch_size, 3, p, p), dtype=np.float32)
+    masks = np.empty((recipe.batch_size, 1, p, p), dtype=np.float32)
+    for b in range(recipe.batch_size):
+        img, msk = source.get(int(rng.integers(len(source))))
+        _, h, w = img.shape
+        if h < p or w < p:
+            raise ValueError(f"tile {h}x{w} is smaller than the {p}px patch")
+        r, c = int(rng.integers(h - p + 1)), int(rng.integers(w - p + 1))
+        img_p, msk_p = img[:, r : r + p, c : c + p], msk[r : r + p, c : c + p]
+        k = int(rng.integers(4))
+        img_p, msk_p = np.rot90(img_p, k, axes=(1, 2)), np.rot90(msk_p, k)
+        if rng.integers(2):
+            img_p, msk_p = img_p[:, :, ::-1], msk_p[:, ::-1]
+        images[b] = img_p.astype(np.float32) / 255.0
+        masks[b, 0] = msk_p
+    return images, masks
+
+
+def train(
+    source: TileSource,
+    recipe: Recipe,
+    seed: int,
+    device: str,
+    *,
+    init_state: dict[str, Any] | None = None,
+) -> tuple[Any, list[float]]:
+    """Train for ``recipe.steps`` optimiser steps. Returns the model and a loss trace."""
+    torch = require_torch()
+    if len(source) == 0:
+        raise ValueError("no training tiles")
+    init_seed = int(substream(seed, "benchmark-init").integers(2**31 - 1))
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(init_seed)
+        model = build_unet(recipe.base_channels)
+    if init_state is not None:
+        model.load_state_dict(init_state)
+    model = model.to(device).train()
+    opt = torch.optim.AdamW(model.parameters(), lr=recipe.lr, weight_decay=recipe.weight_decay)
+    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=recipe.steps)
+    rng = substream(seed, "benchmark-batches")
+    trace: list[float] = []
+    for _step in range(recipe.steps):
+        images, masks = _batch(source, recipe, rng)
+        x = torch.from_numpy(images).to(device)
+        y = torch.from_numpy(masks).to(device)
+        loss = _loss(model(x), y)
+        opt.zero_grad(set_to_none=True)
+        loss.backward()
+        opt.step()
+        sched.step()
+        trace.append(float(loss.item()))
+    return model, trace
+
+
+def evaluate(model: Any, source: TileSource, recipe: Recipe, device: str) -> float:
+    """Pixel IoU of the building class over all tiles, accumulated globally."""
+    torch = require_torch()
+    model = model.to(device).eval()
+    tp = fp = fn = 0
+    p = recipe.eval_patch_px
+    with torch.no_grad():
+        for i in range(len(source)):
+            img, msk = source.get(i)
+            _, h, w = img.shape
+            for r in range(0, h, p):
+                for c in range(0, w, p):
+                    rh, cw = min(p, h - r), min(p, w - c)
+                    patch = img[:, r : r + rh, c : c + cw].astype(np.float32) / 255.0
+                    pad_h, pad_w = -rh % 16, -cw % 16
+                    patch = np.pad(patch, ((0, 0), (0, pad_h), (0, pad_w)), mode="reflect")
+                    logits = model(torch.from_numpy(patch[None]).to(device))
+                    prob = torch.sigmoid(logits)[0, 0, :rh, :cw].cpu().numpy()
+                    pred = prob >= recipe.threshold
+                    truth = msk[r : r + rh, c : c + cw] > 0
+                    tp += int((pred & truth).sum())
+                    fp += int((pred & ~truth).sum())
+                    fn += int((~pred & truth).sum())
+    union = tp + fp + fn
+    return tp / union if union else 0.0
+
+
+def resolve_device(requested: str) -> str:
+    torch = require_torch()
+    if requested == "auto":
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    return requested
+
+
+def run_real_arms(
+    train_source: TileSource,
+    test_source: TileSource,
+    recipe: Recipe,
+    seed: int,
+    device: str = "auto",
+    fraction: float = 0.1,
+) -> dict[str, Any]:
+    """Arms 1 and 2: real-only at ``fraction`` of the training tiles and at 100%."""
+    device = resolve_device(device)
+    arms: dict[str, Any] = {}
+    for name, frac in (("real_10pct", fraction), ("real_100pct", 1.0)):
+        indices = choose_subset(len(train_source), frac, seed)
+        model, trace = train(Subset(train_source, indices), recipe, seed, device)
+        arms[name] = {
+            "iou": evaluate(model, test_source, recipe, device),
+            "train_tiles": len(indices),
+            "final_loss": trace[-1],
+        }
+    return {
+        "schema": 1,
+        "seed": seed,
+        "device": device,
+        "recipe": dataclasses.asdict(recipe),
+        "test_tiles": len(test_source),
+        "arms": arms,
+    }
+
+
+def write_report(report: dict[str, Any], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
