@@ -162,3 +162,19 @@ Contrast is matched and the clipped share is about halfway. Strong edges barely 
 | Colour W1 | 0.064 | 0.065 | |
 
 The strong-edge tail moves but stays under half of real. Vehicles only stand on built-up and bare ground, and the world has no roads, so they are scattered rather than lined up on streets; a road network (V2) would make them realistic. Downstream effect untested until an ablation includes `v7_extremes` and `v8_objects`.
+
+## Update 2026-11-03: scarce-data benchmark at 1% real (FRK-19)
+
+At 1% real (8 tiles) the test can discriminate. Three seeds, 3000 steps per arm, A40, `fraktal ablate --fraction 0.01`. Real 1% scored 0.515 and real 100% scored 0.642, a gap of 12.8 points (the revised bar needs 10 or more), so the Q14 bar applies here.
+
+| Variant | Seed 0 | Seed 1 | Seed 2 | Mean | vs real 1% (points) | Share of real 100% | Zero-shot | Bar |
+|---|---|---|---|---|---|---|---|---|
+| flat (V1) | 0.520 | 0.497 | 0.445 | 0.487 | −2.73 | 76% | 0.000 | missed |
+| + texture (cumulative) | 0.529 | 0.528 | 0.472 | 0.510 | −0.51 | 79% | 0.301 | missed |
+| randomised per region | 0.551 | 0.514 | 0.446 | 0.504 | −1.07 | 78% | 0.264 | missed |
+
+**The Q14 bar is missed.** It needed arm 3 at least 5 points above real 1% and at least 90% of real 100%. The best variant is 0.5 points below real 1% and at 79% of real 100%. Synthetic pretraining on these chips does not help even when real data is scarce. Real 1% itself varies a lot with the subset drawn (0.541, 0.527, 0.477), so differences of about 3 points between variants are within noise, and arm 3 beat arm 1 in only 1 of 9 seed and variant pairs (randomised, seed 0).
+
+**Consequence.** The result agrees with the 10% run: realism work through v6 raised the synthetic-only score from 0 to about 0.3 but did not make pretraining pay in the fine-tuned model. This is the decision point named in the plan's open risks (the sim-to-real gap is larger than randomisation can close). The extremes (v7) and objects (v8) variants were not part of this run. They are the remaining realism levers on the list, and a further run including them at 1% would show whether they change the answer.
+
+**Operational note.** The relay transfer failed ("room not ready"), so the pod waited out the transfer timeout (about 25 minutes, roughly $0.25) before the wrapper terminated it. The numbers were recovered from the report printed in the pod logs, as designed. Total cost about $1.1.
