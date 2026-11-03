@@ -21,6 +21,7 @@ from shapely.geometry import box
 from shapely.strtree import STRtree
 
 from fraktal.ids import substream
+from fraktal.log import emit
 from fraktal.render import RenderConfig, render_region
 from fraktal.split import read_manifest
 from fraktal.terrain import TerrainError
@@ -99,11 +100,13 @@ def synthesize(
         if rendered == regions:
             break
         region_dir = out_dir / f"region_{rendered:02d}"
+        emit("synth_region_start", region=rendered, of=regions, center=list(center))
         try:
             manifest = render_region(terrain_dir, layer, center, region_dir, config)
         except TerrainError:
             continue  # region sticks out of the terrain AOI; try the next candidate
         rendered += 1
+        emit("synth_region_done", region=rendered - 1, chips_so_far=len(ids))
         for rec in manifest["tiles"]:
             tile_transform = Affine(*rec["transform"])
             n = config.tile_px

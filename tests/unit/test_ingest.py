@@ -96,3 +96,13 @@ def test_cli_reports_cached_in_json(
 def test_data_dir_is_git_ignored() -> None:
     root = Path(__file__).resolve().parents[2]
     assert "data/" in (root / ".gitignore").read_text().splitlines()
+
+
+def test_ingest_reports_progress(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("fraktal.ingest.PROGRESS_BYTES", 1)
+    ingest(tmp_path, transport=FakeTransport(make_tarball()))
+    err = capsys.readouterr().err
+    assert '"event": "download_start"' in err
+    assert '"event": "extract_start"' in err

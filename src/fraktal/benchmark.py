@@ -18,6 +18,7 @@ from typing import Any, Protocol
 import numpy as np
 
 from fraktal.ids import substream
+from fraktal.log import emit
 
 
 class TileSource(Protocol):
@@ -154,6 +155,12 @@ def _batch(
     return images, masks
 
 
+def _gpu_gb(device: str) -> float | None:
+    if not device.startswith("cuda"):
+        return None
+    return round(float(require_torch().cuda.max_memory_allocated()) / 2**30, 2)
+
+
 def train(
     source: TileSource,
     recipe: Recipe,
@@ -161,6 +168,8 @@ def train(
     device: str,
     *,
     init_state: dict[str, Any] | None = None,
+    label: str = "train",
+    log_every: int = 100,
 ) -> tuple[Any, list[float]]:
     """Train for ``recipe.steps`` optimiser steps. Returns the model and a loss trace."""
     torch = require_torch()
@@ -177,6 +186,8 @@ def train(
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=recipe.steps)
     rng = substream(seed, "benchmark-batches")
     trace: list[float] = []
+    started = time.monotonic()
+    emit("train_start", label=label, steps=recipe.steps, tiles=len(source), device=device)
     for _step in range(recipe.steps):
         images, masks = _batch(source, recipe, rng)
         x = torch.from_numpy(images).to(device)
@@ -187,17 +198,37 @@ def train(
         opt.step()
         sched.step()
         trace.append(float(loss.item()))
+        done = _step + 1
+        if log_every and (done % log_every == 0 or done == recipe.steps):
+            elapsed = max(time.monotonic() - started, 1e-9)
+            rate = done / elapsed
+            emit(
+                "train_progress",
+                label=label,
+                step=done,
+                steps=recipe.steps,
+                loss=round(float(np.mean(trace[-log_every:])), 4),
+                steps_per_s=round(rate, 2),
+                eta_s=round((recipe.steps - done) / rate),
+                gpu_peak_gb=_gpu_gb(device),
+            )
+    emit("train_done", label=label, seconds=round(time.monotonic() - started, 1))
     return model, trace
 
 
-def evaluate(model: Any, source: TileSource, recipe: Recipe, device: str) -> float:
+def evaluate(
+    model: Any, source: TileSource, recipe: Recipe, device: str, *, label: str = "eval"
+) -> float:
     """Pixel IoU of the building class over all tiles, accumulated globally."""
     torch = require_torch()
     model = model.to(device).eval()
     tp = fp = fn = 0
     p = recipe.eval_patch_px
+    emit("eval_start", label=label, tiles=len(source))
     with torch.no_grad():
         for i in range(len(source)):
+            if i and i % 25 == 0:
+                emit("eval_progress", label=label, tile=i, tiles=len(source))
             img, msk = source.get(i)
             _, h, w = img.shape
             for r in range(0, h, p):
@@ -214,7 +245,9 @@ def evaluate(model: Any, source: TileSource, recipe: Recipe, device: str) -> flo
                     fp += int((pred & ~truth).sum())
                     fn += int((~pred & truth).sum())
     union = tp + fp + fn
-    return tp / union if union else 0.0
+    iou = tp / union if union else 0.0
+    emit("eval_done", label=label, iou=round(iou, 4))
+    return iou
 
 
 def resolve_device(requested: str) -> str:
@@ -232,6 +265,7 @@ def run_arms(
     device: str = "auto",
     fraction: float = 0.1,
     synthetic: TileSource | None = None,
+    log_every: int = 100,
 ) -> dict[str, Any]:
     """Arm 1 (real at ``fraction``), arm 2 (real 100%) and, given synthetic tiles, arm 3.
 
@@ -247,13 +281,17 @@ def run_arms(
         ("real_100pct", list(range(len(train_source)))),
     ):
         started = time.monotonic()
-        model, trace = train(Subset(train_source, indices), recipe, seed, device)
+        emit("arm_start", arm=name, seed=seed, train_tiles=len(indices))
+        model, trace = train(
+            Subset(train_source, indices), recipe, seed, device, label=name, log_every=log_every
+        )
         arms[name] = {
-            "iou": evaluate(model, test_source, recipe, device),
+            "iou": evaluate(model, test_source, recipe, device, label=name),
             "train_tiles": len(indices),
             "final_loss": trace[-1],
             "seconds": round(time.monotonic() - started, 1),
         }
+        emit("arm_done", arm=name, iou=round(arms[name]["iou"], 4), seconds=arms[name]["seconds"])
     report: dict[str, Any] = {
         "schema": 1,
         "seed": seed,
@@ -264,12 +302,15 @@ def run_arms(
     }
     if synthetic is not None:
         started = time.monotonic()
-        pre, pre_trace = train(synthetic, recipe, seed, device)
+        emit("arm_start", arm="synthetic_pretrain_then_real_10pct", seed=seed)
+        pre, pre_trace = train(
+            synthetic, recipe, seed, device, label="synthetic_pretrain", log_every=log_every
+        )
         state = {k: v.detach().cpu().clone() for k, v in pre.state_dict().items()}
-        zero_shot = evaluate(pre, test_source, recipe, device)
+        zero_shot = evaluate(pre, test_source, recipe, device, label="synthetic_only")
         model, trace = train(Subset(train_source, subset), recipe, seed, device, init_state=state)
         arms["synthetic_pretrain_then_real_10pct"] = {
-            "iou": evaluate(model, test_source, recipe, device),
+            "iou": evaluate(model, test_source, recipe, device, label="arm3"),
             "train_tiles": len(subset),
             "synthetic_tiles": len(synthetic),
             "pretrain_steps": recipe.steps,
@@ -278,6 +319,7 @@ def run_arms(
             "final_loss": trace[-1],
             "seconds": round(time.monotonic() - started, 1),
         }
+        emit("arm_done", arm="synthetic_pretrain_then_real_10pct", iou=round(arm3_iou(arms), 4))
         report["diagnostics"] = {"synthetic_only_zero_shot_iou": zero_shot}
         report["comparison"] = compare(arms)
     report["hardware"] = hardware_stats(device)
@@ -295,6 +337,10 @@ def hardware_stats(device: str) -> dict[str, Any]:
         "gpu_total_gb": round(torch.cuda.get_device_properties(0).total_memory / 2**30, 1),
         "peak_gpu_allocated_gb": round(torch.cuda.max_memory_allocated() / 2**30, 2),
     }
+
+
+def arm3_iou(arms: dict[str, Any]) -> float:
+    return float(arms["synthetic_pretrain_then_real_10pct"]["iou"])
 
 
 def compare(arms: dict[str, Any]) -> dict[str, float]:
