@@ -100,14 +100,14 @@ Make the imagery look and behave like real satellite data, and measure whether i
 
 **Demo:** side-by-side of V1 and V3 renders of the same tile, plus an ablation table showing the benchmark IoU for each realism component.
 
-**Rests on assumptions:** Q13 (randomisation before learned refinement). If the ablation shows no gain, the premise is in question and V4 should wait.
+**Rests on assumptions:** Q13 (randomisation before learned refinement). If the ablation shows no gain, that steers what to build next (ADR-0009); it does not hold V4.
 
 ### Test plan
 
 #### End-to-end
 
 - Benchmark arm 3 (synthetic pretrain + real 10%) improves over V1 arm 3 by a recorded margin, and the ablation table is produced.
-- Arm 3 beats arm 1 by at least 5 IoU points (Q14 bar), or the report flags the miss and the project pauses to revisit.
+- Arm 3 beats arm 1 by at least 5 IoU points (Q14 bar), or the report flags the miss and the largest measured gap becomes the next work (ADR-0009).
 
 #### Integration
 

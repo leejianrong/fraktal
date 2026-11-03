@@ -135,7 +135,7 @@ Seven cumulative variants (`fraktal.ablation.VARIANTS`), seeds 0 and 1, 3000 ste
 - Tone alone, and the sensor model, did not help the downstream score. The sensor model moved the gauge's edge and noise gaps to 0.04 and 0.12 while arm 3 stayed flat, which confirms those gauge statistics respond to noise without implying realism.
 - Peak GPU memory 1.48 GB.
 
-**Consequence.** Realism work through V3 closed most of the zero-shot gap, but the benchmark as set up (10% of about 1,000 tiles) cannot show a gain, because real data is not scarce enough. A decisive test needs a smaller real fraction, where arm 2 beats arm 1 by 10 or more points. Until then the premise is not refuted, and also not supported. V4 should wait for that measurement.
+**Consequence.** Realism work through V3 closed most of the zero-shot gap, but the benchmark as set up (10% of about 1,000 tiles) cannot show a gain, because real data is not scarce enough. A decisive test needs a smaller real fraction, where arm 2 beats arm 1 by 10 or more points. Until then the premise is not refuted, and also not supported. V4 should wait for that measurement. (Superseded by ADR-0009: V4 is not held; the 1% run below made the test decidable.)
 
 ### FRK-21: bright and dark extremes, clipping and no-data edges
 
@@ -175,6 +175,6 @@ At 1% real (8 tiles) the test can discriminate. Three seeds, 3000 steps per arm,
 
 **The Q14 bar is missed.** It needed arm 3 at least 5 points above real 1% and at least 90% of real 100%. The best variant is 0.5 points below real 1% and at 79% of real 100%. Synthetic pretraining on these chips does not help even when real data is scarce. Real 1% itself varies a lot with the subset drawn (0.541, 0.527, 0.477), so differences of about 3 points between variants are within noise, and arm 3 beat arm 1 in only 1 of 9 seed and variant pairs (randomised, seed 0).
 
-**Consequence.** The result agrees with the 10% run: realism work through v6 raised the synthetic-only score from 0 to about 0.3 but did not make pretraining pay in the fine-tuned model. This is the decision point named in the plan's open risks (the sim-to-real gap is larger than randomisation can close). The extremes (v7) and objects (v8) variants were not part of this run. They are the remaining realism levers on the list, and a further run including them at 1% would show whether they change the answer.
+**Consequence.** The result agrees with the 10% run: realism work through v6 raised the synthetic-only score from 0 to about 0.3 but did not make pretraining pay in the fine-tuned model. This is the risk the plan names (the sim-to-real gap is larger than randomisation can close). ADR-0009 sets the response: keep building for coverage and use these measurements to steer. The extremes (v7) and objects (v8) variants were not part of this run. They are the remaining realism levers on the list, and a further run including them at 1% would show whether they change the answer.
 
 **Operational note.** The relay transfer failed ("room not ready"), so the pod waited out the transfer timeout (about 25 minutes, roughly $0.25) before the wrapper terminated it. The numbers were recovered from the report printed in the pod logs, as designed. Total cost about $1.1.
