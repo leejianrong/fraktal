@@ -17,7 +17,7 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Any
 
-from fraktal import __version__, ingest, split
+from fraktal import __version__, ingest, split, terrain
 
 
 class ExitCode(IntEnum):
@@ -60,18 +60,45 @@ def _not_implemented(name: str) -> Handler:
 
 
 def _ingest(args: argparse.Namespace) -> Result:
+    data: dict[str, Any] = {"dataset": ingest.DATASET}
+    lines: list[str] = []
     try:
-        result = ingest.ingest(args.data_dir, keep_archive=args.keep_archive)
-    except OSError as err:
+        if args.what in ("imagery", "all"):
+            result = ingest.ingest(args.data_dir, keep_archive=args.keep_archive)
+            data.update(
+                status=result.status,
+                path=str(result.path),
+                archive_bytes=result.bytes,
+                resumed_from=result.resumed_from,
+            )
+            lines.append(f"imagery {result.status} {result.path}")
+        if args.what in ("terrain", "all"):
+            aoi = _aoi(args)
+            layers = terrain.ingest_terrain(args.data_dir, aoi)
+            data["terrain"] = {
+                "status": layers.status,
+                "path": str(layers.path),
+                "shape": list(layers.shape),
+                "bounds": list(layers.bounds),
+            }
+            lines.append(f"terrain {layers.status} {layers.path}")
+    except (OSError, ValueError) as err:
         raise CliError(ExitCode.FAILURE, "ingest_failed", str(err)) from err
-    data = {
-        "dataset": ingest.DATASET,
-        "status": result.status,
-        "path": str(result.path),
-        "archive_bytes": result.bytes,
-        "resumed_from": result.resumed_from,
-    }
-    return Result(data, f"{result.status} {result.path}")
+    return Result(data, "\n".join(lines))
+
+
+def _aoi(args: argparse.Namespace) -> terrain.Bounds:
+    """The AOI is the union of the ingested imagery tiles, unless given explicitly."""
+    if args.bounds:
+        left, bottom, right, top = args.bounds
+        return (left, bottom, right, top)
+    tiles, _crs = split.list_tiles(args.data_dir / "spacenet2" / "khartoum")
+    return (
+        min(t.bounds[0] for t in tiles),
+        min(t.bounds[1] for t in tiles),
+        max(t.bounds[2] for t in tiles),
+        max(t.bounds[3] for t in tiles),
+    )
 
 
 def _data_dir_arg(parser: argparse.ArgumentParser) -> None:
@@ -85,6 +112,16 @@ def _data_dir_arg(parser: argparse.ArgumentParser) -> None:
 
 def _ingest_args(parser: argparse.ArgumentParser) -> None:
     _data_dir_arg(parser)
+    parser.add_argument(
+        "--what", choices=["imagery", "terrain", "all"], default="all", help="which data to fetch"
+    )
+    parser.add_argument(
+        "--bounds",
+        type=float,
+        nargs=4,
+        metavar=("LEFT", "BOTTOM", "RIGHT", "TOP"),
+        help="terrain AOI in EPSG:4326 (default: union of the imagery tiles)",
+    )
     parser.add_argument(
         "--keep-archive", action="store_true", help="keep the tarball after extraction"
     )

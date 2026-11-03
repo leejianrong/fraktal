@@ -88,7 +88,7 @@ def test_cli_reports_cached_in_json(
         raise AssertionError("network used")
 
     monkeypatch.setattr("fraktal.ingest.urllib.request.urlopen", no_network)
-    assert cli.main(["ingest", "--data-dir", str(tmp_path), "--json"]) == 0
+    assert cli.main(["ingest", "--what", "imagery", "--data-dir", str(tmp_path), "--json"]) == 0
     envelope = json.loads(capsys.readouterr().out)
     assert envelope["data"]["status"] == "cached"
 
