@@ -28,11 +28,13 @@ from fraktal.roads import RoadConfig, build_roads
 from fraktal.terrain_gen import add_detail, fractal_terrain
 
 GENERATOR_VERSION = "procedural-0.1"
+DEFAULT_BIOME = "khartoum"
 MANIFEST = "world.json"
 
 
 @dataclass(frozen=True)
 class ProceduralConfig:
+    biome: str = DEFAULT_BIOME  # a name from fraktal.biomes; recorded in the manifest
     size_m: float = 2000.0
     gsd_m: float = 5.0
     relief_m: float = 40.0
@@ -109,6 +111,7 @@ def generate_world(
         "schema": 1,
         "world_id": world.world_id(seed, _jsonable(config), GENERATOR_VERSION),
         "generator_version": GENERATOR_VERSION,
+        "biome": config.biome,
         "seed": seed,
         "crs": crs,
         "center_lonlat": [lon, lat],
@@ -144,6 +147,8 @@ def generate_world(
 
 def _jsonable(config: ProceduralConfig) -> dict[str, Any]:
     out: dict[str, Any] = json.loads(json.dumps(dataclasses.asdict(config)))
+    if out["biome"] == DEFAULT_BIOME:
+        del out["biome"]  # keeps the ids of worlds made before biomes existed
     return out
 
 
@@ -158,6 +163,7 @@ def read_roads(world_dir: Path) -> Any:
 
 
 __all__ = [
+    "DEFAULT_BIOME",
     "GENERATOR_VERSION",
     "MANIFEST",
     "ProceduralConfig",

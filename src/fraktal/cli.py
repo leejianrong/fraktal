@@ -21,6 +21,7 @@ from fraktal import (
     __version__,
     ablation,
     benchmark,
+    biomes,
     chips,
     ingest,
     inspection,
@@ -340,11 +341,28 @@ def _split_manifest(args: argparse.Namespace) -> Path:
     return path
 
 
+def _biome_overrides(args: argparse.Namespace) -> dict[str, Any]:
+    """Settings for the biome: a JSON file first, then the explicit command-line flags."""
+    overrides: dict[str, Any] = {}
+    if args.biome_config:
+        loaded = json.loads(args.biome_config.read_text())
+        if not isinstance(loaded, dict):
+            raise ValueError("--biome-config must hold a JSON object")
+        overrides.update(loaded)
+    for flag, key in (("size_m", "size_m"), ("gsd_m", "gsd_m"), ("aridity", "aridity")):
+        if getattr(args, flag, None) is not None:
+            overrides[key] = getattr(args, flag)
+    return overrides
+
+
 def _generate_procedural(args: argparse.Namespace) -> Result:
     if not args.center:
         raise CliError(ExitCode.USAGE, "usage", "--fallback procedural needs --center LON LAT")
     out: Path = args.out or args.data_dir / "worlds" / f"procedural-{args.seed}"
-    config = procedural.ProceduralConfig(size_m=args.size_m, gsd_m=args.gsd_m, aridity=args.aridity)
+    try:
+        config = biomes.resolve(args.biome, _biome_overrides(args))
+    except (OSError, ValueError) as err:
+        raise CliError(ExitCode.USAGE, "usage", str(err)) from err
     try:
         manifest = procedural.generate_world(
             out, (args.center[0], args.center[1]), args.seed, config, args.real_terrain
@@ -353,7 +371,8 @@ def _generate_procedural(args: argparse.Namespace) -> Result:
         raise CliError(ExitCode.FAILURE, "generate_failed", str(err)) from err
     layers = {k: v["features"] for k, v in manifest["layers"].items()}
     text = f"wrote {out}: " + ", ".join(f"{n} {k}s" for k, n in layers.items())
-    return Result({"world": str(out), "world_id": manifest["world_id"], "layers": layers}, text)
+    data = {"world": str(out), "world_id": manifest["world_id"], "biome": config.biome}
+    return Result({**data, "layers": layers}, text)
 
 
 def _generate(args: argparse.Namespace) -> Result:
@@ -385,9 +404,17 @@ def _generate_cli_args(parser: argparse.ArgumentParser) -> None:
         help="procedural builds a whole world from the seed instead of using real footprints",
     )
     parser.add_argument("--center", type=float, nargs=2, metavar=("LON", "LAT"))
-    parser.add_argument("--size-m", type=float, default=2000.0, help="procedural region side")
-    parser.add_argument("--gsd-m", type=float, default=5.0, help="procedural grid cell size")
-    parser.add_argument("--aridity", type=float, default=0.5, help="0 lush to 1 barren")
+    parser.add_argument(
+        "--biome",
+        default=procedural.DEFAULT_BIOME,
+        help=f"biome preset: {', '.join(biomes.names())} (default {procedural.DEFAULT_BIOME})",
+    )
+    parser.add_argument(
+        "--biome-config", type=Path, help="JSON of biome settings to override (unknown keys fail)"
+    )
+    parser.add_argument("--size-m", type=float, help="procedural region side (biome default)")
+    parser.add_argument("--gsd-m", type=float, help="procedural grid cell size (biome default)")
+    parser.add_argument("--aridity", type=float, help="0 lush to 1 barren (biome default)")
     parser.add_argument(
         "--real-terrain", type=Path, help="ingested terrain dir to keep real DEM and land cover"
     )
@@ -442,8 +469,9 @@ def _synth(args: argparse.Namespace) -> Result:
             ranges=ablation.variant_ranges(args.variant) if randomised else None,
             seed=args.seed,
             procedural=(
-                procedural.ProceduralConfig(
-                    size_m=args.size_m + 2 * PROCEDURAL_MARGIN_M, gsd_m=args.world_gsd_m
+                biomes.resolve(
+                    args.biome,
+                    {"size_m": args.size_m + 2 * PROCEDURAL_MARGIN_M, "gsd_m": args.world_gsd_m},
                 )
                 if args.procedural
                 else None
@@ -464,6 +492,9 @@ def _synth_args(parser: argparse.ArgumentParser) -> None:
         "--procedural",
         action="store_true",
         help="generate each region's buildings procedurally instead of using real footprints",
+    )
+    parser.add_argument(
+        "--biome", default=procedural.DEFAULT_BIOME, help="biome preset for --procedural worlds"
     )
     parser.add_argument("--max-chips", type=int, help="thin kept chips evenly to about this many")
     parser.add_argument(
