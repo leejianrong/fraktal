@@ -22,6 +22,7 @@ from rasterio.features import rasterize
 from rasterio.transform import Affine, from_origin
 from rasterio.warp import reproject
 
+from fraktal.ids import substream
 from fraktal.kernels.shadow import shadow_mask
 from fraktal.labels import independent_building_mask
 from fraktal.terrain import TerrainError
@@ -29,6 +30,13 @@ from fraktal.terrain import TerrainError
 DEFAULT_HEIGHT_M = 6.0
 AMBIENT = 0.35  # share of direct light that reaches a shadowed pixel
 ROOF_RGB = (140.0, 128.0, 115.0)
+# Roof materials a building can be made of (concrete, clay tile, corrugated metal, bitumen).
+ROOF_MATERIALS: tuple[tuple[float, float, float], ...] = (
+    (140.0, 128.0, 115.0),
+    (156.0, 92.0, 72.0),
+    (186.0, 186.0, 184.0),
+    (78.0, 78.0, 84.0),
+)
 # ESA WorldCover classes -> flat RGB reflectance (0-255).
 LANDCOVER_RGB: dict[int, tuple[float, float, float]] = {
     10: (46.0, 94.0, 40.0),  # tree cover
@@ -45,6 +53,11 @@ LANDCOVER_RGB: dict[int, tuple[float, float, float]] = {
 }
 
 
+# Per-channel gain that matches the V1 synthetic chips' channel means to the real Khartoum chips
+# (R 133 -> 88, G 126 -> 118, B 109 -> 34): the real chips have a strong green cast (FRK-12).
+KHARTOUM_TONE: tuple[float, float, float] = (0.66, 0.94, 0.31)
+
+
 @dataclass(frozen=True)
 class RenderConfig:
     gsd_m: float = 0.5
@@ -52,6 +65,9 @@ class RenderConfig:
     size_m: float = 2000.0
     sun_azimuth_deg: float = 135.0
     sun_elevation_deg: float = 50.0
+    seed: int = 0
+    variation: float = 0.0  # 0 is the flat V1 look; 0.15 is a typical spread of reflectance
+    tone: tuple[float, float, float] = (1.0, 1.0, 1.0)  # per-channel gain on the final image
 
 
 def utm_epsg(lon: float, lat: float) -> int:
@@ -96,8 +112,13 @@ def _warp(path: Path, transform: Affine, epsg: int, side: int, method: Resamplin
     return out
 
 
-def _building_rasters(buildings: gpd.GeoDataFrame, transform: Affine, side: int) -> tuple[Any, Any]:
-    """Height raster (m) and 0/1 footprint mask, painted lowest-first so taller wins."""
+def _building_rasters(
+    buildings: gpd.GeoDataFrame, transform: Affine, side: int
+) -> tuple[Any, Any, Any]:
+    """Height raster (m), 0/1 footprint mask and building-index raster (row + 1, 0 is none).
+
+    Painted lowest-first so taller wins.
+    """
     heights = buildings["height_m"].fillna(DEFAULT_HEIGHT_M) if "height_m" in buildings else None
     if heights is None:
         heights = np.full(len(buildings), DEFAULT_HEIGHT_M)
@@ -109,23 +130,69 @@ def _building_rasters(buildings: gpd.GeoDataFrame, transform: Affine, side: int)
     ]
     height = np.zeros((side, side), dtype="float32")
     mask = np.zeros((side, side), dtype="uint8")
+    index = np.zeros((side, side), dtype="uint32")
     if shapes:
         height = rasterize(shapes, (side, side), transform=transform, dtype="float32")
+        painted = [(buildings.geometry.iloc[i], int(i) + 1) for i in order]
+        painted = [(g, v) for g, v in painted if not g.is_empty]
+        index = rasterize(painted, (side, side), transform=transform, dtype="uint32")
         footprints = rasterize([(g, 1) for g, _ in shapes], (side, side), transform=transform)
         mask = (footprints > 0).astype("uint8")
-    return height, mask
+    return height, mask, index
 
 
-def shade(landcover: Any, building_mask: Any, shadow: Any) -> Any:
-    """Flat per-class reflectance, darkened inside cast shadows. Returns (3, H, W) uint8."""
+def roof_table(ids: Any, variation: float) -> Any:
+    """Roof colour per building (row i -> entry i + 1; entry 0 is unused), from each stable id.
+
+    Material and brightness come from the building's id, so a building keeps its roof however
+    the rest of the world is generated.
+    """
+    table = np.zeros((len(ids) + 1, 3), dtype="float32")
+    for i, fid in enumerate(ids):
+        base = np.array(ROOF_MATERIALS[int(str(fid)[:8], 16) % len(ROOF_MATERIALS)])
+        brightness = 1.0 + variation * (int(str(fid)[8:12], 16) / 65535 * 2 - 1)
+        table[i + 1] = base * brightness
+    return table
+
+
+def class_gains(seed: int, variation: float) -> Any:
+    """Per land-cover class, per channel multiplier for one scene (shape (256, 3))."""
+    gains = np.ones((256, 3), dtype="float32")
+    if variation <= 0:
+        return gains
+    for code in LANDCOVER_RGB:
+        draw = np.clip(substream(seed, f"reflectance:class:{code}").normal(size=4), -2, 2)
+        gains[code] = 1.0 + variation * (draw[3] + 0.5 * draw[:3])
+    return gains
+
+
+def shade(
+    landcover: Any,
+    building_mask: Any,
+    shadow: Any,
+    *,
+    gains: Any = None,
+    roofs: Any = None,
+    tone: tuple[float, float, float] = (1.0, 1.0, 1.0),
+) -> Any:
+    """Per-class reflectance, darkened inside cast shadows. Returns (3, H, W) uint8.
+
+    ``gains`` scales each class per channel and ``roofs`` colours buildings individually (given
+    as a (H, W, 3) array); both default to the flat V1 look.
+    """
     table = np.zeros((256, 3), dtype="float32")
     for code, rgb in LANDCOVER_RGB.items():
         table[code] = rgb
     table[0] = (255.0, 0.0, 255.0)  # unmapped land cover is loud, not silent
+    if gains is not None:
+        table = table * gains
     albedo = table[landcover]
-    albedo[building_mask > 0] = ROOF_RGB
+    if roofs is None:
+        albedo[building_mask > 0] = ROOF_RGB
+    else:
+        albedo[building_mask > 0] = roofs[building_mask > 0]
     light = np.where(shadow > 0, AMBIENT, 1.0).astype("float32")[..., None]
-    rgb = np.clip(np.rint(albedo * light), 0, 255).astype("uint8")
+    rgb = np.clip(np.rint(albedo * light * np.array(tone, dtype="float32")), 0, 255).astype("uint8")
     return np.moveaxis(rgb, -1, 0)
 
 
@@ -180,11 +247,16 @@ def render_region(
     dem = _warp(terrain_dir / "dem.tif", transform, epsg, side, Resampling.bilinear)
     landcover = _warp(terrain_dir / "landcover.tif", transform, epsg, side, Resampling.nearest)
     local = buildings.to_crs(epsg)
-    height, mask = _building_rasters(local, transform, side)
+    height, mask, index = _building_rasters(local, transform, side)
     shadow = shadow_mask(
         dem + height, config.gsd_m, config.sun_azimuth_deg, config.sun_elevation_deg
     )
-    rgb = shade(landcover, mask, shadow)
+    if config.variation > 0:
+        roofs = roof_table(local["id"].to_numpy(), config.variation)[index]
+        gains = class_gains(config.seed, config.variation)
+        rgb = shade(landcover, mask, shadow, gains=gains, roofs=roofs, tone=config.tone)
+    else:
+        rgb = shade(landcover, mask, shadow, tone=config.tone)
 
     tile_dir = out_dir / "tiles"
     tile_dir.mkdir(parents=True, exist_ok=True)
@@ -228,6 +300,9 @@ def render_region(
         "tile_px": config.tile_px,
         "tiles_per_side": tiles,
         "sun": {"azimuth_deg": config.sun_azimuth_deg, "elevation_deg": config.sun_elevation_deg},
+        "seed": config.seed,
+        "variation": config.variation,
+        "tone": list(config.tone),
         "buildings": len(local),
         "tiles": records,
         "dropped": dropped,
