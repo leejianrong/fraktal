@@ -348,3 +348,64 @@ def test_penumbra_and_haze_keep_labels_and_stay_deterministic(
     assert read_hash(tmp_path / "a") == read_hash(tmp_path / "b") != read_hash(tmp_path / "f")
     assert [t["mask_sha256"] for t in a["tiles"]] == [t["mask_sha256"] for t in flat["tiles"]]
     assert a["dropped"] == []
+
+
+def test_lower_ambient_darkens_shadows_and_contrast_clips_extremes() -> None:
+    land = np.full((1, 2), 30, dtype="uint8")
+    none = np.zeros((1, 2), dtype="uint8")
+    shadow = np.array([[1, 0]], dtype="uint8")
+    base = shade(land, none, shadow).astype(int)
+    deep = shade(land, none, shadow, ambient=0.1).astype(int)
+    assert deep[1, 0, 0] < base[1, 0, 0] and deep[1, 0, 1] == base[1, 0, 1]
+    stretched = shade(land, none, shadow, contrast=3.0).astype(int)
+    assert stretched.min() == 0 or stretched.max() == 255
+    assert stretched[0, 0, 1] - stretched[0, 0, 0] > base[0, 0, 1] - base[0, 0, 0]
+
+
+def test_bright_roofs_follow_the_building_id_and_the_requested_share() -> None:
+    from fraktal.render import BRIGHT_ROOF_GAIN, roof_table
+
+    ids = [f"{i:08x}0000{int(i * 65535 / 99):04x}" for i in range(100)]
+    plain = roof_table(ids, 0.0)
+    bright = roof_table(ids, 0.0, 0.3)
+    ratio = bright[1:, 0] / plain[1:, 0]
+    assert 0.25 <= (ratio > 1.01).mean() <= 0.35
+    assert ratio.max() == pytest.approx(BRIGHT_ROOF_GAIN)
+    assert (roof_table(ids, 0.0, 0.0) == plain).all()
+
+
+def test_blank_regions_hold_no_labels_and_the_tile_still_validates(
+    tmp_path: Path, terrain: Path
+) -> None:
+    layer = one_building(CENTER, 40, 6.0)
+    cfg = RenderConfig(**{**SMALL.__dict__, "blank_prob": 1.0, "blank_max_fraction": 0.5})
+    out = tmp_path / "b"
+    manifest = render_region(terrain, layer, CENTER, out, cfg)
+    assert manifest["dropped"] == [] and manifest["tiles"]
+    blanked = 0
+    for rec in manifest["tiles"]:
+        with rasterio.open(out / "tiles" / f"{rec['tile']}.tif") as img:
+            rgb = img.read()
+        with rasterio.open(out / "tiles" / f"{rec['tile']}_buildings.tif") as msk:
+            mask = msk.read(1)
+        dark = (rgb == 0).all(axis=0)
+        blanked += int(dark.sum() > 50)
+        assert not (mask[dark] > 0).any()
+    assert blanked >= 1
+
+
+def test_extremes_are_deterministic(tmp_path: Path, terrain: Path) -> None:
+    layer = one_building(CENTER, 40, 6.0)
+    cfg = RenderConfig(
+        **{
+            **varied(2).__dict__,
+            "ambient": 0.2,
+            "contrast": 1.3,
+            "bright_roofs": 0.5,
+            "blank_prob": 0.5,
+        }
+    )
+    a = render_region(terrain, layer, CENTER, tmp_path / "a", cfg)
+    b = render_region(terrain, layer, CENTER, tmp_path / "b", cfg)
+    assert a["tiles"] == b["tiles"]
+    assert read_hash(tmp_path / "a") == read_hash(tmp_path / "b")

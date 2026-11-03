@@ -74,3 +74,14 @@ def test_sensor_leaves_labels_untouched(tmp_path: Path, terrain: Path) -> None: 
     cfg = RenderConfig(**{**SMALL.__dict__, "psf_sigma_px": 1.0, "noise_sigma": 8.0})
     noisy = render_region(terrain, layer, CENTER, tmp_path / "n", cfg)
     assert [t["mask_sha256"] for t in clean["tiles"]] == [t["mask_sha256"] for t in noisy["tiles"]]
+
+
+def test_blank_wedge_is_deterministic_and_respects_its_probability_and_size() -> None:
+    from fraktal.sensor import blank_wedge
+
+    assert not blank_wedge((64, 64), 0.0, 0.3, 1, "t").any()
+    a = blank_wedge((64, 64), 1.0, 0.3, 1, "t")
+    assert (a == blank_wedge((64, 64), 1.0, 0.3, 1, "t")).all()
+    assert 0.04 <= a.mean() <= 0.31
+    hits = sum(blank_wedge((16, 16), 0.5, 0.3, 1, f"t{i}").any() for i in range(200))
+    assert 70 <= hits <= 130

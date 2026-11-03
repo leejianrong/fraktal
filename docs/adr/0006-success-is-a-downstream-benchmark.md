@@ -136,3 +136,16 @@ Seven cumulative variants (`fraktal.ablation.VARIANTS`), seeds 0 and 1, 3000 ste
 - Peak GPU memory 1.48 GB.
 
 **Consequence.** Realism work through V3 closed most of the zero-shot gap, but the benchmark as set up (10% of about 1,000 tiles) cannot show a gain, because real data is not scarce enough. A decisive test needs a smaller real fraction, where arm 2 beats arm 1 by 10 or more points. Until then the premise is not refuted, and also not supported. V4 should wait for that measurement.
+
+### FRK-21: bright and dark extremes, clipping and no-data edges
+
+Four renderer parameters, all off by default: `ambient` (light left inside shadows), `contrast` (stretch about mid-grey, which clips the brightest and darkest pixels), `bright_roofs` (a share of buildings whose roofs saturate) and `blank_prob` (a tile may have a no-data region cut off one side, like a scene footprint edge). Blank regions are black, carry no labels and are excluded from the independent mask check, so the label guarantees hold. A new ablation variant, `v7_extremes`, adds them to the atmosphere variant (the randomised variant is unchanged, so earlier results stay comparable). The gauge gained contrast, clipped-share and strong-edge statistics. Measured on the same three regions:
+
+| | Atmosphere variant | + extremes | Real |
+|---|---|---|---|
+| Grey contrast (std) | 25.1 | 36.8 | 35.6 |
+| Clipped pixels (share at 0 or 255 in any channel) | 0.07% | 10.7% | 21.5% |
+| Strong edges (share of steps above 20 DN) | 0.8% | 1.2% | 4.9% |
+| Colour W1 | 0.077 | 0.064 | |
+
+Contrast is matched and the clipped share is about halfway. Strong edges barely move, so the edge tail is an object-level gap, not a tone one (FRK-22). Whether extremes help the downstream model is untested until the next ablation run includes `v7_extremes`.

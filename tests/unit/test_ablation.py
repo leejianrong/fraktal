@@ -158,3 +158,18 @@ def test_a_scarce_fraction_names_the_arm_and_records_the_verdict(tmp_path: Path)
     assert report["fraction"] == 0.05
     assert report["q14"]["variants"]["v0_flat"]["bar"] in {"met", "missed", "undecidable"}
     assert json.loads(out.read_text())["q14"] == report["q14"]
+
+
+def test_extremes_variant_builds_on_the_atmosphere_variant_without_changing_randomised() -> None:
+    from fraktal.ablation import EXTREMES
+
+    atmosphere, _ = variant_config("v5_atmosphere", BASE)
+    extremes, randomised = variant_config(EXTREMES, BASE)
+    assert randomised is False
+    assert (extremes.haze, extremes.noise_sigma) == (atmosphere.haze, atmosphere.noise_sigma)
+    assert (
+        extremes.blank_prob > 0 and extremes.contrast > 1 and extremes.ambient < atmosphere.ambient
+    )
+    assert atmosphere.blank_prob == 0 and atmosphere.contrast == 1
+    random_config, is_random = variant_config(RANDOMISED, BASE)
+    assert is_random and random_config.blank_prob == 0 and random_config.contrast == 1

@@ -27,7 +27,7 @@ from fraktal.kernels.filters import gaussian_blur
 from fraktal.kernels.noise import lattice_shape, value_noise
 from fraktal.kernels.shadow import shadow_mask
 from fraktal.labels import independent_building_mask
-from fraktal.sensor import add_noise, apply_psf
+from fraktal.sensor import add_noise, apply_psf, blank_wedge
 from fraktal.terrain import TerrainError
 
 DEFAULT_HEIGHT_M = 6.0
@@ -66,6 +66,7 @@ TEXTURE_OCTAVES: tuple[tuple[float, float], ...] = (
 # How strongly each land-cover class is textured (water is smooth, vegetation and soil are not).
 TEXTURE_CLASS_AMP: dict[int, float] = {80: 0.3, 70: 0.3}
 ROOF_TEXTURE_AMP = 0.4
+BRIGHT_ROOF_GAIN = 1.6  # metal and whitewashed roofs that saturate in real imagery
 HAZE_RGB = (200.0, 205.0, 215.0)  # colour of scattered skylight that haze adds
 
 # Per-channel gain that matches the V1 synthetic chips' channel means to the real Khartoum chips
@@ -88,6 +89,11 @@ class RenderConfig:
     noise_sigma: float = 0.0  # sensor noise (std in digital numbers); 0 is none
     penumbra_m: float = 0.0  # shadow edge softness (blur sigma in metres); 0 is a hard edge
     texture: float = 0.0  # strength of sub-10 m texture; 0 is flat, 0.7 is the synth default
+    ambient: float = AMBIENT  # light left inside a shadow; lower is a deeper shadow
+    contrast: float = 1.0  # stretch around mid-grey; above 1 clips the brightest and darkest
+    bright_roofs: float = 0.0  # share of buildings with very bright (often clipped) roofs
+    blank_prob: float = 0.0  # chance a tile has a no-data region, like a scene footprint edge
+    blank_max_fraction: float = 0.3  # largest share of a tile the no-data region can cover
 
 
 def utm_epsg(lon: float, lat: float) -> int:
@@ -161,7 +167,7 @@ def _building_rasters(
     return height, mask, index
 
 
-def roof_table(ids: Any, variation: float) -> Any:
+def roof_table(ids: Any, variation: float, bright_fraction: float = 0.0) -> Any:
     """Roof colour per building (row i -> entry i + 1; entry 0 is unused), from each stable id.
 
     Material and brightness come from the building's id, so a building keeps its roof however
@@ -171,6 +177,8 @@ def roof_table(ids: Any, variation: float) -> Any:
     for i, fid in enumerate(ids):
         base = np.array(ROOF_MATERIALS[int(str(fid)[:8], 16) % len(ROOF_MATERIALS)])
         brightness = 1.0 + variation * (int(str(fid)[8:12], 16) / 65535 * 2 - 1)
+        if int(str(fid)[12:16], 16) / 65535 < bright_fraction:
+            brightness *= BRIGHT_ROOF_GAIN
         table[i + 1] = base * brightness
     return table
 
@@ -219,6 +227,8 @@ def shade(
     tone: tuple[float, float, float] = (1.0, 1.0, 1.0),
     texture: Any = None,
     haze: tuple[float, float] = (0.0, 50.0),
+    ambient: float = AMBIENT,
+    contrast: float = 1.0,
 ) -> Any:
     """Per-class reflectance, darkened inside cast shadows. Returns (3, H, W) uint8.
 
@@ -244,11 +254,14 @@ def shade(
         albedo[building_mask > 0] = ROOF_RGB
     else:
         albedo[building_mask > 0] = roofs[building_mask > 0]
-    light = (1.0 - (1.0 - AMBIENT) * np.clip(shadow, 0, 1)).astype("float32")[..., None]
+    light = (1.0 - (1.0 - ambient) * np.clip(shadow, 0, 1)).astype("float32")[..., None]
     radiance = albedo * light
     if haze[0] > 0:
         radiance = apply_haze(radiance, haze[0], haze[1])
-    rgb = np.clip(np.rint(radiance * np.array(tone, dtype="float32")), 0, 255).astype("uint8")
+    graded = radiance * np.array(tone, dtype="float32")
+    if contrast != 1.0:
+        graded = (graded - 128.0) * contrast + 128.0
+    rgb = np.clip(np.rint(graded), 0, 255).astype("uint8")
     return np.moveaxis(rgb, -1, 0)
 
 
@@ -276,8 +289,12 @@ def _validate_tile(
     geometries: list[Any],
     transform: Affine,
     shape: tuple[int, int],
+    ignore: Any = None,
 ) -> str | None:
-    """Why a tile must be dropped, or None. Checks alignment, then the independent mask."""
+    """Why a tile must be dropped, or None. Checks alignment, then the independent mask.
+
+    Pixels in ``ignore`` (a no-data region) must hold no label and are not compared.
+    """
     seen = set()
     for path in paths:
         with rasterio.open(path) as src:
@@ -285,7 +302,12 @@ def _validate_tile(
     if len(seen) != 1:
         return "image and masks differ in CRS, transform or size"
     expected = independent_building_mask(geometries, transform, shape)
-    wrong = int((expected != mask).sum())
+    differs = expected != mask
+    if ignore is not None:
+        if mask[ignore].any():
+            return "a no-data region carries building labels"
+        differs = differs & ~ignore
+    wrong = int(differs.sum())
     if wrong:
         return f"building mask differs from the independent rasterisation in {wrong} pixels"
     return None
@@ -313,21 +335,19 @@ def render_region(
     texture = None
     if config.texture > 0:
         texture = config.texture * texture_field(config.seed, (side, side), config.gsd_m)
+    common: dict[str, Any] = {
+        "tone": config.tone,
+        "texture": texture,
+        "haze": haze,
+        "ambient": config.ambient,
+        "contrast": config.contrast,
+    }
     if config.variation > 0:
-        roofs = roof_table(local["id"].to_numpy(), config.variation)[index]
+        roofs = roof_table(local["id"].to_numpy(), config.variation, config.bright_roofs)[index]
         gains = class_gains(config.seed, config.variation)
-        rgb = shade(
-            landcover,
-            mask,
-            shadow,
-            gains=gains,
-            roofs=roofs,
-            tone=config.tone,
-            texture=texture,
-            haze=haze,
-        )
+        rgb = shade(landcover, mask, shadow, gains=gains, roofs=roofs, **common)
     else:
-        rgb = shade(landcover, mask, shadow, tone=config.tone, texture=texture, haze=haze)
+        rgb = shade(landcover, mask, shadow, **common)
 
     rgb = apply_psf(rgb, config.psf_sigma_px)
 
@@ -343,18 +363,32 @@ def render_region(
             tile_transform = transform @ Affine.translation(col * n, row * n)
             name = f"r{row:02d}_c{col:02d}"
             tile_mask = np.ascontiguousarray(mask[window])
+            tile_rgb = add_noise(
+                rgb[:, window[0], window[1]], config.noise_sigma, config.seed, name
+            )
+            tile_land = np.ascontiguousarray(landcover[window])
+            blank = blank_wedge(
+                (n, n), config.blank_prob, config.blank_max_fraction, config.seed, name
+            )
+            if blank.any():  # no data: black image, no labels, unknown land cover
+                tile_rgb = tile_rgb.copy()
+                tile_rgb[:, blank] = 0
+                tile_mask[blank] = 0
+                tile_land[blank] = 0
             paths = {
-                "": (
-                    tile_dir / f"{name}.tif",
-                    add_noise(rgb[:, window[0], window[1]], config.noise_sigma, config.seed, name),
-                ),
+                "": (tile_dir / f"{name}.tif", tile_rgb),
                 "_buildings": (tile_dir / f"{name}_buildings.tif", tile_mask),
-                "_landcover": (tile_dir / f"{name}_landcover.tif", landcover[window]),
+                "_landcover": (tile_dir / f"{name}_landcover.tif", tile_land),
             }
             for path, data in paths.values():
                 _write_tile(path, data, tile_transform, epsg)
             reason = _validate_tile(
-                [p for p, _ in paths.values()], tile_mask, geometries, tile_transform, (n, n)
+                [p for p, _ in paths.values()],
+                tile_mask,
+                geometries,
+                tile_transform,
+                (n, n),
+                ignore=blank,
             )
             if reason:
                 for path, _ in paths.values():
@@ -384,6 +418,10 @@ def render_region(
         "psf_sigma_px": config.psf_sigma_px,
         "noise_sigma": config.noise_sigma,
         "penumbra_m": config.penumbra_m,
+        "ambient": config.ambient,
+        "contrast": config.contrast,
+        "bright_roofs": config.bright_roofs,
+        "blank_prob": config.blank_prob,
         "buildings": len(local),
         "tiles": records,
         "dropped": dropped,

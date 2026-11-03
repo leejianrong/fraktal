@@ -316,6 +316,10 @@ def _synth(args: argparse.Namespace) -> Result:
         psf_sigma_px=args.psf,
         noise_sigma=args.noise,
         penumbra_m=args.penumbra,
+        ambient=args.ambient,
+        contrast=args.contrast,
+        bright_roofs=args.bright_roofs,
+        blank_prob=args.blank_prob,
     )
     randomised = args.randomise
     if args.variant:
@@ -371,6 +375,12 @@ def _synth_args(parser: argparse.ArgumentParser) -> None:
         help="draw sun, haze, noise and the rest per region from default ranges "
         "(overrides the fixed values above)",
     )
+    parser.add_argument("--ambient", type=float, default=render.AMBIENT, help="light in shadow")
+    parser.add_argument("--contrast", type=float, default=1.0, help="stretch about mid-grey")
+    parser.add_argument(
+        "--bright-roofs", type=float, default=0.0, help="share of very bright roofs"
+    )
+    parser.add_argument("--blank-prob", type=float, default=0.0, help="chance of a no-data edge")
     parser.add_argument("--psf", type=float, default=0.8, help="sensor blur sigma in pixels")
     parser.add_argument("--noise", type=float, default=8.0, help="sensor noise std in DN")
     parser.add_argument("--haze", type=float, default=0.0, help="atmospheric optical depth")
