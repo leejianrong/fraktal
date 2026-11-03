@@ -23,6 +23,7 @@ from rasterio.transform import Affine, from_origin
 from rasterio.warp import reproject
 
 from fraktal.ids import substream
+from fraktal.kernels.noise import lattice_shape, value_noise
 from fraktal.kernels.shadow import shadow_mask
 from fraktal.labels import independent_building_mask
 from fraktal.terrain import TerrainError
@@ -53,6 +54,17 @@ LANDCOVER_RGB: dict[int, tuple[float, float, float]] = {
 }
 
 
+# Texture octaves as (cell size in metres, weight): fields and ground below the 10 m land cover.
+TEXTURE_OCTAVES: tuple[tuple[float, float], ...] = (
+    (40.0, 0.3),
+    (10.0, 0.3),
+    (2.5, 0.25),
+    (0.8, 0.15),
+)
+# How strongly each land-cover class is textured (water is smooth, vegetation and soil are not).
+TEXTURE_CLASS_AMP: dict[int, float] = {80: 0.3, 70: 0.3}
+ROOF_TEXTURE_AMP = 0.4
+
 # Per-channel gain that matches the V1 synthetic chips' channel means to the real Khartoum chips
 # (R 133 -> 88, G 126 -> 118, B 109 -> 34): the real chips have a strong green cast (FRK-12).
 KHARTOUM_TONE: tuple[float, float, float] = (0.66, 0.94, 0.31)
@@ -68,6 +80,7 @@ class RenderConfig:
     seed: int = 0
     variation: float = 0.0  # 0 is the flat V1 look; 0.15 is a typical spread of reflectance
     tone: tuple[float, float, float] = (1.0, 1.0, 1.0)  # per-channel gain on the final image
+    texture: float = 0.0  # strength of sub-10 m texture; 0 is flat, 0.7 is the synth default
 
 
 def utm_epsg(lon: float, lat: float) -> int:
@@ -155,6 +168,16 @@ def roof_table(ids: Any, variation: float) -> Any:
     return table
 
 
+def texture_field(seed: int, shape: tuple[int, int], gsd_m: float) -> Any:
+    """Fractal noise in roughly [-1, 1] over the whole render grid, so tiles join up."""
+    field = np.zeros(shape, dtype="float32")
+    for n, (cell_m, weight) in enumerate(TEXTURE_OCTAVES):
+        cell_px = max(cell_m / gsd_m, 1.0)
+        lattice = substream(seed, f"texture:{n}").uniform(-1, 1, size=lattice_shape(shape, cell_px))
+        field += weight * value_noise(lattice, cell_px, shape)
+    return field / sum(w for _, w in TEXTURE_OCTAVES)
+
+
 def class_gains(seed: int, variation: float) -> Any:
     """Per land-cover class, per channel multiplier for one scene (shape (256, 3))."""
     gains = np.ones((256, 3), dtype="float32")
@@ -174,6 +197,7 @@ def shade(
     gains: Any = None,
     roofs: Any = None,
     tone: tuple[float, float, float] = (1.0, 1.0, 1.0),
+    texture: Any = None,
 ) -> Any:
     """Per-class reflectance, darkened inside cast shadows. Returns (3, H, W) uint8.
 
@@ -187,6 +211,13 @@ def shade(
     if gains is not None:
         table = table * gains
     albedo = table[landcover]
+    if texture is not None:
+        amp = np.ones(256, dtype="float32")
+        for code, value in TEXTURE_CLASS_AMP.items():
+            amp[code] = value
+        modulation = texture * amp[landcover]
+        modulation[building_mask > 0] = texture[building_mask > 0] * ROOF_TEXTURE_AMP
+        albedo = albedo * (1.0 + modulation)[..., None]
     if roofs is None:
         albedo[building_mask > 0] = ROOF_RGB
     else:
@@ -251,12 +282,17 @@ def render_region(
     shadow = shadow_mask(
         dem + height, config.gsd_m, config.sun_azimuth_deg, config.sun_elevation_deg
     )
+    texture = None
+    if config.texture > 0:
+        texture = config.texture * texture_field(config.seed, (side, side), config.gsd_m)
     if config.variation > 0:
         roofs = roof_table(local["id"].to_numpy(), config.variation)[index]
         gains = class_gains(config.seed, config.variation)
-        rgb = shade(landcover, mask, shadow, gains=gains, roofs=roofs, tone=config.tone)
+        rgb = shade(
+            landcover, mask, shadow, gains=gains, roofs=roofs, tone=config.tone, texture=texture
+        )
     else:
-        rgb = shade(landcover, mask, shadow, tone=config.tone)
+        rgb = shade(landcover, mask, shadow, tone=config.tone, texture=texture)
 
     tile_dir = out_dir / "tiles"
     tile_dir.mkdir(parents=True, exist_ok=True)
@@ -303,6 +339,7 @@ def render_region(
         "seed": config.seed,
         "variation": config.variation,
         "tone": list(config.tone),
+        "texture": config.texture,
         "buildings": len(local),
         "tiles": records,
         "dropped": dropped,

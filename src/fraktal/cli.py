@@ -228,6 +228,7 @@ def _synth(args: argparse.Namespace) -> Result:
         seed=args.seed,
         variation=args.variation,
         tone=tuple(args.tone),
+        texture=args.texture,
     )
     try:
         if not (terrain_dir / terrain.MARKER).is_file():
@@ -266,6 +267,9 @@ def _synth_args(parser: argparse.ArgumentParser) -> None:
         metavar=("R", "G", "B"),
         default=render.KHARTOUM_TONE,
         help="per-channel gain (default matches the real Khartoum chips)",
+    )
+    parser.add_argument(
+        "--texture", type=float, default=0.7, help="sub-10 m texture strength (0 is flat)"
     )
     parser.add_argument(
         "--variation", type=float, default=0.15, help="reflectance spread (0 is flat, V1 look)"

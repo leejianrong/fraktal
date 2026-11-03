@@ -271,3 +271,37 @@ def test_tone_reaches_the_written_image_when_varied(tmp_path: Path, terrain: Pat
     render_region(terrain, layer, CENTER, out, dark_blue)
     with rasterio.open(out / "tiles" / "r00_c00.tif") as src:
         assert (src.read(3) == 0).all()
+
+
+def test_texture_field_is_deterministic_bounded_and_seeded() -> None:
+    from fraktal.render import texture_field
+
+    a = texture_field(1, (80, 80), 0.5)
+    assert (a == texture_field(1, (80, 80), 0.5)).all()
+    assert not np.allclose(a, texture_field(2, (80, 80), 0.5))
+    assert np.abs(a).max() <= 1.0 + 1e-6
+    assert a.std() > 0.05
+
+
+def test_texture_modulates_land_but_barely_water() -> None:
+    field = np.tile(np.array([[0.5, -0.5]], dtype="float32"), (4, 2))  # 4x4
+    grass = np.full((4, 4), 30, dtype="uint8")
+    water = np.full((4, 4), 80, dtype="uint8")
+    none = np.zeros((4, 4), dtype="uint8")
+    g_spread = np.ptp(shade(grass, none, none, texture=field)[1].astype(int))
+    w_spread = np.ptp(shade(water, none, none, texture=field)[1].astype(int))
+    assert g_spread > 2 * w_spread > 0
+    assert np.ptp(shade(grass, none, none)[1].astype(int)) == 0
+
+
+def test_texture_leaves_labels_untouched_and_is_deterministic(
+    tmp_path: Path, terrain: Path
+) -> None:
+    layer = one_building(CENTER, 10, 5.0)
+    cfg = RenderConfig(**{**varied(4).__dict__, "texture": 0.3})
+    a = render_region(terrain, layer, CENTER, tmp_path / "a", cfg)
+    b = render_region(terrain, layer, CENTER, tmp_path / "b", cfg)
+    flat = render_region(terrain, layer, CENTER, tmp_path / "f", varied(4))
+    assert read_hash(tmp_path / "a") == read_hash(tmp_path / "b") != read_hash(tmp_path / "f")
+    assert [t["mask_sha256"] for t in a["tiles"]] == [t["mask_sha256"] for t in flat["tiles"]]
+    assert a["tiles"] == b["tiles"]
