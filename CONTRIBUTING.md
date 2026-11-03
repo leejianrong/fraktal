@@ -17,7 +17,7 @@ make           # list all targets
 
 ## Workflow
 
-- One branch per slice (see [docs/SLICES.md](docs/SLICES.md)), off fresh `main`. Changes land through a pull request with green CI. No direct pushes to `main`.
+- One branch per slice (see [docs/SLICES.md](docs/SLICES.md)), off fresh `main`. Changes land through a pull request with green CI. No direct pushes to `main`: branch protection enforces it for everyone, requires a pull request, requires the six CI jobs (lint, typecheck, unit, integration, audit, secrets) to pass, keeps history linear and forbids force-pushes.
 - Fix a bug by writing a failing test first.
 - Heavy numeric code goes in `src/fraktal/kernels/` (see [ADR-0005](docs/adr/0005-python-first-with-a-kernel-seam-for-a-later-rust-core.md)). World generation must be deterministic ([ADR-0003](docs/adr/0003-deterministic-worlds-with-stable-ids.md)).
 - Check a dependency's or dataset's licence before adding it.
