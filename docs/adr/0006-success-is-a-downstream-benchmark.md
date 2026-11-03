@@ -110,3 +110,29 @@ Caution: edge energy and the Laplacian noise statistic respond directly to added
 ### FRK-17: randomised realism parameters
 
 `fraktal synth --randomise` draws each scene's sun azimuth and elevation, haze, penumbra, PSF, noise, texture, reflectance variation, per-channel tone jitter and render seed from default ranges (`fraktal.randomise.Ranges`). A scene is a rendered region, which is then tiled, so parameters vary per region rather than per tile. Every component has its own named sub-stream (`realism:<scene>:<component>`), so editing one range never changes another's draw, and each region's parameters are written to `chips.json` as `region_params`. The ranges are initial guesses, not tuned values.
+
+## Update 2026-11-03: V3 realism ablation results (FRK-18)
+
+Seven cumulative variants (`fraktal.ablation.VARIANTS`), seeds 0 and 1, 3000 steps per arm, A40, about 2 hours 10 minutes. Pixel IoU on the 202 held-out tiles; arm 3 is synthetic pretraining then the real 10% subset. Means over two seeds. Arm 1 (real 10%) is 0.6278 and arm 2 (real 100%) is 0.6373.
+
+| Variant (cumulative) | Seed 0 | Seed 1 | Mean | vs arm 1 (points) | Zero-shot IoU | Colour W1 |
+|---|---|---|---|---|---|---|
+| v0 flat (V1) | 0.614 | 0.611 | 0.612 | −1.54 | 0.003 | 0.206 |
+| v1 + tone | 0.606 | 0.619 | 0.613 | −1.52 | 0.031 | 0.112 |
+| v2 + reflectance variation | 0.607 | 0.609 | 0.608 | −1.96 | 0.224 | 0.094 |
+| v3 + texture | 0.618 | 0.623 | 0.621 | −0.72 | 0.314 | 0.075 |
+| v4 + sensor (PSF, noise) | 0.608 | 0.624 | 0.616 | −1.19 | 0.199 | 0.072 |
+| v5 + haze, soft shadows | 0.610 | 0.626 | 0.618 | −1.01 | 0.278 | 0.077 |
+| v6 randomised per region | 0.624 | 0.630 | 0.627 | −0.09 | 0.265 | 0.080 |
+
+**The Q14 bar is not met.** No variant beats arm 1; the best (randomised) is level with it. The revised bar's precondition also fails: arm 2 beats arm 1 by 0.95 points, not 10, so this test cannot discriminate any data source. Differences under about 1 point are within seed noise (arm 3 moved up to 1.5 points between seeds).
+
+**What the ablation does show**
+
+- Zero-shot IoU went from about 0 to 0.2 to 0.3. The synthetic chips carry real signal now, but fine-tuning on 10% real data removes the advantage.
+- Texture is the most consistent single gain (+0.8 points over flat, same direction on both seeds).
+- Randomising the parameters per region is the best variant and is level with arm 1. Variety seems to matter more than any single component.
+- Tone alone, and the sensor model, did not help the downstream score. The sensor model moved the gauge's edge and noise gaps to 0.04 and 0.12 while arm 3 stayed flat, which confirms those gauge statistics respond to noise without implying realism.
+- Peak GPU memory 1.48 GB.
+
+**Consequence.** Realism work through V3 closed most of the zero-shot gap, but the benchmark as set up (10% of about 1,000 tiles) cannot show a gain, because real data is not scarce enough. A decisive test needs a smaller real fraction, where arm 2 beats arm 1 by 10 or more points. Until then the premise is not refuted, and also not supported. V4 should wait for that measurement.

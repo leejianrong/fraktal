@@ -117,7 +117,7 @@ Test at the fewest, highest seams. Behaviour, not internals.
 | Q7 | Dependency and licence picks, Blender only as optional subprocess | A licence surprise could block selling; days to weeks |
 | Q9 | Optical RGB+NIR only, 0.5 m and 3 m | Different bands/GSD means renderer changes; days |
 | Q13 | Domain randomisation before learned refinement | If insufficient, adds a second system (weeks) |
-| Q14 | Benchmark bar: +5 IoU over arm 1 and at least 90% of real-100%, measured where real-100% beats arm 1 by 10+ points | Revised after V1 (10% real was within 1 point of 100%). The scarce-data re-run is skipped; V3 realism comes first and measures it; low |
+| Q14 | Benchmark bar: +5 IoU over arm 1 and at least 90% of real-100%, measured where real-100% beats arm 1 by 10+ points | Revised after V1 (10% real was within 1 point of 100%). V3 ablation done: best variant level with arm 1, still undecidable at 10% real. A scarce-data run is needed before V4; low |
 | Q15 | Decided in ADR-0008: SpaceNet 2 Khartoum for V1 | Not tropical; regional transfer unproven until V4 |
 
 ## Open risks
