@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Pod-side job for the V3 realism ablation (FRK-18). Run it as RP_JOB_CMD under the runpod-jobs
 # `rp` wrapper. Needs COMMIT (a pushed sha); optional SEEDS (default "0 1"), STEPS, VARIANTS
-# (space-separated names, default all) and FRACTION (real share for arms 1 and 3, default 0.1).
+# (space-separated names, default all), PROCEDURAL=1 (procedural buildings, MAX_CHIPS caps chips)
+# and FRACTION (real share for arms 1 and 3, default 0.1).
 # Nothing here reads or prints a secret.
 #
 # Watch it with scripts/runpod/status.sh <pod-id>. Failure signals, all grep-able in the logs:
@@ -16,6 +17,8 @@ set -uo pipefail
 SEEDS="${SEEDS:-0 1}"
 STEPS="${STEPS:-}"
 FRACTION="${FRACTION:-0.1}"
+PROCEDURAL="${PROCEDURAL:-0}"  # 1: buildings generated procedurally, not the real skeleton
+MAX_CHIPS="${MAX_CHIPS:-141}"
 VARIANTS="${VARIANTS:-}"
 RUN=/workspace/run
 mkdir -p "$RUN" && cd "$RUN"
@@ -93,12 +96,14 @@ stage split;  fraktal split --seed 0
 fraktal ablate --help > /dev/null   # fail now, not after the data is built, if the command is broken
 
 # Render every variant on the CPU in the background while the GPU trains the earlier ones.
+SYNTH_EXTRA=()
+[ "$PROCEDURAL" = 1 ] && SYNTH_EXTRA=(--procedural --max-chips "$MAX_CHIPS")
 VARS="${VARIANTS:-$(python -c "from fraktal.ablation import VARIANTS; print(' '.join(VARIANTS))")}"
 VARLIST=($VARS)
 (
   for v in $VARS; do
     echo "synth_start $v"
-    if fraktal synth --regions 8 --seed 0 --variant "$v" --out "data/ablation/$v" > "data/ablation/$v.log" 2>&1; then
+    if fraktal synth --regions 8 --seed 0 --variant "$v" ${SYNTH_EXTRA[@]+"${SYNTH_EXTRA[@]}"} --out "data/ablation/$v" > "data/ablation/$v.log" 2>&1; then
       rm -rf data/ablation/"$v"/region_*   # the per-region tiles are bulky and unused after chips
       echo "synth_done $v"
     else
