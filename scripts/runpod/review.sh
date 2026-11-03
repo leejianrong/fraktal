@@ -65,6 +65,13 @@ pip install -q --root-user-action=ignore ./src matplotlib
 export FRAKTAL_DATA_DIR=/workspace/run/data
 stage ingest;  fraktal ingest
 stage split;   fraktal split --seed 0
+stage chips
+python - <<'PY'
+from pathlib import Path
+from fraktal.chips import build_chips
+d = Path("data")
+print("chips at", build_chips(d, d / "spacenet2" / "khartoum-split.json"))
+PY
 stage palette; fraktal palette --seed 0
 mkdir -p review
 
