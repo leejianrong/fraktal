@@ -119,3 +119,32 @@ def test_render_with_objects_keeps_labels_and_is_deterministic(
         return hashlib.sha256((d / "tiles" / "r00_c00.tif").read_bytes()).hexdigest()
 
     assert digest(tmp_path / "a") == digest(tmp_path / "b") != digest(tmp_path / "p")
+
+
+def road_strip() -> np.ndarray:
+    road = np.zeros((400, 400), dtype="uint8")
+    road[190:210, :] = 202  # a 10 m east-west street at 0.5 m pixels
+    return road
+
+
+def test_cars_stand_on_the_road_and_point_along_it() -> None:
+    road, none = road_strip(), np.zeros((400, 400), dtype="uint8")
+    lc = land(30)
+    shapes, _, _ = place(lc, none, 0.5, 8.0, 3, road)
+    cars = shapes[shapes[:, 5] == 1]
+    assert len(cars) > 5
+    assert (road[cars[:, 0].astype(int), cars[:, 1].astype(int)] > 0).all()
+    along = np.abs(np.sin(cars[:, 4]))  # a horizontal street: heading near 0 or pi
+    assert np.median(along) < 0.15
+    again, _, _ = place(lc, none, 0.5, 8.0, 3, road)
+    assert (again == shapes).all()
+
+
+def test_roads_leave_trees_alone_and_cars_avoid_buildings() -> None:
+    road, mask = road_strip(), np.zeros((400, 400), dtype="uint8")
+    mask[185:215, 100:200] = 1
+    lc = land(10)  # tree cover: a car can only be on a road
+    shapes, _, _ = place(lc, mask, 0.5, 8.0, 3, road)
+    cars = shapes[shapes[:, 5] == 1]
+    assert len(cars) > 0
+    assert not mask[cars[:, 0].astype(int), cars[:, 1].astype(int)].any()

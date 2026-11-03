@@ -33,6 +33,8 @@ from fraktal.sensor import add_noise, apply_psf, blank_wedge
 from fraktal.terrain import TerrainError
 
 DEFAULT_HEIGHT_M = 6.0
+ROAD_LOCAL = 201  # surface codes for painted roads; never written to the land-cover labels
+ROAD_ARTERIAL = 202
 AMBIENT = 0.35  # share of direct light that reaches a shadowed pixel
 ROOF_RGB = (140.0, 128.0, 115.0)
 # Roof materials a building can be made of (concrete, clay tile, corrugated metal, bitumen).
@@ -55,6 +57,8 @@ LANDCOVER_RGB: dict[int, tuple[float, float, float]] = {
     90: (70.0, 120.0, 100.0),  # herbaceous wetland
     95: (50.0, 100.0, 70.0),  # mangroves
     100: (150.0, 150.0, 110.0),  # moss and lichen
+    ROAD_LOCAL: (146.0, 130.0, 110.0),  # unpaved or dusty street
+    ROAD_ARTERIAL: (88.0, 88.0, 92.0),  # asphalt
 }
 
 
@@ -170,6 +174,18 @@ def _building_rasters(
         footprints = rasterize([(g, 1) for g, _ in shapes], (side, side), transform=transform)
         mask = (footprints > 0).astype("uint8")
     return height, mask, index
+
+
+def _road_raster(roads: gpd.GeoDataFrame, transform: Affine, side: int) -> Any:
+    """0 off roads, ROAD_LOCAL or ROAD_ARTERIAL on them; wider arterials win at junctions."""
+    shapes = []
+    for _, road in roads.sort_values(["road_class", "id"], ascending=[False, True]).iterrows():
+        code = ROAD_ARTERIAL if road.road_class == "arterial" else ROAD_LOCAL
+        shapes.append((road.geometry.buffer(float(road.width_m) / 2, cap_style="flat"), code))
+    shapes.sort(key=lambda s: s[1])  # locals first, arterials painted over them
+    if not shapes:
+        return np.zeros((side, side), dtype="uint8")
+    return rasterize(shapes, (side, side), transform=transform, dtype="uint8")
 
 
 def _roof_base(fid: str, palette: Palette | None) -> tuple[float, float, float]:
@@ -350,17 +366,25 @@ def render_region(
     center_lonlat: tuple[float, float],
     out_dir: Path,
     config: RenderConfig | None = None,
+    roads: gpd.GeoDataFrame | None = None,
 ) -> dict[str, Any]:
+    """Render a region. ``roads`` (a road layer) is painted on the ground; labels ignore it."""
     config = config or RenderConfig()
     epsg, transform, (tiles, side) = region_grid(center_lonlat, config)
     dem = _warp(terrain_dir / "dem.tif", transform, epsg, side, Resampling.bilinear)
     landcover = _warp(terrain_dir / "landcover.tif", transform, epsg, side, Resampling.nearest)
     local = buildings.to_crs(epsg)
     height, mask, index = _building_rasters(local, transform, side)
+    surface = landcover
+    road = None
+    if roads is not None and len(roads):
+        road = _road_raster(roads.to_crs(epsg), transform, side)
+        road[mask > 0] = 0
+        surface = np.where(road > 0, road, landcover).astype("uint8")
     scene_objects = None
     if config.objects > 0:
         obj_height, obj_colour, obj_covered = scatter(
-            landcover, mask, config.gsd_m, config.objects, config.seed
+            surface, mask, config.gsd_m, config.objects, config.seed, road
         )
         height = height + obj_height
         scene_objects = (obj_colour, obj_covered)
@@ -391,9 +415,9 @@ def render_region(
             local["id"].to_numpy(), config.variation, config.bright_roofs, config.palette
         )[index]
         gains = class_gains(config.seed, config.variation)
-        rgb = shade(landcover, mask, shadow, gains=gains, roofs=roofs, **common)
+        rgb = shade(surface, mask, shadow, gains=gains, roofs=roofs, **common)
     else:
-        rgb = shade(landcover, mask, shadow, **common)
+        rgb = shade(surface, mask, shadow, **common)
 
     rgb = apply_psf(rgb, config.psf_sigma_px)
 

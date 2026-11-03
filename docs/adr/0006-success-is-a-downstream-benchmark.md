@@ -228,3 +228,13 @@ overlap above 1e-6 m², so curved roads lost most parcels. The check now allows 
 area. Parcels per 2 km world, FRK-27 against now (seeds 0, 1, 2): 478 to 705, 284 to 493, 220 to 532.
 Buildings: 321 to 515, 215 to 357, 155 to 387. Arterial-only parcel counts are mixed (214 to 198,
 175 to 112, 108 to 168 against raw paths with the new tolerance), so the gain comes from the check.
+
+## FRK-32: roads on the render, vehicles on roads
+
+`render_region(..., roads=layer)` paints each road as a ground class by width and class (asphalt
+for arterials, dusty tan for local streets). Buildings paint over them, trees keep off them, and
+the land-cover tile is untouched, so labels are byte-identical with and without roads. Without a
+road layer the render is unchanged. Vehicles are placed on road pixels (14 per hectare of road at
+density 1) and oriented along the road from the gradient of the blurred road mask. `synth
+--procedural` passes the world's roads automatically. Lane markings and junction geometry are not
+modelled.
