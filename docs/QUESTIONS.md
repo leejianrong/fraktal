@@ -33,7 +33,7 @@ None. Round 1 closed.
 | Q11 | Versioning | ASSUMED | Generator version and config hash in every manifest; datasets immutable | ADR-0003 |
 | Q12 | Agent simulation timing | DEFERRED | After the EO milestone; world schema ready for it (R8) | PLAN §Later bets |
 | Q13 | Sim-to-real gap handling | ASSUMED | Domain randomisation first, learned refinement only if needed | ADR-0004 |
-| Q14 | Benchmark bar | REVISED | Same thresholds (arm 3 beats arm 1 by 5+ IoU points, at least 90% of arm 2), but only in a regime where arm 2 beats arm 1 by 10+ points. At 10% real the gap is under 1 point, so the V1 run cannot judge it (arm 3 was 0.7 to 1.6 points below arm 1). Next: re-run at a scarce-data fraction (candidate 1%) | ADR-0006 |
+| Q14 | Benchmark bar | REVISED | Same thresholds (arm 3 beats arm 1 by 5+ IoU points, at least 90% of arm 2), but only in a regime where arm 2 beats arm 1 by 10+ points. At 10% real the gap is under 1 point, so the V1 run cannot judge it (arm 3 was 0.7 to 1.6 points below arm 1). V3 ablation (seven realism variants, two seeds) also ended at or below arm 1 (best −0.09 points) with arm 2 only 0.95 points above arm 1, so it still cannot judge. Needs a scarce-data fraction (candidate 1%) before V4 | ADR-0006 |
 | Q15 | Benchmark dataset | DECIDED | SpaceNet 2 Khartoum train for V1 (2026-11-02); a tropical test set is sought in V4 | ADR-0008, SLICES V4 |
 | Q16 | Python stack | ASSUMED | NumPy, numba, PyTorch, rasterio, shapely, geopandas, `uv` | ADR-0005 |
 | Q17 | Later bets (robotics/drone, SAR, disasters, agent sim, digital twins, refinement) | DEFERRED | Recorded in PLAN §Later bets; each needs its own ADR when started | PLAN §Later bets |
