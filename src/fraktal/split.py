@@ -77,6 +77,7 @@ def build_manifest(
     tiles: Sequence[Tile], crs: str, seed: int, test_fraction: float
 ) -> dict[str, Any]:
     train, test = split_tiles(tiles, seed, test_fraction)
+    all_tiles = sorted(tiles, key=lambda t: t.id)
     return {
         "schema": SCHEMA,
         "dataset": "spacenet2-khartoum",
@@ -85,6 +86,7 @@ def build_manifest(
         "crs": crs,
         "counts": {"train": len(train), "test": len(test), "total": len(train) + len(test)},
         "train": [t.id for t in train],
+        "tile_bounds": [{"id": t.id, "bounds": list(t.bounds)} for t in all_tiles],
         "test": [{"id": t.id, "bounds": list(t.bounds)} for t in test],
     }
 

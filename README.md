@@ -2,7 +2,7 @@
 
 Procedural world generation for synthetic satellite and geospatial training data. Fraktal builds deterministic, labelled worlds, conditioned on real geography and filled in procedurally, and renders them as satellite imagery with pixel-exact labels.
 
-**Status: early.** The plan is written and the foundations are in place (CLI skeleton, world model, stable IDs). Nothing generates imagery yet. The first milestone is a benchmark that shows whether training on synthetic imagery improves a real building-segmentation model.
+**Status: early.** The plan is written and the foundations are in place (CLI, world model, stable IDs, data ingest, a crude renderer and the benchmark harness). Whether synthetic pretraining helps is not measured yet. The first milestone is a benchmark that shows whether training on synthetic imagery improves a real building-segmentation model.
 
 ```mermaid
 flowchart LR
@@ -33,7 +33,17 @@ $ uv run fraktal version --json
 {"ok": true, "data": {"version": "0.0.1"}, "error": null}
 ```
 
-The `ingest`, `generate`, `render`, `benchmark` and `inspect` commands exist but exit with code 3 ("not implemented") until their slices land. Exit codes: 0 ok, 2 usage error, 3 not implemented, 4 failure.
+The V1 pipeline, in order (data lands under `data/`, which git ignores):
+
+```console
+$ uv run fraktal ingest                  # SpaceNet 2 Khartoum (5 GB), DEM and land cover
+$ uv run fraktal split --seed 0          # train and held-out test tiles, written as a manifest
+$ uv run fraktal generate --seed 0       # skeleton world from train-tile footprints only
+$ uv run fraktal synth --regions 3       # render synthetic chips, with sample PNGs
+$ uv run fraktal benchmark --synthetic data/synthetic/chips   # IoU for the three arms
+```
+
+`render` renders any building layer onto a region. `benchmark` needs PyTorch (`make install-train`) and a GPU for the full recipe. `inspect` exits with code 3 ("not implemented") until its slice lands. Exit codes: 0 ok, 2 usage error, 3 not implemented, 4 failure.
 
 ## Documentation
 

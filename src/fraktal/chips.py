@@ -98,3 +98,9 @@ class ChipTiles:
 def load_splits(chips_dir: Path) -> tuple[ChipTiles, ChipTiles]:
     meta = json.loads((chips_dir / "chips.json").read_text())
     return ChipTiles(chips_dir, meta["train"]), ChipTiles(chips_dir, meta["test"])
+
+
+def load_all(chips_dir: Path) -> ChipTiles:
+    """Every chip in a directory (synthetic chips have no train/test split)."""
+    meta = json.loads((chips_dir / "chips.json").read_text())
+    return ChipTiles(chips_dir, meta["tiles"])
