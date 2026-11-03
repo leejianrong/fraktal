@@ -106,3 +106,7 @@ Both lower contrast, and the real Khartoum chips are high-contrast, so on this g
 | FRK-16 (PSF 0.8, noise 8) | 0.070 | 0.05 | 0.13 |
 
 Caution: edge energy and the Laplacian noise statistic respond directly to added noise, so they will drop whether or not the model gets better at the task. The gauge says the chips now have real-like fine-scale energy, not that they look real. Only the benchmark can tell (FRK-18).
+
+### FRK-17: randomised realism parameters
+
+`fraktal synth --randomise` draws each scene's sun azimuth and elevation, haze, penumbra, PSF, noise, texture, reflectance variation, per-channel tone jitter and render seed from default ranges (`fraktal.randomise.Ranges`). A scene is a rendered region, which is then tiled, so parameters vary per region rather than per tile. Every component has its own named sub-stream (`realism:<scene>:<component>`), so editing one range never changes another's draw, and each region's parameters are written to `chips.json` as `region_params`. The ranges are initial guesses, not tuned values.

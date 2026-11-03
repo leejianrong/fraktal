@@ -22,6 +22,7 @@ from fraktal import (
     benchmark,
     chips,
     ingest,
+    randomise,
     realism,
     render,
     skeleton,
@@ -248,6 +249,8 @@ def _synth(args: argparse.Namespace) -> Result:
             skeleton.train_coverage(manifest, str(layer.crs)),
             out,
             config,
+            ranges=randomise.Ranges() if args.randomise else None,
+            seed=args.seed,
         )
     except (OSError, ValueError) as err:
         raise CliError(ExitCode.FAILURE, "synth_failed", str(err)) from err
@@ -271,6 +274,12 @@ def _synth_args(parser: argparse.ArgumentParser) -> None:
         metavar=("R", "G", "B"),
         default=render.KHARTOUM_TONE,
         help="per-channel gain (default matches the real Khartoum chips)",
+    )
+    parser.add_argument(
+        "--randomise",
+        action="store_true",
+        help="draw sun, haze, noise and the rest per region from default ranges "
+        "(overrides the fixed values above)",
     )
     parser.add_argument("--psf", type=float, default=0.8, help="sensor blur sigma in pixels")
     parser.add_argument("--noise", type=float, default=8.0, help="sensor noise std in DN")

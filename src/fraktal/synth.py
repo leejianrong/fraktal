@@ -22,6 +22,7 @@ from shapely.strtree import STRtree
 
 from fraktal.ids import substream
 from fraktal.log import emit
+from fraktal.randomise import Ranges, sample_config
 from fraktal.render import RenderConfig, render_region
 from fraktal.split import read_manifest
 from fraktal.terrain import TerrainError
@@ -64,6 +65,24 @@ def pick_centers(
     return chosen
 
 
+PARAM_KEYS = (
+    "seed",
+    "variation",
+    "tone",
+    "texture",
+    "haze",
+    "psf_sigma_px",
+    "noise_sigma",
+    "penumbra_m",
+    "sun",
+)
+
+
+def manifest_params(manifest: dict[str, Any]) -> dict[str, Any]:
+    """The realism parameters a region was rendered with, from its render manifest."""
+    return {k: manifest[k] for k in PARAM_KEYS if k in manifest}
+
+
 def _png(path: Path, rgb: np.ndarray[Any, Any]) -> None:
     with MemoryFile() as mem:
         with mem.open(
@@ -90,21 +109,26 @@ def synthesize(
     config: RenderConfig,
     samples: int = 6,
     min_coverage: float = 0.95,
+    ranges: Ranges | None = None,
+    seed: int = 0,
 ) -> dict[str, Any]:
     chips_dir = out_dir / "chips"
     chips_dir.mkdir(parents=True, exist_ok=True)
     ids: list[str] = []
     dropped: list[dict[str, str]] = []
     rendered = 0
+    region_configs: list[dict[str, Any]] = []
     for center in centers:
         if rendered == regions:
             break
         region_dir = out_dir / f"region_{rendered:02d}"
         emit("synth_region_start", region=rendered, of=regions, center=list(center))
         try:
-            manifest = render_region(terrain_dir, layer, center, region_dir, config)
+            scene = sample_config(config, ranges, seed, rendered) if ranges else config
+            manifest = render_region(terrain_dir, layer, center, region_dir, scene)
         except TerrainError:
             continue  # region sticks out of the terrain AOI; try the next candidate
+        region_configs.append(manifest_params(manifest))
         rendered += 1
         emit("synth_region_done", region=rendered - 1, chips_so_far=len(ids))
         for rec in manifest["tiles"]:
@@ -144,6 +168,8 @@ def synthesize(
         "source": "synthetic",
         "tiles": sorted(ids),
         "regions": regions,
+        "region_params": region_configs,
+        "randomised": ranges is not None,
         "dropped": dropped,
         "gsd_m": config.gsd_m,
         "tile_px": config.tile_px,
