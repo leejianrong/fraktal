@@ -39,7 +39,11 @@ class LayerSchema:
 LAYERS: dict[str, LayerSchema] = {
     "building": LayerSchema(
         frozenset({"Polygon", "MultiPolygon"}),
-        {"height_m": float, "land_use": str, "roof_type": str},
+        {"height_m": float, "land_use": str, "roof_type": str, "parcel_id": str},
+    ),
+    "parcel": LayerSchema(
+        frozenset({"Polygon", "MultiPolygon"}),
+        {"land_use": str, "road_id": str},
     ),
     "road": LayerSchema(
         frozenset({"LineString", "MultiLineString"}),
