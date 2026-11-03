@@ -17,7 +17,7 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Any
 
-from fraktal import __version__, ingest, split, terrain
+from fraktal import __version__, ingest, render, split, terrain, world
 
 
 class ExitCode(IntEnum):
@@ -127,6 +127,42 @@ def _ingest_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _render(args: argparse.Namespace) -> Result:
+    terrain_dir = args.data_dir / "terrain" / "khartoum"
+    out = args.out or args.data_dir / "render"
+    try:
+        if not (terrain_dir / terrain.MARKER).is_file():
+            raise FileNotFoundError(f"no terrain under {terrain_dir}; run `fraktal ingest`")
+        buildings = world.read_layer(args.buildings, "building")
+        center = tuple(args.center) if args.center else _terrain_center(terrain_dir)
+        config = render.RenderConfig(
+            size_m=args.size_m,
+            sun_azimuth_deg=args.sun_azimuth,
+            sun_elevation_deg=args.sun_elevation,
+        )
+        manifest = render.render_region(terrain_dir, buildings, (center[0], center[1]), out, config)
+    except (OSError, ValueError) as err:
+        raise CliError(ExitCode.FAILURE, "render_failed", str(err)) from err
+    n = len(manifest["tiles"])
+    data = {"out": str(out), "tiles": n, "crs": manifest["crs"]}
+    return Result(data, f"rendered {n} tiles to {out}")
+
+
+def _terrain_center(terrain_dir: Path) -> tuple[float, float]:
+    left, bottom, right, top = json.loads((terrain_dir / terrain.MARKER).read_text())["bounds"]
+    return ((left + right) / 2, (bottom + top) / 2)
+
+
+def _render_args(parser: argparse.ArgumentParser) -> None:
+    _data_dir_arg(parser)
+    parser.add_argument("--buildings", type=Path, required=True, help="building layer (GeoParquet)")
+    parser.add_argument("--center", type=float, nargs=2, metavar=("LON", "LAT"))
+    parser.add_argument("--size-m", type=float, default=2000.0, help="region side in metres")
+    parser.add_argument("--sun-azimuth", type=float, default=135.0)
+    parser.add_argument("--sun-elevation", type=float, default=50.0)
+    parser.add_argument("--out", type=Path, help="output directory (default <data-dir>/render)")
+
+
 def _split(args: argparse.Namespace) -> Result:
     root = args.data_dir / "spacenet2" / "khartoum"
     out = args.out or args.data_dir / "spacenet2" / "khartoum-split.json"
@@ -151,6 +187,7 @@ def _split_args(parser: argparse.ArgumentParser) -> None:
 ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "ingest": _ingest_args,
     "split": _split_args,
+    "render": _render_args,
 }
 
 COMMANDS: dict[str, tuple[str, Handler]] = {
@@ -158,7 +195,7 @@ COMMANDS: dict[str, tuple[str, Handler]] = {
     "ingest": ("Fetch and cache real source data", _ingest),
     "split": ("Split the real tiles into train and held-out test", _split),
     "generate": ("Generate a world from a seed and config", _not_implemented("generate")),
-    "render": ("Render a world to imagery and labels", _not_implemented("render")),
+    "render": ("Render a world to imagery and labels", _render),
     "benchmark": ("Run the downstream benchmark", _not_implemented("benchmark")),
     "inspect": ("Inspect a world, dataset or report", _not_implemented("inspect")),
 }
