@@ -11,6 +11,7 @@ dependencies = [
     "geopandas>=1.1.4",
     "numpy>=1.26",
     "pyarrow>=25.0.1",
+    "rasterio>=1.4.4",
     "shapely>=2.1.2",
 ]
 
@@ -44,5 +45,5 @@ strict = true
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["geopandas.*", "pyarrow.*", "shapely.*", "pandas.*"]
+module = ["geopandas.*", "pyarrow.*", "shapely.*", "pandas.*", "rasterio.*"]
 ignore_missing_imports = true
