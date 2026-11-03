@@ -32,6 +32,7 @@ make fmt               # apply ruff fixes and formatting
   (`pytestmark = pytest.mark.integration`). Fix a bug with a failing test first.
 - **Long jobs report progress.** Anything that can run for minutes emits `fraktal.log.emit` lines (stderr, never stdout) so a remote run can be watched.
 - **Benchmarks steer, they do not gate** ([ADR-0009](docs/adr/0009-build-for-coverage-and-measure-to-steer.md)). The working premise is that enough realism and generator degrees of freedom make synthetic data helpful. Keep building, keep measuring, record negative results, and widen the distribution rather than polishing one look.
+- **Train only at big milestones.** Day to day, judge synthetic data with the free checks: `fraktal compare`, the distribution plots and chip strips, and looking at samples. Spend GPU on a training benchmark only when a major milestone lands (a new world generator, a large realism step, a dataset release).
 - **Secrets** come from environment variables only. Never commit `.env` or tokens.
 
 ## Docs
