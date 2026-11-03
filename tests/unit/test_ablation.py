@@ -185,3 +185,14 @@ def test_objects_variant_adds_objects_and_roof_detail_on_top_of_extremes() -> No
     assert objects.objects > 0 and objects.roof_detail > 0
     assert (objects.contrast, objects.blank_prob) == (extremes.contrast, extremes.blank_prob)
     assert variant_config(RANDOMISED, BASE)[0].objects == 0.0
+
+
+def test_the_wide_randomised_variant_draws_the_extremes_per_region() -> None:
+    from fraktal.ablation import OBJECTS, WIDE_RANDOMISED, variant_ranges
+    from fraktal.randomise import WIDE, Ranges
+
+    wide, is_random = variant_config(WIDE_RANDOMISED, BASE)
+    objects, _ = variant_config(OBJECTS, BASE)
+    assert is_random and wide.objects == objects.objects and wide.roof_detail > 0
+    assert variant_ranges(WIDE_RANDOMISED) == WIDE
+    assert variant_ranges(RANDOMISED) == Ranges() and variant_ranges(None) == Ranges()

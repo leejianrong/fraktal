@@ -26,7 +26,6 @@ from fraktal import (
     inspection,
     palette,
     procedural,
-    randomise,
     realism,
     render,
     report,
@@ -440,7 +439,7 @@ def _synth(args: argparse.Namespace) -> Result:
             None if layer is None else skeleton.train_coverage(manifest, crs),
             out,
             config,
-            ranges=randomise.Ranges() if randomised else None,
+            ranges=ablation.variant_ranges(args.variant) if randomised else None,
             seed=args.seed,
             procedural=(
                 procedural.ProceduralConfig(

@@ -238,3 +238,15 @@ road layer the render is unchanged. Vehicles are placed on road pixels (14 per h
 density 1) and oriented along the road from the gradient of the blurred road mask. `synth
 --procedural` passes the world's roads automatically. Lane markings and junction geometry are not
 modelled.
+
+## FRK-33: contrast pivot and wide randomised extremes
+
+The CPU review showed two things: randomised scenes were too flat (grey-level std 17 against 34
+for real chips) and the blue channel was too low in the v7 and v8 sets (mean 15 against 36).
+Both have one cause. Contrast stretched about mid-grey, so a dark channel was pushed toward zero,
+and the randomised ranges did not include any extremes. Contrast now stretches about each
+channel's own mean, which keeps the colour balance while widening the spread. The randomised
+ranges gain ambient, contrast, bright-roof share and no-data chance, neutral by default (so the
+original v6 draws are unchanged), plus `randomise.WIDE` and the variant `v9_randomised_wide`
+(objects, roof stripes, extremes drawn per region). Earlier v7 and v8 chips were rendered with
+the old pivot, so rendered sets from before FRK-33 are not comparable at equal contrast.

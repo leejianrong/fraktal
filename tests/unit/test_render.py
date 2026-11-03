@@ -447,3 +447,14 @@ def test_roads_are_painted_by_class_and_leave_the_labels_alone(
     with rasterio.open(tmp_path / "again" / "tiles" / "r00_c00.tif") as c:
         assert (c.read() == rgb).all()
     assert again["tiles"]
+
+
+def test_contrast_stretches_about_the_channel_means_so_dark_channels_survive() -> None:
+    land = np.array([[30, 60]], dtype="uint8")
+    none = np.zeros((1, 2), dtype="uint8")
+    shadow = np.zeros((1, 2), dtype="uint8")
+    dark_blue = (1.0, 1.0, 0.25)  # a blue channel far below mid-grey, like the real chips
+    plain = shade(land, none, shadow, tone=dark_blue).astype(float)
+    stretched = shade(land, none, shadow, tone=dark_blue, contrast=1.5).astype(float)
+    assert stretched[2].mean() == pytest.approx(plain[2].mean(), abs=1.0)  # mean kept
+    assert abs(np.diff(stretched[2][0])[0]) > abs(np.diff(plain[2][0])[0])  # but spread wider

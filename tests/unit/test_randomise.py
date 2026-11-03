@@ -52,3 +52,14 @@ def test_reversed_range_is_rejected() -> None:
 def test_tone_jitters_around_the_base_tone() -> None:
     c = sample_config(BASE, Ranges(tone_jitter=(1.0, 1.0)), 1, 0)
     assert c.tone == Ranges().base_tone
+
+
+def test_the_default_ranges_keep_the_extremes_neutral_and_wide_opens_them() -> None:
+    from fraktal.randomise import WIDE
+
+    for scene in range(10):
+        plain = sample_config(BASE, Ranges(), 2, scene)
+        assert (plain.contrast, plain.bright_roofs, plain.blank_prob) == (1.0, 0.0, 0.0)
+        wide = sample_config(BASE, WIDE, 2, scene)
+        assert 1.1 <= wide.contrast <= 1.9 and 0.12 <= wide.ambient <= 0.30
+        assert wide.sun_azimuth_deg == plain.sun_azimuth_deg  # other draws are unmoved

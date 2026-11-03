@@ -14,7 +14,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
-from fraktal import benchmark, realism
+from fraktal import benchmark, randomise, realism
 from fraktal.benchmark import Recipe, Subset, TileSource
 from fraktal.log import emit
 from fraktal.render import AMBIENT, KHARTOUM_TONE, RenderConfig
@@ -56,7 +56,20 @@ EXTREME_FIELDS: dict[str, Any] = {
 # Trees, vehicles and roof stripes on top of the extremes variant (FRK-22).
 OBJECTS = "v8_objects"
 OBJECT_FIELDS: dict[str, Any] = {"objects": 1.0, "roof_detail": 0.12}
-VARIANTS: tuple[str, ...] = (*(name for name, _ in STEPS), RANDOMISED, EXTREMES, OBJECTS)
+# Everything per region: the objects variant with its extremes drawn from WIDE ranges (FRK-33).
+WIDE_RANDOMISED = "v9_randomised_wide"
+VARIANTS: tuple[str, ...] = (
+    *(name for name, _ in STEPS),
+    RANDOMISED,
+    EXTREMES,
+    OBJECTS,
+    WIDE_RANDOMISED,
+)
+
+
+def variant_ranges(name: str | None) -> randomise.Ranges:
+    """Per-region ranges for a randomised variant: the wide set for v9, the default otherwise."""
+    return randomise.WIDE if name == WIDE_RANDOMISED else randomise.Ranges()
 
 
 def variant_config(name: str, base: RenderConfig) -> tuple[RenderConfig, bool]:
@@ -70,9 +83,9 @@ def variant_config(name: str, base: RenderConfig) -> tuple[RenderConfig, bool]:
             break
     if name in (EXTREMES, OBJECTS):
         fields.update(EXTREME_FIELDS)
-    if name == OBJECTS:
+    if name in (OBJECTS, WIDE_RANDOMISED):
         fields.update(OBJECT_FIELDS)
-    if name == RANDOMISED:
+    if name in (RANDOMISED, WIDE_RANDOMISED):
         return dataclasses.replace(base, **fields), True
     return dataclasses.replace(base, **fields), False
 
