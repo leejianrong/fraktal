@@ -214,6 +214,7 @@ def _ablate(args: argparse.Namespace) -> Result:
             names,
             out,
             real_chips=real,
+            fraction=args.fraction,
         )
     except (OSError, ValueError, RuntimeError) as err:
         raise CliError(ExitCode.FAILURE, "ablation_failed", str(err)) from err
@@ -231,6 +232,9 @@ def _ablate_args(parser: argparse.ArgumentParser) -> None:
         "--wait-secs", type=float, default=3600, help="wait per variant's synth job"
     )
     parser.add_argument("--steps", type=int)
+    parser.add_argument(
+        "--fraction", type=float, default=0.1, help="share of real training tiles for arm 1 and 3"
+    )
     parser.add_argument("--device", default="auto")
     parser.add_argument("--split", type=Path)
     parser.add_argument("--chips", type=Path)

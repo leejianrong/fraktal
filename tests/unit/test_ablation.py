@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -8,7 +9,9 @@ from fraktal.ablation import (
     VARIANTS,
     VariantNotReady,
     run_ablation,
+    subset_arm,
     variant_config,
+    verdict,
     wait_for_variant,
 )
 from fraktal.render import KHARTOUM_TONE, RenderConfig
@@ -62,6 +65,39 @@ def test_wait_fails_fast_on_a_failed_synth_and_on_timeout(tmp_path: Path) -> Non
         wait_for_variant(tmp_path, "never", -1, 0.0, lambda _: None)
 
 
+def arms(a1: float, a2: float, arm3: float) -> dict[str, Any]:
+    return {
+        "arms": {"real_1pct": {"iou": a1}, "real_100pct": {"iou": a2}},
+        "variants": {"v0": {"arm3_iou": arm3}},
+    }
+
+
+def test_subset_arm_names_follow_the_fraction() -> None:
+    assert subset_arm(0.1) == "real_10pct"
+    assert subset_arm(0.01) == "real_1pct"
+    assert subset_arm(0.025) == "real_2.5pct"
+
+
+def test_verdict_is_undecidable_unless_arm2_beats_arm1_by_ten_points() -> None:
+    v = verdict([arms(0.60, 0.65, 0.70)], ["v0"], 0.01)
+    assert v["decidable"] is False and v["variants"]["v0"]["bar"] == "undecidable"
+
+
+def test_verdict_applies_the_five_point_and_ninety_percent_bar() -> None:
+    met = verdict([arms(0.50, 0.70, 0.66)], ["v0"], 0.01)
+    assert met["decidable"] and met["variants"]["v0"]["bar"] == "met"
+    short = verdict([arms(0.50, 0.70, 0.54)], ["v0"], 0.01)  # +4 points
+    assert short["variants"]["v0"]["bar"] == "missed"
+    low_share = verdict([arms(0.30, 0.80, 0.40)], ["v0"], 0.01)  # +10 points but 50% of arm 2
+    assert low_share["variants"]["v0"]["bar"] == "missed"
+
+
+def test_verdict_averages_seeds_and_skips_unfinished_variants() -> None:
+    v = verdict([arms(0.50, 0.70, 0.60), arms(0.52, 0.72, 0.58)], ["v0", "v1"], 0.01)
+    assert set(v["variants"]) == {"v0"}
+    assert v["arm2_minus_arm1_points"] == pytest.approx(20.0)
+
+
 torch = pytest.importorskip("torch")
 from test_benchmark import TINY, Squares  # noqa: E402
 
@@ -110,3 +146,15 @@ def test_a_failing_variant_leaves_finished_results_on_disk(tmp_path: Path) -> No
     assert (
         "v0_flat" in saved["runs"][0]["variants"] and "v1_tone" not in saved["runs"][0]["variants"]
     )
+
+
+def test_a_scarce_fraction_names_the_arm_and_records_the_verdict(tmp_path: Path) -> None:
+    out = tmp_path / "a.json"
+    report = run_ablation(
+        Squares(20), Squares(4), TINY, [0], "cpu", lambda _n: Squares(5), ["v0_flat"], out,
+        fraction=0.05, log_every=1000,
+    )  # fmt: skip
+    assert set(report["runs"][0]["arms"]) == {"real_5pct", "real_100pct"}
+    assert report["fraction"] == 0.05
+    assert report["q14"]["variants"]["v0_flat"]["bar"] in {"met", "missed", "undecidable"}
+    assert json.loads(out.read_text())["q14"] == report["q14"]

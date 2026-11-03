@@ -43,7 +43,7 @@ are readable from the logs even if the relay transfer fails. Afterwards confirm
 (`fraktal.ablation.VARIANTS`, cumulative from the flat V1 render to the randomised one). The pod
 job renders the variants on the CPU in the background while the GPU trains earlier ones, runs a
 30-step smoke test as soon as the first variant exists, and publishes whatever it has even if a
-step fails. Launch it like the V1 job, with `COMMIT` and optionally `SEEDS` (default `0 1`).
+step fails. Launch it like the V1 job, with `COMMIT` and optionally `SEEDS` (default `0 1`), `VARIANTS` (default all), `FRACTION` (real share for arms 1 and 3, default `0.1`) and `STEPS`. With a scarce fraction the report also carries a `q14` verdict per variant.
 
 Failure signals in the logs: `STAGE failed`, `ERROR <what>` (a background synth died), `WARN`
 (no output for 10 minutes, GPU idle for 6 minutes during training, disk or RAM above 90%), and a
