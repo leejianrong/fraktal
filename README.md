@@ -43,7 +43,7 @@ $ uv run fraktal synth --regions 3       # render synthetic chips, with sample P
 $ uv run fraktal benchmark --synthetic data/synthetic/chips   # IoU for the three arms
 ```
 
-`render` renders any building layer onto a region. `benchmark` needs PyTorch (`make install-train`) and a GPU for the full recipe. `inspect` exits with code 3 ("not implemented") until its slice lands. Exit codes: 0 ok, 2 usage error, 3 not implemented, 4 failure.
+`render` renders any building layer onto a region. `benchmark` needs PyTorch (`make install-train`) and a GPU for the full recipe. `inspect <world> --id <id>` returns a feature's geometry and provenance as JSON. Exit codes: 0 ok, 2 usage error, 3 not implemented, 4 failure.
 
 ## Documentation
 
