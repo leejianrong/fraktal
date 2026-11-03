@@ -113,3 +113,22 @@ def test_report_has_hardware_and_arm_timings() -> None:
     report = run_arms(Squares(6), Squares(2), TINY, seed=0, device="cpu")
     assert report["hardware"] == {"device": "cpu"}
     assert all(arm["seconds"] >= 0 for arm in report["arms"].values())
+
+
+def test_progress_lines_are_structured_and_stdout_stays_clean(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    run_arms(Squares(6), Squares(2), TINY, seed=0, device="cpu", log_every=20)
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    events = [
+        json.loads(line.removeprefix("fraktal-log "))
+        for line in captured.err.splitlines()
+        if line.startswith("fraktal-log ")
+    ]
+    kinds = [e["event"] for e in events]
+    assert kinds.count("arm_start") == 2 and kinds.count("arm_done") == 2
+    progress = [e for e in events if e["event"] == "train_progress" and e["label"] == "real_100pct"]
+    assert [e["step"] for e in progress] == [20, 40, 60]
+    assert {"loss", "steps_per_s", "eta_s"} <= set(progress[0])
+    assert any(e["event"] == "eval_done" and "iou" in e for e in events)

@@ -30,11 +30,12 @@ make fmt               # apply ruff fixes and formatting
 - **Check licences** before adding a dependency or dataset ([ADR-0007](docs/adr/0007-sell-datasets-first-keep-the-engine-private.md)).
 - **Tests are layered:** `tests/unit` (temp files fine) and `tests/integration`
   (`pytestmark = pytest.mark.integration`). Fix a bug with a failing test first.
+- **Long jobs report progress.** Anything that can run for minutes emits `fraktal.log.emit` lines (stderr, never stdout) so a remote run can be watched.
 - **Secrets** come from environment variables only. Never commit `.env` or tokens.
 
 ## Docs
 
-`docs/PLAN.md` (scope and shape), `docs/SLICES.md` (build order and acceptance tests),
+`docs/RUNPOD.md` (GPU runs: launch, watch, tear down), `docs/PLAN.md` (scope and shape), `docs/SLICES.md` (build order and acceptance tests),
 `docs/adr/` (read the relevant ADR before changing what it covers), `docs/QUESTIONS.md`.
 Later bets (robotics/drone views, SAR, disaster pairs, agent simulation) are in
 `docs/PLAN.md` under "Later bets".

@@ -17,6 +17,7 @@ import numpy as np
 import rasterio
 from rasterio.features import rasterize
 
+from fraktal.log import emit
 from fraktal.split import IMAGERY_DIR, read_manifest
 
 LABEL_DIR = "AOI_5_Khartoum_Train/geojson/buildings"
@@ -61,7 +62,11 @@ def build_chips(data_dir: Path, manifest_path: Path, out_dir: Path | None = None
             return out
     out.mkdir(parents=True, exist_ok=True)
     low, high = stretch_range(root, [*train, *test])
-    for tile_id in [*train, *test]:
+    everything = [*train, *test]
+    emit("chips_start", tiles=len(everything))
+    for n, tile_id in enumerate(everything):
+        if n and n % 200 == 0:
+            emit("chips_progress", done=n, of=len(everything))
         with rasterio.open(_tile_path(root, tile_id)) as src:
             image = _to_uint8(src.read(), low, high)
             transform, shape = src.transform, src.shape

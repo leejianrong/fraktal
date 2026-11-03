@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from fraktal.log import emit
+
 URL = (
     "https://spacenet-dataset.s3.amazonaws.com/spacenet/SN2_buildings/tarballs/"
     "SN2_buildings_train_AOI_5_Khartoum.tar.gz"
@@ -24,6 +26,7 @@ URL = (
 DATASET = "spacenet2-khartoum"
 CHUNK = 1 << 20
 MARKER = ".complete"
+PROGRESS_BYTES = 256 << 20
 
 
 class Transport(Protocol):
@@ -85,9 +88,15 @@ def ingest(
             part.unlink()
         resumed_from = part.stat().st_size if part.is_file() else 0
         if resumed_from < expected:
+            emit("download_start", bytes=expected, resumed_from=resumed_from)
             with part.open("ab") as out:
+                last = resumed_from
                 for chunk in transport.read(url, resumed_from):
                     out.write(chunk)
+                    got = out.tell()
+                    if got - last >= PROGRESS_BYTES:
+                        emit("download_progress", bytes=got, of=expected)
+                        last = got
         if part.stat().st_size != expected:
             raise OSError(
                 f"download incomplete: got {part.stat().st_size} of {expected} bytes; "
@@ -98,6 +107,7 @@ def ingest(
     staging = data_dir / "spacenet2" / "khartoum.partial"
     shutil.rmtree(staging, ignore_errors=True)
     staging.mkdir(parents=True)
+    emit("extract_start", archive=archive.name)
     with tarfile.open(archive) as tar:
         tar.extractall(staging, filter="data")
     shutil.rmtree(target, ignore_errors=True)
