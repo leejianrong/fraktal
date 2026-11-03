@@ -149,3 +149,16 @@ Four renderer parameters, all off by default: `ambient` (light left inside shado
 | Colour W1 | 0.077 | 0.064 | |
 
 Contrast is matched and the clipped share is about halfway. Strong edges barely move, so the edge tail is an object-level gap, not a tone one (FRK-22). Whether extremes help the downstream model is untested until the next ablation run includes `v7_extremes`.
+
+### FRK-22: trees, vehicles and roof detail
+
+`fraktal.objects` places trees (domes, 1.5 to 4 m radius, 4 to 9 m tall) and vehicles (4.5 by 1.9 m, 1.5 m tall, five colours) deterministically from named sub-streams (`objects:trees`, `objects:cars`), on land-cover classes where they plausibly stand and never on buildings. A numba kernel (`kernels/objects.py`, golden-tested) paints them. They join the surface model, so they cast shadows, and the shading, so they show in the image. They are render-only decoration, not world features: no IDs, no labels. Roofs get ridge and corrugation stripes whose direction, period and phase come from the building's stable id. New variant `v8_objects` adds these to `v7_extremes`. Same three regions, gauge:
+
+| | v7 extremes | v8 objects | Real |
+|---|---|---|---|
+| Strong-edge share (steps above 20 DN) | 1.2% | 2.1% | 4.9% |
+| Strong-edge gap | 0.76 | 0.58 | |
+| Grey contrast (std) | 36.8 | 38.5 | 35.6 |
+| Colour W1 | 0.064 | 0.065 | |
+
+The strong-edge tail moves but stays under half of real. Vehicles only stand on built-up and bare ground, and the world has no roads, so they are scattered rather than lined up on streets; a road network (V2) would make them realistic. Downstream effect untested until an ablation includes `v7_extremes` and `v8_objects`.

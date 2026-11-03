@@ -173,3 +173,15 @@ def test_extremes_variant_builds_on_the_atmosphere_variant_without_changing_rand
     assert atmosphere.blank_prob == 0 and atmosphere.contrast == 1
     random_config, is_random = variant_config(RANDOMISED, BASE)
     assert is_random and random_config.blank_prob == 0 and random_config.contrast == 1
+
+
+def test_objects_variant_adds_objects_and_roof_detail_on_top_of_extremes() -> None:
+    from fraktal.ablation import EXTREMES, OBJECTS
+
+    extremes, _ = variant_config(EXTREMES, BASE)
+    objects, randomised = variant_config(OBJECTS, BASE)
+    assert randomised is False
+    assert (extremes.objects, extremes.roof_detail) == (0.0, 0.0)
+    assert objects.objects > 0 and objects.roof_detail > 0
+    assert (objects.contrast, objects.blank_prob) == (extremes.contrast, extremes.blank_prob)
+    assert variant_config(RANDOMISED, BASE)[0].objects == 0.0

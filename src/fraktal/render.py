@@ -27,6 +27,7 @@ from fraktal.kernels.filters import gaussian_blur
 from fraktal.kernels.noise import lattice_shape, value_noise
 from fraktal.kernels.shadow import shadow_mask
 from fraktal.labels import independent_building_mask
+from fraktal.objects import roof_pattern, scatter
 from fraktal.sensor import add_noise, apply_psf, blank_wedge
 from fraktal.terrain import TerrainError
 
@@ -94,6 +95,8 @@ class RenderConfig:
     bright_roofs: float = 0.0  # share of buildings with very bright (often clipped) roofs
     blank_prob: float = 0.0  # chance a tile has a no-data region, like a scene footprint edge
     blank_max_fraction: float = 0.3  # largest share of a tile the no-data region can cover
+    objects: float = 0.0  # density of trees and vehicles; 0 is none, 1 is the default density
+    roof_detail: float = 0.0  # strength of ridge and corrugation stripes on roofs
 
 
 def utm_epsg(lon: float, lat: float) -> int:
@@ -229,6 +232,8 @@ def shade(
     haze: tuple[float, float] = (0.0, 50.0),
     ambient: float = AMBIENT,
     contrast: float = 1.0,
+    scene_objects: Any = None,
+    roof_gain: Any = None,
 ) -> Any:
     """Per-class reflectance, darkened inside cast shadows. Returns (3, H, W) uint8.
 
@@ -254,6 +259,11 @@ def shade(
         albedo[building_mask > 0] = ROOF_RGB
     else:
         albedo[building_mask > 0] = roofs[building_mask > 0]
+    if roof_gain is not None:
+        albedo = albedo * roof_gain[..., None]
+    if scene_objects is not None:  # (colour (H, W, 3), coverage (H, W)) of trees and vehicles
+        covered = scene_objects[1] > 0
+        albedo[covered] = scene_objects[0][covered]
     light = (1.0 - (1.0 - ambient) * np.clip(shadow, 0, 1)).astype("float32")[..., None]
     radiance = albedo * light
     if haze[0] > 0:
@@ -326,6 +336,16 @@ def render_region(
     landcover = _warp(terrain_dir / "landcover.tif", transform, epsg, side, Resampling.nearest)
     local = buildings.to_crs(epsg)
     height, mask, index = _building_rasters(local, transform, side)
+    scene_objects = None
+    if config.objects > 0:
+        obj_height, obj_colour, obj_covered = scatter(
+            landcover, mask, config.gsd_m, config.objects, config.seed
+        )
+        height = height + obj_height
+        scene_objects = (obj_colour, obj_covered)
+    roof_gain = None
+    if config.roof_detail > 0:
+        roof_gain = roof_pattern(index, local["id"].to_numpy(), config.gsd_m, config.roof_detail)
     shadow = shadow_mask(
         dem + height, config.gsd_m, config.sun_azimuth_deg, config.sun_elevation_deg
     )
@@ -341,6 +361,8 @@ def render_region(
         "haze": haze,
         "ambient": config.ambient,
         "contrast": config.contrast,
+        "scene_objects": scene_objects,
+        "roof_gain": roof_gain,
     }
     if config.variation > 0:
         roofs = roof_table(local["id"].to_numpy(), config.variation, config.bright_roofs)[index]
@@ -422,6 +444,8 @@ def render_region(
         "contrast": config.contrast,
         "bright_roofs": config.bright_roofs,
         "blank_prob": config.blank_prob,
+        "objects": config.objects,
+        "roof_detail": config.roof_detail,
         "buildings": len(local),
         "tiles": records,
         "dropped": dropped,
