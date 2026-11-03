@@ -31,6 +31,8 @@ NEUTRAL: dict[str, Any] = {
     "contrast": 1.0,
     "bright_roofs": 0.0,
     "blank_prob": 0.0,
+    "objects": 0.0,
+    "roof_detail": 0.0,
 }
 # Each variant adds one component to the one before it. The last draws them all per region.
 STEPS: tuple[tuple[str, dict[str, Any]], ...] = (
@@ -51,7 +53,10 @@ EXTREME_FIELDS: dict[str, Any] = {
     "bright_roofs": 0.15,
     "blank_prob": 0.25,
 }
-VARIANTS: tuple[str, ...] = (*(name for name, _ in STEPS), RANDOMISED, EXTREMES)
+# Trees, vehicles and roof stripes on top of the extremes variant (FRK-22).
+OBJECTS = "v8_objects"
+OBJECT_FIELDS: dict[str, Any] = {"objects": 1.0, "roof_detail": 0.12}
+VARIANTS: tuple[str, ...] = (*(name for name, _ in STEPS), RANDOMISED, EXTREMES, OBJECTS)
 
 
 def variant_config(name: str, base: RenderConfig) -> tuple[RenderConfig, bool]:
@@ -63,8 +68,10 @@ def variant_config(name: str, base: RenderConfig) -> tuple[RenderConfig, bool]:
         fields.update(change)
         if step == name:
             break
-    if name == EXTREMES:
+    if name in (EXTREMES, OBJECTS):
         fields.update(EXTREME_FIELDS)
+    if name == OBJECTS:
+        fields.update(OBJECT_FIELDS)
     if name == RANDOMISED:
         return dataclasses.replace(base, **fields), True
     return dataclasses.replace(base, **fields), False

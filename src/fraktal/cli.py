@@ -320,6 +320,8 @@ def _synth(args: argparse.Namespace) -> Result:
         contrast=args.contrast,
         bright_roofs=args.bright_roofs,
         blank_prob=args.blank_prob,
+        objects=args.objects,
+        roof_detail=args.roof_detail,
     )
     randomised = args.randomise
     if args.variant:
@@ -381,6 +383,8 @@ def _synth_args(parser: argparse.ArgumentParser) -> None:
         "--bright-roofs", type=float, default=0.0, help="share of very bright roofs"
     )
     parser.add_argument("--blank-prob", type=float, default=0.0, help="chance of a no-data edge")
+    parser.add_argument("--objects", type=float, default=0.0, help="tree and vehicle density")
+    parser.add_argument("--roof-detail", type=float, default=0.0, help="roof stripe strength")
     parser.add_argument("--psf", type=float, default=0.8, help="sensor blur sigma in pixels")
     parser.add_argument("--noise", type=float, default=8.0, help="sensor noise std in DN")
     parser.add_argument("--haze", type=float, default=0.0, help="atmospheric optical depth")
