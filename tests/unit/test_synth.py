@@ -167,3 +167,28 @@ def test_chips_outside_labelled_tiles_are_dropped(tmp_path: Path) -> None:
         "overlaps a held-out test tile",
     }
     assert any(d["reason"] == "outside labelled training tiles" for d in meta["dropped"])
+
+
+def test_randomised_regions_record_their_own_parameters_and_stay_reproducible(
+    tmp_path: Path,
+) -> None:
+    from fraktal.randomise import Ranges
+
+    manifest = prepare(tmp_path)
+    layer = build_skeleton(tmp_path, manifest, seed=0)
+    terrain = make_terrain(tmp_path)
+    footprints = held_out_footprints(manifest, str(layer.crs))
+    union = train_coverage(manifest, str(layer.crs))
+    centers = pick_centers(manifest, seed=0, size_m=200.0)
+    args = (terrain, layer, centers, 2, footprints, union)
+    meta = synthesize(*args, tmp_path / "a", CONFIG, ranges=Ranges(), seed=7)
+    again = synthesize(*args, tmp_path / "b", CONFIG, ranges=Ranges(), seed=7)
+    assert meta["randomised"] is True
+    params = meta["region_params"]
+    assert len(params) == 2 and params[0] != params[1]
+    assert params == again["region_params"] and meta["tiles"] == again["tiles"]
+    for chip in meta["tiles"]:  # same chips, same pixels
+        a = np.load(tmp_path / "a" / "chips" / f"{chip}_img.npy")
+        assert (a == np.load(tmp_path / "b" / "chips" / f"{chip}_img.npy")).all()
+    fixed = synthesize(*args, tmp_path / "c", CONFIG)
+    assert fixed["randomised"] is False and fixed["region_params"][0] == fixed["region_params"][1]
