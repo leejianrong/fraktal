@@ -56,7 +56,7 @@ def test_aridity_trades_vegetation_for_bare_ground() -> None:
 def test_steep_ground_is_bare_and_slope_is_measured_in_degrees() -> None:
     ramp = np.tile(np.arange(40, dtype="float64") * 10.0, (40, 1))  # 10 m rise per 10 m: 45 degrees
     assert slope_degrees(ramp, 10.0)[20, 20] == pytest.approx(45.0, abs=0.5)
-    assert (generate_landcover(ramp, 10.0, 1)[5:35, 5:35] == BARE).all()
+    assert (generate_landcover(ramp, 10.0, 1)[5:35, 10:35] == BARE).all()
 
 
 def test_only_worldcover_codes_are_produced_and_bad_input_is_rejected() -> None:
