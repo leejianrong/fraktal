@@ -22,6 +22,7 @@ from shapely.strtree import STRtree
 
 from fraktal.ids import substream
 from fraktal.log import emit
+from fraktal.procedural import ProceduralConfig, generate_world, read_buildings
 from fraktal.randomise import Ranges, sample_config
 from fraktal.render import RenderConfig, render_region
 from fraktal.split import read_manifest
@@ -100,7 +101,7 @@ def _png(path: Path, rgb: np.ndarray[Any, Any]) -> None:
 
 def synthesize(
     terrain_dir: Path,
-    layer: gpd.GeoDataFrame,
+    layer: gpd.GeoDataFrame | None,
     centers: list[tuple[float, float]],
     regions: int,
     test_footprints: list[Any],
@@ -111,7 +112,17 @@ def synthesize(
     min_coverage: float = 0.95,
     ranges: Ranges | None = None,
     seed: int = 0,
+    procedural: ProceduralConfig | None = None,
+    max_chips: int | None = None,
 ) -> dict[str, Any]:
+    """Render ``regions`` regions and keep the chips clear of the held-out test tiles.
+
+    With ``procedural`` set, every region gets its own generated world (buildings, roads, parcels)
+    over the real terrain, so labels are complete everywhere and the training-tile coverage filter
+    is skipped. ``max_chips`` thins the chips evenly per region to keep sets comparable.
+    """
+    if layer is None and procedural is None:
+        raise ValueError("synthesize needs a building layer or a procedural config")
     chips_dir = out_dir / "chips"
     chips_dir.mkdir(parents=True, exist_ok=True)
     ids: list[str] = []
@@ -125,13 +136,25 @@ def synthesize(
         emit("synth_region_start", region=rendered, of=regions, center=list(center))
         try:
             scene = sample_config(config, ranges, seed, rendered) if ranges else config
-            manifest = render_region(terrain_dir, layer, center, region_dir, scene)
+            if procedural is not None:
+                world_dir = out_dir / "worlds" / f"world_{rendered:02d}"
+                generate_world(world_dir, center, seed * 1000 + rendered, procedural, terrain_dir)
+                manifest = render_region(
+                    world_dir, read_buildings(world_dir), center, region_dir, scene
+                )
+            else:
+                assert layer is not None
+                manifest = render_region(terrain_dir, layer, center, region_dir, scene)
         except TerrainError:
             continue  # region sticks out of the terrain AOI; try the next candidate
         region_configs.append(manifest_params(manifest))
         rendered += 1
         emit("synth_region_done", region=rendered - 1, chips_so_far=len(ids))
-        for rec in manifest["tiles"]:
+        recs = manifest["tiles"]
+        if max_chips is not None and len(recs) > math.ceil(max_chips / regions):
+            pick = np.linspace(0, len(recs) - 1, math.ceil(max_chips / regions)).round()
+            recs = [recs[int(i)] for i in pick]
+        for rec in recs:
             tile_transform = Affine(*rec["transform"])
             n = config.tile_px
             footprint = box(
@@ -144,7 +167,10 @@ def synthesize(
             if any(footprint.intersects(t) and not footprint.touches(t) for t in test_footprints):
                 dropped.append({"chip": chip_id, "reason": "overlaps a held-out test tile"})
                 continue
-            if footprint.intersection(train_union).area < min_coverage * footprint.area:
+            if (
+                procedural is None
+                and footprint.intersection(train_union).area < min_coverage * footprint.area
+            ):
                 dropped.append({"chip": chip_id, "reason": "outside labelled training tiles"})
                 continue
             with rasterio.open(region_dir / "tiles" / f"{rec['tile']}.tif") as src:
@@ -170,6 +196,7 @@ def synthesize(
         "regions": regions,
         "region_params": region_configs,
         "randomised": ranges is not None,
+        "procedural": procedural is not None,
         "dropped": dropped,
         "gsd_m": config.gsd_m,
         "tile_px": config.tile_px,

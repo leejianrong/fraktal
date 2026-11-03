@@ -11,6 +11,7 @@ from test_chips import make_dataset
 
 from fraktal import cli
 from fraktal.chips import LABEL_DIR
+from fraktal.procedural import ProceduralConfig
 from fraktal.render import RenderConfig
 from fraktal.skeleton import build_skeleton, held_out_footprints, train_coverage
 from fraktal.split import LeakError, assert_no_test_leak, read_manifest
@@ -192,3 +193,30 @@ def test_randomised_regions_record_their_own_parameters_and_stay_reproducible(
         assert (a == np.load(tmp_path / "b" / "chips" / f"{chip}_img.npy")).all()
     fixed = synthesize(*args, tmp_path / "c", CONFIG)
     assert fixed["randomised"] is False and fixed["region_params"][0] == fixed["region_params"][1]
+
+
+def test_procedural_chips_use_generated_buildings_and_skip_the_coverage_filter(
+    tmp_path: Path,
+) -> None:
+    manifest = prepare(tmp_path)
+    terrain = make_terrain(tmp_path)
+    footprints = held_out_footprints(manifest, "EPSG:32636")
+    centers = pick_centers(manifest, seed=0, size_m=200.0)
+    config = ProceduralConfig(size_m=600.0, gsd_m=5.0)
+    out = tmp_path / "proc"
+    meta = synthesize(
+        terrain, None, centers, 2, footprints, None, out, CONFIG, procedural=config, max_chips=4
+    )
+    assert meta["procedural"] and 0 < len(meta["tiles"]) <= 4
+    assert (out / "worlds" / "world_00" / "world.json").is_file()
+    assert not any(d["reason"].startswith("outside") for d in meta["dropped"])
+    again = synthesize(
+        terrain, None, centers, 2, footprints, None, tmp_path / "p2", CONFIG,
+        procedural=config, max_chips=4,
+    )  # fmt: skip
+    assert again["tiles"] == meta["tiles"]
+
+
+def test_synthesize_needs_buildings_from_somewhere(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="building layer or a procedural"):
+        synthesize(tmp_path, None, [], 1, [], None, tmp_path / "o", CONFIG)

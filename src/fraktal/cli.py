@@ -37,6 +37,8 @@ from fraktal import (
     world,
 )
 
+PROCEDURAL_MARGIN_M = 200.0  # world border beyond the rendered region, so edge tiles stay inside
+
 
 class ExitCode(IntEnum):
     OK = 0
@@ -424,19 +426,30 @@ def _synth(args: argparse.Namespace) -> Result:
     try:
         if not (terrain_dir / terrain.MARKER).is_file():
             raise FileNotFoundError(f"no terrain under {terrain_dir}; run `fraktal ingest`")
-        layer = skeleton.build_skeleton(args.data_dir, manifest, args.seed)
         centers = synth.pick_centers(manifest, args.seed, args.size_m)
+        layer = (
+            None if args.procedural else skeleton.build_skeleton(args.data_dir, manifest, args.seed)
+        )
+        crs = str(layer.crs) if layer is not None else skeleton.UTM_CRS
         meta = synth.synthesize(
             terrain_dir,
             layer,
             centers,
             args.regions,
-            skeleton.held_out_footprints(manifest, str(layer.crs)),
-            skeleton.train_coverage(manifest, str(layer.crs)),
+            skeleton.held_out_footprints(manifest, crs),
+            None if layer is None else skeleton.train_coverage(manifest, crs),
             out,
             config,
             ranges=randomise.Ranges() if randomised else None,
             seed=args.seed,
+            procedural=(
+                procedural.ProceduralConfig(
+                    size_m=args.size_m + 2 * PROCEDURAL_MARGIN_M, gsd_m=args.world_gsd_m
+                )
+                if args.procedural
+                else None
+            ),
+            max_chips=args.max_chips,
         )
     except (OSError, ValueError) as err:
         raise CliError(ExitCode.FAILURE, "synth_failed", str(err)) from err
@@ -448,6 +461,15 @@ def _synth(args: argparse.Namespace) -> Result:
 def _synth_args(parser: argparse.ArgumentParser) -> None:
     _generate_args(parser)
     parser.add_argument("--regions", type=int, default=3, help="regions to render")
+    parser.add_argument(
+        "--procedural",
+        action="store_true",
+        help="generate each region's buildings procedurally instead of using real footprints",
+    )
+    parser.add_argument("--max-chips", type=int, help="thin kept chips evenly to about this many")
+    parser.add_argument(
+        "--world-gsd-m", type=float, default=5.0, help="procedural terrain and land cover cell size"
+    )
     parser.add_argument("--size-m", type=float, default=2000.0)
     parser.add_argument("--gsd-m", type=float, default=0.3, help="match the real imagery GSD")
     parser.add_argument("--tile-px", type=int, default=650)
