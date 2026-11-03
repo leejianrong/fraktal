@@ -45,6 +45,8 @@ Thin end-to-end loop on a small region with a crude renderer, plus the three-arm
 
 ## V2: Procedural world
 
+> Sequencing: V3 runs first. V1 showed synthetic-only IoU of about 0 on real tiles (ADR-0006), so renderer realism is the bottleneck, not world content.
+
 Replace the real skeleton with procedural generation, so a world can exist anywhere, from just a seed.
 
 **Delivers:** R1, R2, R8
