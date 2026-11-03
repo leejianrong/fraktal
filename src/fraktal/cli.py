@@ -17,7 +17,7 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Any
 
-from fraktal import __version__, ingest, render, split, terrain, world
+from fraktal import __version__, benchmark, chips, ingest, render, split, terrain, world
 
 
 class ExitCode(IntEnum):
@@ -148,6 +148,31 @@ def _render(args: argparse.Namespace) -> Result:
     return Result(data, f"rendered {n} tiles to {out}")
 
 
+def _benchmark(args: argparse.Namespace) -> Result:
+    manifest = args.split or args.data_dir / "spacenet2" / "khartoum-split.json"
+    out = args.out or args.data_dir / "benchmark" / "report.json"
+    try:
+        chips_dir = args.chips or chips.build_chips(args.data_dir, manifest)
+        train_set, test_set = chips.load_splits(chips_dir)
+        recipe = benchmark.Recipe(steps=args.steps) if args.steps else benchmark.Recipe()
+        report = benchmark.run_real_arms(train_set, test_set, recipe, args.seed, args.device)
+    except (OSError, ValueError, RuntimeError) as err:
+        raise CliError(ExitCode.FAILURE, "benchmark_failed", str(err)) from err
+    benchmark.write_report(report, out)
+    iou = {name: round(arm["iou"], 4) for name, arm in report["arms"].items()}
+    return Result({"report": str(out), "iou": iou}, f"wrote {out}: IoU {iou}")
+
+
+def _benchmark_args(parser: argparse.ArgumentParser) -> None:
+    _data_dir_arg(parser)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--steps", type=int, help="optimiser steps per arm (default: the recipe's)")
+    parser.add_argument("--device", default="auto", help="auto, cpu or cuda")
+    parser.add_argument("--split", type=Path, help="split manifest from `fraktal split`")
+    parser.add_argument("--chips", type=Path, help="prebuilt chips directory (skips building)")
+    parser.add_argument("--out", type=Path, help="report path")
+
+
 def _terrain_center(terrain_dir: Path) -> tuple[float, float]:
     left, bottom, right, top = json.loads((terrain_dir / terrain.MARKER).read_text())["bounds"]
     return ((left + right) / 2, (bottom + top) / 2)
@@ -188,6 +213,7 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "ingest": _ingest_args,
     "split": _split_args,
     "render": _render_args,
+    "benchmark": _benchmark_args,
 }
 
 COMMANDS: dict[str, tuple[str, Handler]] = {
@@ -196,7 +222,7 @@ COMMANDS: dict[str, tuple[str, Handler]] = {
     "split": ("Split the real tiles into train and held-out test", _split),
     "generate": ("Generate a world from a seed and config", _not_implemented("generate")),
     "render": ("Render a world to imagery and labels", _render),
-    "benchmark": ("Run the downstream benchmark", _not_implemented("benchmark")),
+    "benchmark": ("Run the downstream benchmark", _benchmark),
     "inspect": ("Inspect a world, dataset or report", _not_implemented("inspect")),
 }
 

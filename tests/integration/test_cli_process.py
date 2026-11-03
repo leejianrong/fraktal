@@ -26,7 +26,7 @@ def test_success_path_prints_a_parseable_envelope() -> None:
 
 
 def test_failure_path_exits_3_and_keeps_stdout_machine_readable() -> None:
-    result = run("benchmark", "--json")
+    result = run("inspect", "--json")
     assert result.returncode == 3
     assert json.loads(result.stdout)["error"]["kind"] == "not_implemented"
 
