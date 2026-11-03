@@ -107,3 +107,9 @@ def test_synthetic_arm_reports_a_comparison() -> None:
     assert arm["pretrain_steps"] == arm["finetune_steps"] == 60
     assert set(report["comparison"]) == {"arm3_minus_arm1_iou_points", "arm3_share_of_arm2"}
     assert "synthetic_only_zero_shot_iou" in report["diagnostics"]
+
+
+def test_report_has_hardware_and_arm_timings() -> None:
+    report = run_arms(Squares(6), Squares(2), TINY, seed=0, device="cpu")
+    assert report["hardware"] == {"device": "cpu"}
+    assert all(arm["seconds"] >= 0 for arm in report["arms"].values())

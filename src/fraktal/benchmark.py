@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -245,11 +246,13 @@ def run_arms(
         ("real_10pct", subset),
         ("real_100pct", list(range(len(train_source)))),
     ):
+        started = time.monotonic()
         model, trace = train(Subset(train_source, indices), recipe, seed, device)
         arms[name] = {
             "iou": evaluate(model, test_source, recipe, device),
             "train_tiles": len(indices),
             "final_loss": trace[-1],
+            "seconds": round(time.monotonic() - started, 1),
         }
     report: dict[str, Any] = {
         "schema": 1,
@@ -260,6 +263,7 @@ def run_arms(
         "arms": arms,
     }
     if synthetic is not None:
+        started = time.monotonic()
         pre, pre_trace = train(synthetic, recipe, seed, device)
         state = {k: v.detach().cpu().clone() for k, v in pre.state_dict().items()}
         zero_shot = evaluate(pre, test_source, recipe, device)
@@ -272,10 +276,25 @@ def run_arms(
             "finetune_steps": recipe.steps,
             "pretrain_final_loss": pre_trace[-1],
             "final_loss": trace[-1],
+            "seconds": round(time.monotonic() - started, 1),
         }
         report["diagnostics"] = {"synthetic_only_zero_shot_iou": zero_shot}
         report["comparison"] = compare(arms)
+    report["hardware"] = hardware_stats(device)
     return report
+
+
+def hardware_stats(device: str) -> dict[str, Any]:
+    """The device and, on CUDA, the peak memory any arm allocated (the 16 GB fit check)."""
+    torch = require_torch()
+    if not device.startswith("cuda"):
+        return {"device": device}
+    return {
+        "device": device,
+        "gpu": torch.cuda.get_device_name(),
+        "gpu_total_gb": round(torch.cuda.get_device_properties(0).total_memory / 2**30, 1),
+        "peak_gpu_allocated_gb": round(torch.cuda.max_memory_allocated() / 2**30, 2),
+    }
 
 
 def compare(arms: dict[str, Any]) -> dict[str, float]:
