@@ -23,6 +23,7 @@ from rasterio.transform import Affine, from_origin
 from rasterio.warp import reproject
 
 from fraktal.ids import substream
+from fraktal.kernels.filters import gaussian_blur
 from fraktal.kernels.noise import lattice_shape, value_noise
 from fraktal.kernels.shadow import shadow_mask
 from fraktal.labels import independent_building_mask
@@ -64,6 +65,7 @@ TEXTURE_OCTAVES: tuple[tuple[float, float], ...] = (
 # How strongly each land-cover class is textured (water is smooth, vegetation and soil are not).
 TEXTURE_CLASS_AMP: dict[int, float] = {80: 0.3, 70: 0.3}
 ROOF_TEXTURE_AMP = 0.4
+HAZE_RGB = (200.0, 205.0, 215.0)  # colour of scattered skylight that haze adds
 
 # Per-channel gain that matches the V1 synthetic chips' channel means to the real Khartoum chips
 # (R 133 -> 88, G 126 -> 118, B 109 -> 34): the real chips have a strong green cast (FRK-12).
@@ -80,6 +82,8 @@ class RenderConfig:
     seed: int = 0
     variation: float = 0.0  # 0 is the flat V1 look; 0.15 is a typical spread of reflectance
     tone: tuple[float, float, float] = (1.0, 1.0, 1.0)  # per-channel gain on the final image
+    haze: float = 0.0  # optical depth of the atmosphere; 0 is clear, 0.2 is hazy
+    penumbra_m: float = 0.0  # shadow edge softness (blur sigma in metres); 0 is a hard edge
     texture: float = 0.0  # strength of sub-10 m texture; 0 is flat, 0.7 is the synth default
 
 
@@ -189,6 +193,19 @@ def class_gains(seed: int, variation: float) -> Any:
     return gains
 
 
+def transmittance(optical_depth: float, sun_elevation_deg: float) -> float:
+    """Share of surface light that survives the haze: falls as optical depth grows."""
+    if optical_depth < 0:
+        raise ValueError("optical depth must not be negative")
+    return math.exp(-optical_depth / math.sin(math.radians(sun_elevation_deg)))
+
+
+def apply_haze(radiance: Any, optical_depth: float, sun_elevation_deg: float) -> Any:
+    """Blend (H, W, 3) radiance toward the haze colour: ``r * t + haze * (1 - t)``."""
+    t = transmittance(optical_depth, sun_elevation_deg)
+    return radiance * t + np.array(HAZE_RGB, dtype="float32") * (1.0 - t)
+
+
 def shade(
     landcover: Any,
     building_mask: Any,
@@ -198,9 +215,11 @@ def shade(
     roofs: Any = None,
     tone: tuple[float, float, float] = (1.0, 1.0, 1.0),
     texture: Any = None,
+    haze: tuple[float, float] = (0.0, 50.0),
 ) -> Any:
     """Per-class reflectance, darkened inside cast shadows. Returns (3, H, W) uint8.
 
+    ``shadow`` may be a soft 0-1 mask. ``haze`` is (optical depth, sun elevation in degrees).
     ``gains`` scales each class per channel and ``roofs`` colours buildings individually (given
     as a (H, W, 3) array); both default to the flat V1 look.
     """
@@ -222,8 +241,11 @@ def shade(
         albedo[building_mask > 0] = ROOF_RGB
     else:
         albedo[building_mask > 0] = roofs[building_mask > 0]
-    light = np.where(shadow > 0, AMBIENT, 1.0).astype("float32")[..., None]
-    rgb = np.clip(np.rint(albedo * light * np.array(tone, dtype="float32")), 0, 255).astype("uint8")
+    light = (1.0 - (1.0 - AMBIENT) * np.clip(shadow, 0, 1)).astype("float32")[..., None]
+    radiance = albedo * light
+    if haze[0] > 0:
+        radiance = apply_haze(radiance, haze[0], haze[1])
+    rgb = np.clip(np.rint(radiance * np.array(tone, dtype="float32")), 0, 255).astype("uint8")
     return np.moveaxis(rgb, -1, 0)
 
 
@@ -282,6 +304,9 @@ def render_region(
     shadow = shadow_mask(
         dem + height, config.gsd_m, config.sun_azimuth_deg, config.sun_elevation_deg
     )
+    if config.penumbra_m > 0:
+        shadow = gaussian_blur(shadow.astype("float32"), config.penumbra_m / config.gsd_m)
+    haze = (config.haze, config.sun_elevation_deg)
     texture = None
     if config.texture > 0:
         texture = config.texture * texture_field(config.seed, (side, side), config.gsd_m)
@@ -289,10 +314,17 @@ def render_region(
         roofs = roof_table(local["id"].to_numpy(), config.variation)[index]
         gains = class_gains(config.seed, config.variation)
         rgb = shade(
-            landcover, mask, shadow, gains=gains, roofs=roofs, tone=config.tone, texture=texture
+            landcover,
+            mask,
+            shadow,
+            gains=gains,
+            roofs=roofs,
+            tone=config.tone,
+            texture=texture,
+            haze=haze,
         )
     else:
-        rgb = shade(landcover, mask, shadow, tone=config.tone, texture=texture)
+        rgb = shade(landcover, mask, shadow, tone=config.tone, texture=texture, haze=haze)
 
     tile_dir = out_dir / "tiles"
     tile_dir.mkdir(parents=True, exist_ok=True)
@@ -340,6 +372,8 @@ def render_region(
         "variation": config.variation,
         "tone": list(config.tone),
         "texture": config.texture,
+        "haze": config.haze,
+        "penumbra_m": config.penumbra_m,
         "buildings": len(local),
         "tiles": records,
         "dropped": dropped,

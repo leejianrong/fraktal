@@ -305,3 +305,46 @@ def test_texture_leaves_labels_untouched_and_is_deterministic(
     assert read_hash(tmp_path / "a") == read_hash(tmp_path / "b") != read_hash(tmp_path / "f")
     assert [t["mask_sha256"] for t in a["tiles"]] == [t["mask_sha256"] for t in flat["tiles"]]
     assert a["tiles"] == b["tiles"]
+
+
+def test_haze_transmittance_is_monotonic_in_optical_depth() -> None:
+    from fraktal.render import transmittance
+
+    values = [transmittance(tau, 45.0) for tau in (0.0, 0.05, 0.1, 0.3, 1.0)]
+    assert values[0] == 1.0
+    assert all(a > b for a, b in zip(values, values[1:], strict=False))
+    assert transmittance(0.2, 20.0) < transmittance(0.2, 70.0)  # a low sun crosses more air
+    with pytest.raises(ValueError):
+        transmittance(-0.1, 45.0)
+
+
+def test_haze_lifts_dark_pixels_and_flattens_contrast() -> None:
+    land = np.full((2, 2), 30, dtype="uint8")
+    none = np.zeros((2, 2), dtype="uint8")
+    shadowed = np.array([[1, 0], [1, 0]], dtype="uint8")
+    clear = shade(land, none, shadowed).astype(int)
+    hazy = shade(land, none, shadowed, haze=(0.3, 45.0)).astype(int)
+    assert (hazy[:, 0, 0] > clear[:, 0, 0]).all()
+    assert np.ptp(hazy[0]) < np.ptp(clear[0])
+
+
+def test_soft_shadow_mask_gives_intermediate_light() -> None:
+    land = np.full((1, 3), 30, dtype="uint8")
+    none = np.zeros((1, 3), dtype="uint8")
+    soft = np.array([[0.0, 0.5, 1.0]], dtype="float32")
+    r = shade(land, none, soft)[0, 0].astype(int)
+    assert r[0] > r[1] > r[2]
+    assert r[2] == int(round(140 * AMBIENT))
+
+
+def test_penumbra_and_haze_keep_labels_and_stay_deterministic(
+    tmp_path: Path, terrain: Path
+) -> None:
+    layer = one_building(CENTER, 10, 5.0)
+    cfg = RenderConfig(**{**varied(4).__dict__, "haze": 0.2, "penumbra_m": 1.0})
+    a = render_region(terrain, layer, CENTER, tmp_path / "a", cfg)
+    render_region(terrain, layer, CENTER, tmp_path / "b", cfg)
+    flat = render_region(terrain, layer, CENTER, tmp_path / "f", varied(4))
+    assert read_hash(tmp_path / "a") == read_hash(tmp_path / "b") != read_hash(tmp_path / "f")
+    assert [t["mask_sha256"] for t in a["tiles"]] == [t["mask_sha256"] for t in flat["tiles"]]
+    assert a["dropped"] == []
