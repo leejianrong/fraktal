@@ -2,13 +2,13 @@
 # CPU pod job: render procedural and skeleton synthetic sets, then produce the gauge numbers,
 # distribution plots and chip strips against the real chips (FRK-30). No training, no GPU.
 # Run as RP_JOB_CMD under the runpod-jobs `rp` wrapper. Needs COMMIT (a pushed sha).
-# Optional REGIONS (default 6), MAX_CHIPS (60), VARIANTS ("v8_objects v6_randomised").
+# Optional REGIONS (default 6), MAX_CHIPS (60), VARIANTS ("v8_objects v9_randomised_wide").
 # Nothing here reads or prints a secret. Watch for: STAGE failed, ERROR, WARN, hb lines.
 set -uo pipefail
 : "${COMMIT:?set COMMIT to the sha to run}"
 REGIONS="${REGIONS:-6}"
 MAX_CHIPS="${MAX_CHIPS:-60}"
-VARIANTS="${VARIANTS:-v8_objects v6_randomised}"
+VARIANTS="${VARIANTS:-v8_objects v9_randomised_wide}"
 RUN=/workspace/run
 mkdir -p "$RUN" && cd "$RUN"
 exec > >(tee -a "$RUN/job.log") 2>&1

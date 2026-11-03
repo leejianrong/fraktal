@@ -96,7 +96,7 @@ class RenderConfig:
     penumbra_m: float = 0.0  # shadow edge softness (blur sigma in metres); 0 is a hard edge
     texture: float = 0.0  # strength of sub-10 m texture; 0 is flat, 0.7 is the synth default
     ambient: float = AMBIENT  # light left inside a shadow; lower is a deeper shadow
-    contrast: float = 1.0  # stretch around mid-grey; above 1 clips the brightest and darkest
+    contrast: float = 1.0  # stretch about the channel means; above 1 clips the extremes
     bright_roofs: float = 0.0  # share of buildings with very bright (often clipped) roofs
     blank_prob: float = 0.0  # chance a tile has a no-data region, like a scene footprint edge
     blank_max_fraction: float = 0.3  # largest share of a tile the no-data region can cover
@@ -306,8 +306,9 @@ def shade(
     if haze[0] > 0:
         radiance = apply_haze(radiance, haze[0], haze[1])
     graded = radiance * np.array(tone, dtype="float32")
-    if contrast != 1.0:
-        graded = (graded - 128.0) * contrast + 128.0
+    if contrast != 1.0:  # stretch about each channel's own mean, so dark channels (blue) survive
+        pivot = graded.reshape(-1, 3).mean(axis=0)
+        graded = (graded - pivot) * contrast + pivot
     rgb = np.clip(np.rint(graded), 0, 255).astype("uint8")
     return np.moveaxis(rgb, -1, 0)
 

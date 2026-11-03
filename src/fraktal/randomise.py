@@ -11,7 +11,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from fraktal.ids import substream
-from fraktal.render import KHARTOUM_TONE, RenderConfig
+from fraktal.render import AMBIENT, KHARTOUM_TONE, RenderConfig
 
 Range = tuple[float, float]
 
@@ -26,9 +26,22 @@ class Ranges:
     noise_sigma: Range = (4.0, 12.0)
     texture: Range = (0.5, 0.9)
     variation: Range = (0.10, 0.25)
+    # Extremes (FRK-33). The defaults are fixed at the neutral render values, so the original
+    # randomised variant draws exactly what it did before; WIDE opens them up.
+    ambient: Range = (AMBIENT, AMBIENT)
+    contrast: Range = (1.0, 1.0)
+    bright_roofs: Range = (0.0, 0.0)
+    blank_prob: Range = (0.0, 0.0)
     tone_jitter: Range = (0.9, 1.1)  # multiplies each channel of the base tone
     base_tone: tuple[float, float, float] = field(default=KHARTOUM_TONE)
 
+
+WIDE = Ranges(
+    ambient=(0.12, 0.30),
+    contrast=(1.1, 1.9),
+    bright_roofs=(0.05, 0.25),
+    blank_prob=(0.0, 0.3),
+)
 
 COMPONENTS = (
     "sun_azimuth_deg",
@@ -39,6 +52,10 @@ COMPONENTS = (
     "noise_sigma",
     "texture",
     "variation",
+    "ambient",
+    "contrast",
+    "bright_roofs",
+    "blank_prob",
 )
 
 
