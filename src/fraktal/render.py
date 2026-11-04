@@ -22,7 +22,7 @@ from rasterio.features import rasterize
 from rasterio.transform import Affine, from_origin
 from rasterio.warp import reproject
 
-from fraktal.fields import OIL_PALM, row_points
+from fraktal.fields import OIL_PALM, PADDY, TERRACE, row_points
 from fraktal.ids import substream
 from fraktal.kernels.filters import gaussian_blur
 from fraktal.kernels.noise import lattice_shape, value_noise
@@ -38,6 +38,10 @@ ROAD_LOCAL = 201  # surface codes for painted roads; never written to the land-c
 ROAD_ARTERIAL = 202
 FIELD_PALM = 203  # oil palm ground
 ROAD_TRACK = 204  # plantation access track
+PADDY_CODES = {"flooded": 205, "planted": 206, "harvested": 207}
+PADDY_BUND = 208
+TERRACE_A, TERRACE_B, TERRACE_RISER = 209, 210, 211  # alternate steps, and the edge between
+BUND_WIDTH_M = 0.9
 AMBIENT = 0.35  # share of direct light that reaches a shadowed pixel
 ROOF_RGB = (140.0, 128.0, 115.0)
 # Roof materials a building can be made of (concrete, clay tile, corrugated metal, bitumen).
@@ -64,6 +68,13 @@ LANDCOVER_RGB: dict[int, tuple[float, float, float]] = {
     ROAD_ARTERIAL: (88.0, 88.0, 92.0),  # asphalt
     FIELD_PALM: (104.0, 108.0, 64.0),  # ground and weeds under oil palm
     ROAD_TRACK: (150.0, 118.0, 86.0),  # laterite access track
+    PADDY_CODES["flooded"]: (86.0, 108.0, 112.0),  # standing water mirroring the sky
+    PADDY_CODES["planted"]: (112.0, 158.0, 62.0),  # bright young rice
+    PADDY_CODES["harvested"]: (190.0, 170.0, 112.0),  # stubble and dry mud
+    PADDY_BUND: (146.0, 132.0, 98.0),  # earth bund between plots
+    TERRACE_A: (118.0, 154.0, 66.0),
+    TERRACE_B: (92.0, 130.0, 58.0),
+    TERRACE_RISER: (78.0, 92.0, 48.0),  # the shaded edge of a step
 }
 
 
@@ -197,12 +208,43 @@ TIN_ROOF = (178.0, 176.0, 172.0)  # corrugated metal, often rusting
 TILE_ROOF = (156.0, 92.0, 72.0)  # fired clay
 
 
-def _field_raster(fields: gpd.GeoDataFrame, transform: Affine, side: int) -> Any:
+def terrace_bands(dem: Any, step_m: float) -> Any:
+    """Surface code per cell for terraces cut along the contours of ``dem``, one step per
+    ``step_m`` of height: alternating step colours, and a riser where the height just crossed."""
+    level = np.asarray(dem, dtype="float64") / step_m
+    band = np.floor(level)
+    code = np.where(band % 2 == 0, TERRACE_A, TERRACE_B)
+    code = np.where(level - band < 0.12, TERRACE_RISER, code)
+    return code.astype("uint8")
+
+
+def _field_raster(fields: gpd.GeoDataFrame, transform: Affine, side: int, dem: Any) -> Any:
     """0 off fields, else the surface code of each field's ground."""
-    shapes = [(f.geometry, FIELD_PALM) for _, f in fields.sort_values("id").iterrows()]
-    if not shapes:
-        return np.zeros((side, side), dtype="uint8")
-    return rasterize(shapes, (side, side), transform=transform, dtype="uint8")
+    out = np.zeros((side, side), dtype="uint8")
+    ordered = fields.sort_values("id")
+    shapes = []
+    for _, f in ordered.iterrows():
+        if f.field_type == OIL_PALM:
+            shapes.append((f.geometry, FIELD_PALM))
+        elif f.field_type == PADDY:
+            shapes.append((f.geometry, PADDY_CODES.get(str(f.state), PADDY_CODES["planted"])))
+    if shapes:
+        out = rasterize(shapes, (side, side), transform=transform, dtype="uint8")
+    bunds = [
+        (f.geometry.exterior.buffer(BUND_WIDTH_M / 2), PADDY_BUND)
+        for _, f in ordered.iterrows()
+        if f.field_type == PADDY
+    ]
+    if bunds:
+        edge = rasterize(bunds, (side, side), transform=transform, dtype="uint8")
+        out = np.where(edge > 0, edge, out).astype("uint8")
+    for _, f in ordered.iterrows():
+        if f.field_type == TERRACE:
+            inside = rasterize([(f.geometry, 1)], (side, side), transform=transform, dtype="uint8")
+            out = np.where(inside > 0, terrace_bands(dem, float(f.row_spacing_m)), out).astype(
+                "uint8"
+            )
+    return out
 
 
 def _field_trees(fields: gpd.GeoDataFrame, transform: Affine, side: int, seed: int) -> Any:
@@ -430,7 +472,7 @@ def render_region(
     field_trees = None
     if fields is not None and len(fields):
         local_fields = fields.to_crs(epsg)
-        painted = _field_raster(local_fields, transform, side)
+        painted = _field_raster(local_fields, transform, side, dem)
         painted[mask > 0] = 0
         if road is not None:
             painted[road > 0] = 0

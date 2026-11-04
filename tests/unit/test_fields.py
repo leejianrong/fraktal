@@ -128,3 +128,78 @@ def test_rendering_fields_paints_ground_and_trees_but_leaves_labels_alone(
     with rasterio.open(tmp_path / "full" / "tiles" / f"{name}.tif") as b:
         img_full = b.read()
     assert (img_bare != img_full).any()
+
+
+@pytest.fixture(scope="module")
+def rice(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    path = tmp_path_factory.mktemp("rice")
+    generate_world(path, CENTER, 2, biomes.resolve("paddy_terraces"))
+    return path
+
+
+def test_paddy_blocks_share_one_grid_and_never_overlap(rice: Path) -> None:
+    fields = read_fields(rice)
+    assert fields is not None
+    paddy = fields[fields["field_type"] == "paddy"]
+    assert len(paddy) > 20
+    assert paddy["row_angle_deg"].nunique() == 1  # one rotated grid, so blocks tile edge to edge
+    geoms = list(paddy.geometry)
+    overlap = max(
+        (a.intersection(b).area for i, a in enumerate(geoms) for b in geoms[i + 1 :]), default=0.0
+    )
+    assert overlap < 1e-6
+    assert any(a.distance(b) < 0.01 for i, a in enumerate(geoms) for b in geoms[i + 1 :])
+
+
+def test_paddy_states_are_all_present_and_render_distinct_colours(rice: Path) -> None:
+    from fraktal.render import LANDCOVER_RGB, PADDY_CODES
+
+    fields = read_fields(rice)
+    assert fields is not None
+    assert set(fields[fields["field_type"] == "paddy"]["state"]) == {
+        "flooded",
+        "planted",
+        "harvested",
+    }
+    colours = {tuple(LANDCOVER_RGB[c]) for c in PADDY_CODES.values()}
+    assert len(colours) == 3
+    pairs = [(a, b) for a in colours for b in colours if a < b]
+    assert all(math.dist(a, b) > 40 for a, b in pairs)
+
+
+def test_paddy_blocks_are_levelled_in_the_dem(rice: Path) -> None:
+    import rasterio
+    from rasterio.features import rasterize
+
+    fields = read_fields(rice)
+    assert fields is not None
+    with rasterio.open(rice / "dem.tif") as src:
+        dem, transform = src.read(1), src.transform
+    for _, f in fields[fields["field_type"] == "paddy"].head(5).iterrows():
+        inside = rasterize([(f.geometry, 1)], dem.shape, transform=transform, dtype="uint8") > 0
+        if inside.any():
+            assert float(np.ptp(dem[inside])) < 1e-3
+
+
+def test_terraces_follow_the_contours() -> None:
+    from fraktal.render import TERRACE_A, TERRACE_B, TERRACE_RISER, terrace_bands
+
+    ramp = np.tile(np.linspace(0.0, 30.0, 600), (20, 1))  # a slope rising along the columns
+    codes = terrace_bands(ramp, 3.0)
+    for row in codes:  # a step's colour only changes where the height crosses a multiple of 3 m
+        change = np.nonzero(np.diff(row.astype(int)))[0]
+        near = np.abs(ramp[0, change + 1] / 3.0 - np.round(ramp[0, change + 1] / 3.0))
+        assert (near < 0.12).sum() >= len(change) // 2
+    assert {TERRACE_A, TERRACE_B, TERRACE_RISER} <= set(np.unique(codes).tolist())
+
+
+def test_rice_world_has_terraces_on_slopes_and_is_byte_identical(
+    tmp_path: Path, rice: Path
+) -> None:
+    fields = read_fields(rice)
+    assert fields is not None and (fields["field_type"] == "terrace").any()
+    again = generate_world(tmp_path, CENTER, 2, biomes.resolve("paddy_terraces"))
+    import json
+
+    first = json.loads((rice / "world.json").read_text())
+    assert first["layers"] == again["layers"] and first["rasters"] == again["rasters"]
