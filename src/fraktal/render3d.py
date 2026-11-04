@@ -55,7 +55,12 @@ class RenderError(RuntimeError):
 def scene_sha256(scene_dir: Path) -> str:
     """One hash over the exported scene files, the thing that must repeat for the same seed."""
     digest = hashlib.sha256()
-    names = ("scene.json", "ground.npy", "camera.json")  # camera.json only for sequences
+    names = (
+        "scene.json",
+        "ground.npy",
+        "ground_rough.npy",
+        "camera.json",
+    )  # camera.json only for sequences
     for name in (*names, *(f"mesh_{k}.npy" for k in MESH_FILES)):
         if (scene_dir / name).exists():
             digest.update((scene_dir / name).read_bytes())

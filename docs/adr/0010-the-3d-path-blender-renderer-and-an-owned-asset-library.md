@@ -411,3 +411,21 @@ assumptions, not counts. Palms are narrow and read as small from far away; every
 the same lumpy sphere, only larger or smaller; trees are still placed by the 2.5D rules (land cover
 and density), so **plantation palms in rows are not here**: they need the field geometry, which is
 FRK-69.
+
+### After FRK-69: fields, water and plantation palms in the 3D scene
+
+The export now paints the world's field layer into the ground the same way the 2.5D renderer does
+(paddy states, bunds, fish ponds, oil-palm ground, terrace bands), below buildings and roads. It also
+writes `ground_rough.npy` (in `scene_sha256`): roughness 0.06 for water, flooded paddy and fish ponds,
+0.35 for tidal flat, 0.95 elsewhere, which Blender reads as the ground's roughness map so open water
+reflects the sky. Every palm of an oil-palm field becomes a `palm` tree, at the field's row
+positions (8 to 13 m tall), so the planted rows show.
+
+![mangrove coast, oil-palm plantation and paddy terraces, oblique](../img/surfaces-3d.png)
+
+Honest limits: terraces are colour bands on a **flat** ground, because the 3D ground has no relief
+(the DEM is not used for height), so there are no terrace steps or risers in the geometry; the glossy
+water is dark blue and looks the same as before from this angle (the sheen shows at low angles to the
+sun); a plantation is only one field in a corner of this window, and its palms are the same lumpy
+fronds as any palm; mangrove trees are the ordinary broadleaf shape. Relief from the DEM is the
+obvious next step for the 3D ground, and is not scheduled.

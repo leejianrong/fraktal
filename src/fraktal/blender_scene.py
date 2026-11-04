@@ -67,7 +67,7 @@ def write_png(path: str, rgb: np.ndarray) -> None:
     Path(path).write_bytes(png)
 
 
-def build_ground(scene: dict, ground: np.ndarray):
+def build_ground(scene: dict, ground: np.ndarray, rough: np.ndarray | None = None):
     size = scene["size_m"]
     h, w, _ = ground.shape
     path = str(Path(tempfile.gettempdir()) / "fraktal_ground.png")
@@ -86,6 +86,16 @@ def build_ground(scene: dict, ground: np.ndarray):
     bsdf = mat.node_tree.nodes["Principled BSDF"]
     bsdf.inputs["Roughness"].default_value = 0.95
     mat.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    if rough is not None:  # water and flooded paddy are glossy, the rest matt
+        grey = np.repeat(np.clip(rough, 0.0, 1.0)[..., None], 3, axis=2)
+        rpath = str(Path(tempfile.gettempdir()) / "fraktal_ground_rough.png")
+        write_png(rpath, (grey * 255 + 0.5).astype("uint8"))
+        rimg = bpy.data.images.load(rpath)
+        rimg.colorspace_settings.name = "Non-Color"
+        rtex = mat.node_tree.nodes.new("ShaderNodeTexImage")
+        rtex.image = rimg
+        rtex.interpolation = "Closest"
+        mat.node_tree.links.new(rtex.outputs["Color"], bsdf.inputs["Roughness"])
     plane.data.materials.append(mat)
 
 
@@ -373,7 +383,8 @@ def main() -> int:
 
     t0 = time.time()
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    build_ground(scene, ground)
+    rough_file = a.scene_dir / "ground_rough.npy"
+    build_ground(scene, ground, np.load(rough_file) if rough_file.exists() else None)
     n = build_buildings(scene, a.scene_dir, a.assets)
     nt = build_trees(scene)
     build_light(scene)
