@@ -55,6 +55,10 @@ LAYERS: dict[str, LayerSchema] = {
         frozenset({"LineString", "MultiLineString"}),
         {"road_class": str, "width_m": float, "bridge": float},
     ),
+    "field": LayerSchema(
+        frozenset({"Polygon", "MultiPolygon"}),
+        {"field_type": str, "row_angle_deg": float, "row_spacing_m": float, "state": str},
+    ),
     "landcover": LayerSchema(
         frozenset({"Polygon", "MultiPolygon"}),
         {"landcover_class": str},

@@ -21,6 +21,7 @@ from rasterio.enums import Resampling
 from rasterio.transform import from_origin
 
 from fraktal import settlement, world
+from fraktal.fields import FieldConfig, access_tracks, build_fields
 from fraktal.landcover_gen import generate_landcover
 from fraktal.log import emit
 from fraktal.render import _warp, utm_epsg
@@ -51,6 +52,7 @@ class ProceduralConfig:
     roads: RoadConfig = field(default_factory=RoadConfig)
     parcels: settlement.ParcelConfig = field(default_factory=settlement.ParcelConfig)
     buildings: settlement.BuildingConfig = field(default_factory=settlement.BuildingConfig)
+    fields: FieldConfig = field(default_factory=FieldConfig)
 
 
 def _sha256(path: Path) -> str:
@@ -110,12 +112,25 @@ def generate_world(
     buildings = settlement.build_buildings(
         parcels, settlement.arterial_centres(roads), seed, config.buildings
     )
-    emit("generate_stage", stage="settlement_done", roads=len(roads), buildings=len(buildings))
+    fields = build_fields(
+        land, transform, crs, seed, config.fields, [roads_wide(roads), parcels, buildings]
+    )
+    if fields is not None:
+        roads = with_tracks(roads, access_tracks(fields, config.fields.track_width_m), config)
+    emit(
+        "generate_stage",
+        stage="settlement_done",
+        roads=len(roads),
+        buildings=len(buildings),
+        fields=0 if fields is None else len(fields),
+    )
 
     out_dir.mkdir(parents=True, exist_ok=True)
     _write_raster(out_dir / "dem.tif", dem.astype("float32"), transform, epsg)
     _write_raster(out_dir / "landcover.tif", land, transform, epsg)
     layers = {"road": roads, "parcel": parcels, "building": buildings}
+    if fields is not None:
+        layers["field"] = fields
     manifest: dict[str, Any] = {
         "schema": 1,
         "world_id": world.world_id(seed, _jsonable(config), GENERATOR_VERSION),
@@ -159,10 +174,52 @@ def _jsonable(config: ProceduralConfig) -> dict[str, Any]:
     if out["biome"] == DEFAULT_BIOME:
         del out["biome"]  # keeps the ids of worlds made before biomes existed
     default: dict[str, Any] = json.loads(json.dumps(dataclasses.asdict(ProceduralConfig())))
+    if out["fields"] == default["fields"]:
+        del out["fields"]
     for section, key in LATER_FIELDS:  # settings added after worlds existed: omitted at default
         if out[section][key] == default[section][key]:
             del out[section][key]
     return out
+
+
+def roads_wide(roads: Any) -> Any:
+    """The road layer with each line widened to its carriageway, for keep-out tests."""
+    out = roads.copy()
+    out["geometry"] = [r.geometry.buffer(r.width_m / 2) for _, r in roads.iterrows()]
+    return out
+
+
+def with_tracks(roads: Any, tracks: list[Any], config: ProceduralConfig) -> Any:
+    """``roads`` plus plantation access tracks (ids of existing roads are unchanged)."""
+    if not tracks:
+        return roads
+    rows = [
+        {
+            "geometry": r.geometry,
+            "provenance": r.provenance,
+            "road_class": r.road_class,
+            "width_m": r.width_m,
+            "bridge": r.bridge,
+        }
+        for _, r in roads.iterrows()
+    ]
+    rows += [
+        {
+            "geometry": t,
+            "provenance": "procedural:roads",
+            "road_class": "track",
+            "width_m": config.fields.track_width_m,
+            "bridge": 0.0,
+        }
+        for t in tracks
+    ]
+    return world.make_layer("road", "roads", rows, str(roads.crs))
+
+
+def read_fields(world_dir: Path) -> Any:
+    """The field layer of a procedural world directory, or None if it has none."""
+    path = world_dir / "fields.parquet"
+    return world.read_layer(path, "field") if path.exists() else None
 
 
 def read_buildings(world_dir: Path) -> Any:
@@ -182,5 +239,6 @@ __all__ = [
     "ProceduralConfig",
     "generate_world",
     "read_buildings",
+    "read_fields",
     "read_roads",
 ]

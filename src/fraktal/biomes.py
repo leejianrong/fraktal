@@ -13,6 +13,7 @@ import dataclasses
 from dataclasses import dataclass
 from typing import Any
 
+from fraktal.fields import FieldConfig
 from fraktal.procedural import DEFAULT_BIOME, ProceduralConfig
 from fraktal.roads import RoadConfig
 from fraktal.settlement import BuildingConfig, ParcelConfig
@@ -97,6 +98,18 @@ BIOMES: dict[str, Biome] = {
                 roof_materials=True,
                 tin_share=0.65,
             ),
+        ),
+    ),
+    "oil_palm_plantation": Biome(
+        "oil_palm_plantation",
+        "Estate land: big oil palm blocks in staggered rows with access tracks, few settlements.",
+        ProceduralConfig(
+            biome="oil_palm_plantation",
+            relief_m=25.0,
+            aridity=0.2,
+            roads=RoadConfig(centres_per_km2=1.0, local_probability=0.4),
+            buildings=BuildingConfig(built_probability_core=0.8, built_probability_edge=0.3),
+            fields=FieldConfig(palm_count=9),
         ),
     ),
 }

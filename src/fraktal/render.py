@@ -22,12 +22,13 @@ from rasterio.features import rasterize
 from rasterio.transform import Affine, from_origin
 from rasterio.warp import reproject
 
+from fraktal.fields import OIL_PALM, row_points
 from fraktal.ids import substream
 from fraktal.kernels.filters import gaussian_blur
 from fraktal.kernels.noise import lattice_shape, value_noise
 from fraktal.kernels.shadow import shadow_mask
 from fraktal.labels import independent_building_mask
-from fraktal.objects import roof_pattern, scatter
+from fraktal.objects import roof_pattern, row_objects, scatter
 from fraktal.palette import Palette
 from fraktal.sensor import add_noise, apply_psf, blank_wedge
 from fraktal.terrain import TerrainError
@@ -35,6 +36,8 @@ from fraktal.terrain import TerrainError
 DEFAULT_HEIGHT_M = 6.0
 ROAD_LOCAL = 201  # surface codes for painted roads; never written to the land-cover labels
 ROAD_ARTERIAL = 202
+FIELD_PALM = 203  # oil palm ground
+ROAD_TRACK = 204  # plantation access track
 AMBIENT = 0.35  # share of direct light that reaches a shadowed pixel
 ROOF_RGB = (140.0, 128.0, 115.0)
 # Roof materials a building can be made of (concrete, clay tile, corrugated metal, bitumen).
@@ -59,6 +62,8 @@ LANDCOVER_RGB: dict[int, tuple[float, float, float]] = {
     100: (150.0, 150.0, 110.0),  # moss and lichen
     ROAD_LOCAL: (146.0, 130.0, 110.0),  # unpaved or dusty street
     ROAD_ARTERIAL: (88.0, 88.0, 92.0),  # asphalt
+    FIELD_PALM: (104.0, 108.0, 64.0),  # ground and weeds under oil palm
+    ROAD_TRACK: (150.0, 118.0, 86.0),  # laterite access track
 }
 
 
@@ -180,9 +185,9 @@ def _road_raster(roads: gpd.GeoDataFrame, transform: Affine, side: int) -> Any:
     """0 off roads, ROAD_LOCAL or ROAD_ARTERIAL on them; wider arterials win at junctions."""
     shapes = []
     for _, road in roads.sort_values(["road_class", "id"], ascending=[False, True]).iterrows():
-        code = ROAD_ARTERIAL if road.road_class == "arterial" else ROAD_LOCAL
+        code = {"arterial": ROAD_ARTERIAL, "track": ROAD_TRACK}.get(road.road_class, ROAD_LOCAL)
         shapes.append((road.geometry.buffer(float(road.width_m) / 2, cap_style="flat"), code))
-    shapes.sort(key=lambda s: s[1])  # locals first, arterials painted over them
+    shapes.sort(key=lambda s: s[1] not in (ROAD_LOCAL, ROAD_TRACK))  # arterials painted last
     if not shapes:
         return np.zeros((side, side), dtype="uint8")
     return rasterize(shapes, (side, side), transform=transform, dtype="uint8")
@@ -190,6 +195,30 @@ def _road_raster(roads: gpd.GeoDataFrame, transform: Affine, side: int) -> Any:
 
 TIN_ROOF = (178.0, 176.0, 172.0)  # corrugated metal, often rusting
 TILE_ROOF = (156.0, 92.0, 72.0)  # fired clay
+
+
+def _field_raster(fields: gpd.GeoDataFrame, transform: Affine, side: int) -> Any:
+    """0 off fields, else the surface code of each field's ground."""
+    shapes = [(f.geometry, FIELD_PALM) for _, f in fields.sort_values("id").iterrows()]
+    if not shapes:
+        return np.zeros((side, side), dtype="uint8")
+    return rasterize(shapes, (side, side), transform=transform, dtype="uint8")
+
+
+def _field_trees(fields: gpd.GeoDataFrame, transform: Affine, side: int, seed: int) -> Any:
+    """Crown shapes, heights and colours for every planted row, or None."""
+    inverse = ~transform
+    pts = []
+    for _, f in fields.sort_values("id").iterrows():
+        if f.field_type != OIL_PALM:
+            continue
+        xy = row_points(f.geometry, float(f.row_angle_deg), float(f.row_spacing_m))
+        if len(xy):
+            cols, rows = inverse @ (xy[:, 0], xy[:, 1])
+            pts.append(np.column_stack([rows, cols]))
+    if not pts:
+        return None
+    return row_objects(np.concatenate(pts), transform.a, seed)
 
 
 def _roof_base(
@@ -383,8 +412,9 @@ def render_region(
     out_dir: Path,
     config: RenderConfig | None = None,
     roads: gpd.GeoDataFrame | None = None,
+    fields: gpd.GeoDataFrame | None = None,
 ) -> dict[str, Any]:
-    """Render a region. ``roads`` (a road layer) is painted on the ground; labels ignore it."""
+    """Render a region. ``roads`` and ``fields`` are painted on the ground; labels ignore them."""
     config = config or RenderConfig()
     epsg, transform, (tiles, side) = region_grid(center_lonlat, config)
     dem = _warp(terrain_dir / "dem.tif", transform, epsg, side, Resampling.bilinear)
@@ -397,10 +427,22 @@ def render_region(
         road = _road_raster(roads.to_crs(epsg), transform, side)
         road[mask > 0] = 0
         surface = np.where(road > 0, road, landcover).astype("uint8")
+    field_trees = None
+    if fields is not None and len(fields):
+        local_fields = fields.to_crs(epsg)
+        painted = _field_raster(local_fields, transform, side)
+        painted[mask > 0] = 0
+        if road is not None:
+            painted[road > 0] = 0
+        surface = np.where(painted > 0, painted, surface).astype("uint8")
+        field_trees = _field_trees(local_fields, transform, side, config.seed)
+    cars_on = (
+        None if road is None else np.where(np.isin(road, (ROAD_LOCAL, ROAD_ARTERIAL)), road, 0)
+    )
     scene_objects = None
     if config.objects > 0:
         obj_height, obj_colour, obj_covered = scatter(
-            surface, mask, config.gsd_m, config.objects, config.seed, road
+            surface, mask, config.gsd_m, config.objects, config.seed, cars_on, field_trees
         )
         height = height + obj_height
         scene_objects = (obj_colour, obj_covered)
