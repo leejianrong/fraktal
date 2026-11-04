@@ -16,8 +16,24 @@ FAKE_BLENDER = textwrap.dedent(
     import json, sys
     import numpy as np
     import rasterio
+    import os
     scene = json.load(open(sys.argv[1] + "/scene.json"))
     px = scene["px"]
+    if "--px" in sys.argv:
+        px = int(sys.argv[sys.argv.index("--px") + 1])
+    cam = sys.argv[1] + "/camera.json"
+    if os.path.exists(cam):
+        frames = json.load(open(cam))["frames"]
+        os.makedirs(sys.argv[2], exist_ok=True)
+        for f in frames:
+            kw = dict(driver="PNG", count=3, dtype="uint8", height=px, width=px)
+            name = "%s/frame_%04d.png" % (sys.argv[2], f["index"])
+            with rasterio.open(name, "w", **kw) as d:
+                d.write(np.full((3, px, px), 60, dtype="uint8"))
+        print("STAGE frame done")
+        print(json.dumps({"build_s": 0.1, "render_s": 0.2, "px": px, "frames": len(frames),
+                          "buildings": 1, "trees": 1, "bpy": "fake"}))
+        sys.exit(0)
     nb, nt = len(scene["buildings"]), len(scene["trees"])
     print("STAGE scene_built buildings=%d trees=%d seconds=0.1" % (nb, nt))
     rgb = np.full((3, px, px), 90, dtype="uint8")
@@ -91,3 +107,27 @@ def test_the_cli_reports_a_failure_without_a_traceback(
          "--size-m", "50", "--gsd-m", "1", "--bpy-python", "/nonexistent/python"]
     )  # fmt: skip
     assert code != 0 and "render3d_failed" not in capsys.readouterr().out
+
+
+def test_a_camera_sequence_writes_frames_and_poses(world: Path, tmp_path: Path) -> None:
+    out = tmp_path / "seq"
+    meta = render3d.render(
+        world, out, CENTER, 300.0, 1.0, seed=4, script=fake(tmp_path), trajectory="flight",
+        camera_options={"duration_s": 2.0, "fps": 12.0}, frame_px=64,
+    )  # fmt: skip
+    assert len(meta["frames"]) == 24 and meta["px"] == 64 and meta["trajectory"] == "flight"
+    assert [f["index"] for f in meta["frames"]] == list(range(24))
+    assert {"x", "y", "z", "heading_deg", "off_nadir_deg", "fov_deg", "t_s"} <= set(
+        meta["frames"][0]
+    )
+    assert len(list((out / "frames").glob("frame_*.png"))) == 24
+    assert not (out / "tile.tif").exists()
+    again = render3d.render(
+        world, tmp_path / "seq2", CENTER, 300.0, 1.0, seed=4, script=fake(tmp_path),
+        trajectory="flight", camera_options={"duration_s": 2.0, "fps": 12.0}, frame_px=64,
+    )  # fmt: skip
+    assert again["scene_sha256"] == meta["scene_sha256"] and again["frames"] == meta["frames"]
+    nadir = render3d.render(
+        world, tmp_path / "n", CENTER, 300.0, 1.0, seed=4, script=fake(tmp_path)
+    )
+    assert nadir["scene_sha256"] != meta["scene_sha256"]  # the camera path is part of the scene

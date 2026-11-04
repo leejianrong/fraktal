@@ -8,6 +8,9 @@ a tile (centre, side, pixel size), a sun, and a seed. Out, in ``out_dir``:
   defined for the 3D path (ADR-0010 decision 7): seeded scene equality, not pixel equality.
 - ``image.png``: the Blender render, 8-bit RGB, north up, no tone curve.
 - ``tile.tif``: the same pixels georeferenced in the tile's UTM zone.
+- For a camera sequence (``trajectory``): ``scene/camera.json`` (the poses, part of the scene hash)
+  and ``frames/frame_0000.png`` and on, instead of ``image.png`` and ``tile.tif``, with every
+  frame's pose also in ``render.json``.
 - ``render.json``: metadata, including ``scene_sha256`` (a hash of the two scene files), timings,
   the Blender version, and every input needed to repeat the render.
 
@@ -32,6 +35,7 @@ from typing import Any
 import rasterio
 from affine import Affine
 
+from fraktal import camera as cameras
 from fraktal.blender_export import export_scene
 from fraktal.log import emit
 
@@ -46,8 +50,9 @@ class RenderError(RuntimeError):
 def scene_sha256(scene_dir: Path) -> str:
     """One hash over the exported scene, the thing that must repeat for the same seed."""
     digest = hashlib.sha256()
-    for name in ("scene.json", "ground.npy"):
-        digest.update((scene_dir / name).read_bytes())
+    for name in ("scene.json", "ground.npy", "camera.json"):  # camera.json only for sequences
+        if (scene_dir / name).exists():
+            digest.update((scene_dir / name).read_bytes())
     return digest.hexdigest()
 
 
@@ -110,6 +115,9 @@ def render(
     bpy_python: str | None = None,
     timeout_s: float = 1800.0,
     script: Path = BLENDER_SCRIPT,
+    trajectory: str | None = None,
+    camera_options: dict[str, float] | None = None,
+    frame_px: int = 512,
 ) -> dict[str, Any]:
     """Export the tile, render it in Blender, write the contract files, return ``render.json``."""
     python = bpy_python or sys.executable
@@ -117,6 +125,12 @@ def render(
     out_dir.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
     scene = export_scene(world_dir, out_dir / "scene", center_lonlat, size_m, gsd_m, sun, seed)
+    poses = []
+    if trajectory:  # a perspective sequence instead of the nadir tile (FRK-51)
+        poses = cameras.trajectory(trajectory, scene["size_m"], seed, **(camera_options or {}))
+        (out_dir / "scene" / "camera.json").write_text(
+            json.dumps({"frames": [p.as_dict() for p in poses]}) + "\n"
+        )
     digest = scene_sha256(out_dir / "scene")
     t1 = time.time()
     emit(
@@ -126,21 +140,25 @@ def render(
         trees=len(scene["trees"]),
         seconds=round(t1 - t0, 2),
     )
-    args = [str(out_dir / "scene"), str(out_dir / "image.png"), "--samples", str(samples)]
+    target = out_dir / "frames" if poses else out_dir / "image.png"
+    args = [str(out_dir / "scene"), str(target), "--samples", str(samples)]
+    if poses:
+        args += ["--px", str(frame_px)]
     if threads:
         args += ["--threads", str(threads)]
     blender, wall = run_blender(python, script, args, timeout_s)
     px = int(scene["px"])
-    west, south = scene["origin_sw"]
-    transform = Affine(gsd_m, 0.0, west, 0.0, -gsd_m, south + px * gsd_m)
-    with rasterio.open(out_dir / "image.png") as src:
-        image = src.read()[:3]
-    profile = {
-        "driver": "GTiff", "count": 3, "dtype": "uint8", "height": px, "width": px,
-        "crs": scene["crs"], "transform": transform, "compress": "deflate",
-    }  # fmt: skip
-    with rasterio.open(out_dir / "tile.tif", "w", **profile) as dst:
-        dst.write(image)
+    if not poses:
+        west, south = scene["origin_sw"]
+        transform = Affine(gsd_m, 0.0, west, 0.0, -gsd_m, south + px * gsd_m)
+        with rasterio.open(out_dir / "image.png") as src:
+            image = src.read()[:3]
+        profile = {
+            "driver": "GTiff", "count": 3, "dtype": "uint8", "height": px, "width": px,
+            "crs": scene["crs"], "transform": transform, "compress": "deflate",
+        }  # fmt: skip
+        with rasterio.open(out_dir / "tile.tif", "w", **profile) as dst:
+            dst.write(image)
     meta = {
         "schema": SCHEMA,
         "world": str(world_dir),
@@ -165,6 +183,11 @@ def render(
         },
         "files": {"image": "image.png", "tile": "tile.tif", "scene": "scene/"},
     }
+    if poses:  # frames are oblique, so there is no georeferenced tile
+        meta["trajectory"] = trajectory
+        meta["px"] = frame_px
+        meta["frames"] = [p.as_dict() for p in poses]
+        meta["files"] = {"frames": "frames/frame_NNNN.png", "scene": "scene/"}
     (out_dir / "render.json").write_text(json.dumps(meta, indent=2) + "\n")
     emit("render3d_done", out=str(out_dir), seconds=round(time.time() - t0, 2))
     return meta

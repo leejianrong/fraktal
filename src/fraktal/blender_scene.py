@@ -198,6 +198,33 @@ def build_camera(scene: dict, px: int) -> None:
     render.resolution_percentage = 100
 
 
+def build_perspective_camera(px: int):
+    """A perspective camera that ``pose_camera`` moves from frame to frame."""
+    cam = bpy.data.cameras.new("cam")
+    cam.type = "PERSP"
+    cam.clip_start, cam.clip_end = 1.0, 20000.0
+    obj = bpy.data.objects.new("cam", cam)
+    bpy.context.collection.objects.link(obj)
+    bpy.context.scene.camera = obj
+    render = bpy.context.scene.render
+    render.resolution_x = render.resolution_y = px
+    render.resolution_percentage = 100
+    return obj
+
+
+def pose_camera(obj, pose: dict) -> None:
+    """Place the camera: nadir at zero off-nadir, tilted toward the heading, heading clockwise."""
+    obj.data.angle = math.radians(pose["fov_deg"])
+    obj.location = (pose["x"], pose["y"], pose["z"])
+    # Rotating about X tilts the view from straight down toward +Y (north); then about Z by
+    # minus the heading turns that direction clockwise onto the compass heading.
+    obj.rotation_euler = (
+        math.radians(pose["off_nadir_deg"]),
+        0.0,
+        -math.radians(pose["heading_deg"]),
+    )
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("scene_dir", type=Path)
@@ -216,7 +243,12 @@ def main() -> int:
     n = build_buildings(scene)
     nt = build_trees(scene)
     build_light(scene)
-    build_camera(scene, px)
+    camera_file = a.scene_dir / "camera.json"
+    frames = json.loads(camera_file.read_text())["frames"] if camera_file.exists() else []
+    if frames:
+        cam_obj = build_perspective_camera(px)
+    else:
+        build_camera(scene, px)
     cycles = bpy.context.scene
     cycles.render.engine = "CYCLES"
     cycles.cycles.device = "CPU"
@@ -230,18 +262,27 @@ def main() -> int:
     )
     cycles.render.image_settings.file_format = "PNG"
     cycles.render.image_settings.color_mode = "RGB"
-    cycles.render.filepath = str(a.out.resolve())
     t1 = time.time()
     say(f"scene_built buildings={n} trees={nt} seconds={t1 - t0:.1f}")
-    bpy.ops.render.render(write_still=True)
+    if frames:  # OUT is a directory of frame_0000.png, frame_0001.png, ...
+        a.out.mkdir(parents=True, exist_ok=True)
+        for pose in frames:
+            pose_camera(cam_obj, pose)
+            cycles.render.filepath = str((a.out / f"frame_{pose['index']:04d}.png").resolve())
+            bpy.ops.render.render(write_still=True)
+            say(f"frame {pose['index'] + 1}/{len(frames)} t={time.time() - t1:.1f}s")
+    else:
+        cycles.render.filepath = str(a.out.resolve())
+        bpy.ops.render.render(write_still=True)
     t2 = time.time()
-    say(f"rendered px={px} samples={a.samples} seconds={t2 - t1:.1f}")
+    say(f"rendered px={px} frames={max(1, len(frames))} samples={a.samples} seconds={t2 - t1:.1f}")
     print(
         json.dumps(
             {
                 "build_s": round(t1 - t0, 2),
                 "render_s": round(t2 - t1, 2),
                 "px": px,
+                "frames": len(frames),
                 "samples": a.samples,
                 "bpy": bpy.app.version_string,
                 "buildings": n,
