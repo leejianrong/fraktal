@@ -126,6 +126,7 @@ def render(
     frame_px: int = 512,
     assets_dir: Path | None = None,
     labels: bool = True,
+    height_profile: str = "auto",
 ) -> dict[str, Any]:
     """Export the tile, render it in Blender, write the contract files, return ``render.json``."""
     python = bpy_python or sys.executable
@@ -135,7 +136,10 @@ def render(
     emit("render3d_start", world=str(world_dir), size_m=size_m, gsd_m=gsd_m, samples=samples)
     out_dir.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
-    scene = export_scene(world_dir, out_dir / "scene", center_lonlat, size_m, gsd_m, sun, seed)
+    scene = export_scene(
+        world_dir, out_dir / "scene", center_lonlat, size_m, gsd_m, sun, seed,
+        height_profile=height_profile,
+    )  # fmt: skip
     poses = []
     if trajectory:  # a perspective sequence instead of the nadir tile (FRK-51)
         poses = cameras.trajectory(trajectory, scene["size_m"], seed, **(camera_options or {}))
@@ -190,6 +194,7 @@ def render(
         "seed": seed,
         "samples": samples,
         "scene_sha256": digest,
+        "height_profile": height_profile,
         "assets": str(assets),
         "buildings": blender.get("buildings"),
         "trees": blender.get("trees"),

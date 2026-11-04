@@ -50,3 +50,15 @@ def test_every_mesh_face_knows_its_building(tmp_path: Path) -> None:
     assert len(owner) == len(np.load(tmp_path / "s" / "mesh_face_sizes.npy"))
     assert owner.min() >= 0 and owner.max() < len(scene["buildings"])
     assert np.all(np.diff(owner) >= 0)  # faces are grouped by building
+
+
+def test_the_3d_heights_follow_the_biome_and_world_keeps_the_original(tmp_path: Path) -> None:
+    world = tmp_path / "w"
+    generate_world(world, CENTER, 3, biomes.resolve("khartoum"))
+    auto = export_scene(world, tmp_path / "a", CENTER, 400.0, 1.0)
+    kept = export_scene(world, tmp_path / "k", CENTER, 400.0, 1.0, height_profile="world")
+    tall = [b["height_m"] for b in auto["buildings"]]
+    assert tall and max(tall) < 5 * 3.0 + 0.8 + 1e-9
+    assert max(b["height_m"] for b in kept["buildings"]) > max(tall)
+    again = export_scene(world, tmp_path / "b", CENTER, 400.0, 1.0)
+    assert again["buildings"] == auto["buildings"]
