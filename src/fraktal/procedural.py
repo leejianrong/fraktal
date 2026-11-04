@@ -15,12 +15,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import rasterio
 from pyproj import Transformer
 from rasterio.enums import Resampling
 from rasterio.transform import from_origin
 
 from fraktal import settlement, world
+from fraktal.coast import UNBUILDABLE, CoastConfig, box_any, paint_coast, shape_coast
 from fraktal.fields import FieldConfig, access_tracks, build_fields, level_paddies
 from fraktal.landcover_gen import generate_landcover
 from fraktal.log import emit
@@ -53,6 +55,7 @@ class ProceduralConfig:
     parcels: settlement.ParcelConfig = field(default_factory=settlement.ParcelConfig)
     buildings: settlement.BuildingConfig = field(default_factory=settlement.BuildingConfig)
     fields: FieldConfig = field(default_factory=FieldConfig)
+    coast: CoastConfig = field(default_factory=CoastConfig)
 
 
 def _sha256(path: Path) -> str:
@@ -96,6 +99,7 @@ def generate_world(
     emit("generate_start", seed=seed, side_px=side, real_terrain=real_terrain is not None)
 
     real_land = None
+    coast = None
     if real_terrain is not None:
         base = _warp(real_terrain / "dem.tif", transform, epsg, side, Resampling.bilinear)
         real_land = _warp(real_terrain / "landcover.tif", transform, epsg, side, Resampling.nearest)
@@ -104,8 +108,12 @@ def generate_world(
         land_origin = "real:esa-worldcover+procedural:fill"
     else:
         dem = fractal_terrain((side, side), config.gsd_m, seed, relief_m=config.relief_m) + 300.0
+        if config.coast.sea_share > 0:
+            dem, coast = shape_coast(dem, config.gsd_m, seed, config.coast)
         terrain_origin = land_origin = "procedural:fractal"
     land = generate_landcover(dem, config.gsd_m, seed, real=real_land, aridity=config.aridity)
+    if coast is not None:
+        land = paint_coast(land, coast)
     emit("generate_stage", stage="terrain_and_landcover_done")
     roads = build_roads(dem, land, config.gsd_m, transform, crs, seed, config.roads, world="roads")
     parcels = settlement.build_parcels(roads, land, transform, seed, config.parcels)
@@ -113,7 +121,14 @@ def generate_world(
         parcels, settlement.arterial_centres(roads), seed, config.buildings
     )
     fields = build_fields(
-        land, transform, crs, seed, config.fields, [roads_wide(roads), parcels, buildings], dem=dem
+        land,
+        transform,
+        crs,
+        seed,
+        config.fields,
+        [roads_wide(roads), parcels, buildings],
+        dem=dem,
+        pond_zone=None if coast is None else pond_zone(coast, land),
     )
     if fields is not None:
         dem = level_paddies(dem, transform, fields)
@@ -175,12 +190,19 @@ def _jsonable(config: ProceduralConfig) -> dict[str, Any]:
     if out["biome"] == DEFAULT_BIOME:
         del out["biome"]  # keeps the ids of worlds made before biomes existed
     default: dict[str, Any] = json.loads(json.dumps(dataclasses.asdict(ProceduralConfig())))
-    if out["fields"] == default["fields"]:
-        del out["fields"]
+    for section in ("fields", "coast"):  # whole sections added later: omitted at default
+        if out[section] == default[section]:
+            del out[section]
     for section, key in LATER_FIELDS:  # settings added after worlds existed: omitted at default
         if out[section][key] == default[section][key]:
             del out[section][key]
     return out
+
+
+def pond_zone(coast: Any, land: Any) -> Any:
+    """Where fish ponds may go: the coast's pond zone minus any water or wetland, shrunk a cell."""
+    blocked = box_any(~coast.pond_zone | np.isin(land, UNBUILDABLE), 1)
+    return ~blocked
 
 
 def roads_wide(roads: Any) -> Any:

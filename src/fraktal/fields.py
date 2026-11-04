@@ -19,14 +19,16 @@ from affine import Affine
 from shapely import affinity
 from shapely.geometry import LineString, Polygon, box
 
+from fraktal.coast import UNBUILDABLE
 from fraktal.ids import substream
-from fraktal.landcover_gen import WATER, slope_degrees
+from fraktal.landcover_gen import slope_degrees
 from fraktal.world import make_layer
 
 FIELD_PROVENANCE = "procedural:fields"
 OIL_PALM = "oil_palm"
 PADDY = "paddy"
 TERRACE = "terrace"
+FISHPOND = "fishpond"
 PADDY_STATES = ("flooded", "planted", "harvested")
 PADDY_STATE_SHARES = (0.35, 0.4, 0.25)
 
@@ -46,6 +48,9 @@ class FieldConfig:
     terrace_side_m: tuple[float, float] = (60.0, 140.0)
     terrace_slope_deg: tuple[float, float] = (3.5, 30.0)
     terrace_step_m: float = 3.0  # height of one terrace step
+    pond_zones: int = 0  # areas of the coastal zone tiled with fish ponds
+    pond_zone_radius_m: float = 450.0
+    pond_cell_m: tuple[float, float] = (45.0, 100.0)
 
 
 def _blocked(local: gpd.GeoDataFrame | None, pad: float) -> list[Any]:
@@ -61,7 +66,7 @@ def _mostly_dry(poly: Polygon, landcover: Any, transform: Affine, step_m: float)
     h, w = landcover.shape
     if len(r) == 0 or ((r < 0) | (r >= h) | (c < 0) | (c >= w)).any():
         return False
-    return not bool((landcover[r, c] == WATER).any())
+    return not bool(np.isin(landcover[r, c], UNBUILDABLE).any())
 
 
 def _flat_enough(poly: Polygon, slope: Any, transform: Affine, lo: float, hi: float) -> bool:
@@ -87,9 +92,10 @@ def build_fields(
     obstacles: list[gpd.GeoDataFrame | None],
     world: str = "fields",
     dem: Any = None,
+    pond_zone: Any = None,
 ) -> gpd.GeoDataFrame | None:
     """A ``field`` layer (oil palm, paddy, terraces), or None when the config asks for none."""
-    wanted = config.palm_count + config.paddy_zones + config.terrace_count
+    wanted = config.palm_count + config.paddy_zones + config.terrace_count + config.pond_zones
     if wanted <= 0:
         return None
     height, width = landcover.shape
@@ -121,6 +127,7 @@ def build_fields(
         box_xy = (x0, y0, x1, y1)
         _terraces(features, placed, free, slope, transform, seed, config, box_xy)
         _paddies(features, placed, free, slope, landcover, transform, seed, config, box_xy)
+    _ponds(features, placed, free, pond_zone, transform, seed, config, (x0, y0, x1, y1))
     if not features:
         return None
     return make_layer("field", world, features, crs)
@@ -137,6 +144,38 @@ def _feature(poly: Polygon, kind: str, angle: float, spacing: float, state: str)
     }
 
 
+def _grid_cells(
+    rng: Any,
+    bounds: tuple[float, float, float, float],
+    cell_m: tuple[float, float],
+    zones: int,
+    radius_m: float,
+) -> tuple[list[Polygon], float]:
+    """Cells of one rotated grid (touching edge to edge) whose centres lie near a zone centre."""
+    x0, y0, x1, y1 = bounds
+    angle = float(rng.uniform(0.0, 90.0))
+    centres = np.column_stack([rng.uniform(x0, x1, zones), rng.uniform(y0, y1, zones)])
+    reach = math.hypot(x1 - x0, y1 - y0)
+    n = int(reach / cell_m[0]) + 2
+    cols, rows = np.cumsum(rng.uniform(*cell_m, n)), np.cumsum(rng.uniform(*cell_m, n))
+    cells: list[Polygon] = []
+    for i in range(n - 1):
+        for j in range(n - 1):
+            cell = box(
+                cols[i] - reach / 2,
+                rows[j] - reach / 2,
+                cols[i + 1] - reach / 2,
+                rows[j + 1] - reach / 2,
+            )
+            cell = affinity.translate(
+                affinity.rotate(cell, angle, origin=(0, 0)), (x0 + x1) / 2, (y0 + y1) / 2
+            )
+            near = np.hypot(centres[:, 0] - cell.centroid.x, centres[:, 1] - cell.centroid.y)
+            if (near < radius_m).any():
+                cells.append(cell)
+    return cells, angle
+
+
 def _paddies(
     features: list[dict[str, Any]],
     placed: list[Polygon],
@@ -151,40 +190,54 @@ def _paddies(
     """Tile flat dry land near a few zone centres with bunded blocks on one rotated grid."""
     if config.paddy_zones <= 0:
         return
-    x0, y0, x1, y1 = bounds
     rng = substream(seed, f"fields:{PADDY}")
-    angle = float(rng.uniform(0.0, 90.0))
-    centres = np.column_stack(
-        [rng.uniform(x0, x1, config.paddy_zones), rng.uniform(y0, y1, config.paddy_zones)]
+    cells, angle = _grid_cells(
+        rng, bounds, config.paddy_cell_m, config.paddy_zones, config.paddy_zone_radius_m
     )
-    reach = math.hypot(x1 - x0, y1 - y0)
-    cols = np.cumsum(rng.uniform(*config.paddy_cell_m, int(reach / config.paddy_cell_m[0]) + 2))
-    rows = np.cumsum(rng.uniform(*config.paddy_cell_m, int(reach / config.paddy_cell_m[0]) + 2))
-    mid_x, mid_y = (x0 + x1) / 2, (y0 + y1) / 2
-    states = rng.choice(PADDY_STATES, size=len(cols) * len(rows), p=PADDY_STATE_SHARES)
-    n = 0
-    for i in range(len(cols) - 1):
-        for j in range(len(rows) - 1):
-            n += 1
-            cell = box(
-                cols[i] - reach / 2,
-                rows[j] - reach / 2,
-                cols[i + 1] - reach / 2,
-                rows[j + 1] - reach / 2,
-            )
-            cell = affinity.rotate(cell, angle, origin=(0, 0))
-            cell = affinity.translate(cell, mid_x, mid_y)
-            cx, cy = cell.centroid.x, cell.centroid.y
-            if not (
-                np.hypot(centres[:, 0] - cx, centres[:, 1] - cy) < config.paddy_zone_radius_m
-            ).any():
-                continue
-            if not free(cell, -0.05) or not _mostly_dry(cell, landcover, transform, 10.0):
-                continue
-            if not _flat_enough(cell, slope, transform, 0.0, config.paddy_max_slope_deg):
-                continue
+    states = rng.choice(PADDY_STATES, size=len(cells), p=PADDY_STATE_SHARES)
+    for cell, state in zip(cells, states, strict=True):
+        if not free(cell, -0.05) or not _mostly_dry(cell, landcover, transform, 10.0):
+            continue
+        if not _flat_enough(cell, slope, transform, 0.0, config.paddy_max_slope_deg):
+            continue
+        placed.append(cell)
+        features.append(_feature(cell, PADDY, angle, 0.0, str(state)))
+
+
+def _ponds(
+    features: list[dict[str, Any]],
+    placed: list[Polygon],
+    free: Any,
+    zone: Any,
+    transform: Affine,
+    seed: int,
+    config: FieldConfig,
+    bounds: tuple[float, float, float, float],
+) -> None:
+    """Fish ponds: grid blocks that sit wholly inside the coastal ``zone`` raster."""
+    if config.pond_zones <= 0 or zone is None:
+        return
+    rng = substream(seed, f"fields:{FISHPOND}")
+    cells, angle = _grid_cells(
+        rng, bounds, config.pond_cell_m, config.pond_zones, config.pond_zone_radius_m
+    )
+    for cell in cells:
+        if free(cell, -0.05) and _inside_zone(cell, zone, transform):
             placed.append(cell)
-            features.append(_feature(cell, PADDY, angle, 0.0, str(states[n - 1])))
+            features.append(_feature(cell, FISHPOND, angle, 0.0, "stocked"))
+
+
+def _inside_zone(poly: Polygon, zone: Any, transform: Affine) -> bool:
+    step = abs(transform.a)  # test every cell the block covers, not a coarser sample
+    minx, miny, maxx, maxy = poly.bounds
+    xs, ys = np.meshgrid(np.arange(minx, maxx, step), np.arange(miny, maxy, step))
+    inside = shapely.contains_xy(poly, xs.ravel(), ys.ravel())
+    cols, rows = (~transform) @ (xs.ravel()[inside], ys.ravel()[inside])
+    r, c = np.floor(rows).astype(int), np.floor(cols).astype(int)
+    h, w = zone.shape
+    if len(r) == 0 or ((r < 0) | (r >= h) | (c < 0) | (c >= w)).any():
+        return False
+    return bool(zone[r, c].all())
 
 
 def _terraces(
@@ -284,6 +337,7 @@ def access_tracks(fields: gpd.GeoDataFrame, width_m: float) -> list[LineString]:
 
 __all__ = [
     "FIELD_PROVENANCE",
+    "FISHPOND",
     "OIL_PALM",
     "PADDY",
     "TERRACE",
