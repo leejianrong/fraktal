@@ -29,7 +29,12 @@ def main(argv: list[str]) -> int:
     gauge = {label: realism.compare(real, cs) for label, cs in sets.items()}
     (out / "gauge.json").write_text(json.dumps(gauge, indent=2) + "\n")
     report.distribution_chart(real, sets, out / "distributions.png")
-    report.chip_strip({"real": real[:6], **{k: v[:6] for k, v in sets.items()}}, out / "chips.png")
+
+    def spread(cs: list[realism.Chip]) -> list[realism.Chip]:
+        return cs[:: max(1, len(cs) // 6)][:6]  # across regions, not just the first one
+
+    strip = {"real": real[:6], **{k: spread(v) for k, v in sets.items()}}
+    report.chip_strip(strip, out / "chips.png")
     for label, g in gauge.items():
         print(label, json.dumps(g["distances"]))
     return 0
