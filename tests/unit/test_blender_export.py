@@ -40,3 +40,13 @@ def test_export_has_textured_ground_and_trees_in_tile(tmp_path: Path) -> None:
     textured = np.load(tmp_path / "t" / "ground.npy")
     plain = np.load(tmp_path / "f" / "ground.npy")
     assert textured.std() > plain.std()  # the texture adds variation within a class
+
+
+def test_every_mesh_face_knows_its_building(tmp_path: Path) -> None:
+    world = tmp_path / "w"
+    generate_world(world, CENTER, 3, biomes.resolve("dense_urban"))
+    scene = export_scene(world, tmp_path / "s", CENTER, 200.0, 1.0)
+    owner = np.load(tmp_path / "s" / "mesh_face_building.npy")
+    assert len(owner) == len(np.load(tmp_path / "s" / "mesh_face_sizes.npy"))
+    assert owner.min() >= 0 and owner.max() < len(scene["buildings"])
+    assert np.all(np.diff(owner) >= 0)  # faces are grouped by building

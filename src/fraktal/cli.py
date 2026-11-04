@@ -402,6 +402,7 @@ def _render3d(args: argparse.Namespace) -> Result:
             },
             frame_px=args.frame_px,
             assets_dir=args.assets,
+            labels=not args.no_labels,
         )
     except (OSError, ValueError, render3d.RenderError) as err:
         raise CliError(ExitCode.FAILURE, "render3d_failed", str(err)) from err
@@ -438,6 +439,7 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--fps", type=float, default=12.0)
     parser.add_argument("--assets", type=Path, help="assets directory (default $FRAKTAL_ASSETS)")
     parser.add_argument("--frame-px", type=int, default=512, help="frame side for a sequence")
+    parser.add_argument("--no-labels", action="store_true", help="skip the label images")
 
 
 def _assets(args: argparse.Namespace) -> Result:

@@ -38,12 +38,13 @@ import rasterio
 from affine import Affine
 
 from fraktal import camera as cameras
+from fraktal import labels3d
 from fraktal.blender_export import export_scene
 from fraktal.log import emit
 
 SCHEMA = 1
 DEFAULT_ASSETS = Path(__file__).resolve().parents[2] / "assets"  # a source checkout
-MESH_FILES = ("vertices", "face_sizes", "face_verts", "face_material")
+MESH_FILES = ("vertices", "face_sizes", "face_verts", "face_material", "face_building")
 BLENDER_SCRIPT = Path(__file__).with_name("blender_scene.py")
 
 
@@ -124,6 +125,7 @@ def render(
     camera_options: dict[str, float] | None = None,
     frame_px: int = 512,
     assets_dir: Path | None = None,
+    labels: bool = True,
 ) -> dict[str, Any]:
     """Export the tile, render it in Blender, write the contract files, return ``render.json``."""
     python = bpy_python or sys.executable
@@ -153,6 +155,8 @@ def render(
     args = [str(out_dir / "scene"), str(target), "--samples", str(samples), "--assets", str(assets)]
     if poses:
         args += ["--px", str(frame_px)]
+    if labels:
+        args += ["--labels", str(out_dir / ("labels" if poses else "labels.png"))]
     if threads:
         args += ["--threads", str(threads)]
     blender, wall = run_blender(python, script, args, timeout_s)
@@ -168,6 +172,11 @@ def render(
         }  # fmt: skip
         with rasterio.open(out_dir / "tile.tif", "w", **profile) as dst:
             dst.write(image)
+        if labels:
+            with rasterio.open(out_dir / "labels.png") as src:
+                code = src.read()[:3]
+            with rasterio.open(out_dir / "labels.tif", "w", **profile) as dst:
+                dst.write(code)
     meta = {
         "schema": SCHEMA,
         "world": str(world_dir),
@@ -198,6 +207,9 @@ def render(
         meta["px"] = frame_px
         meta["frames"] = [p.as_dict() for p in poses]
         meta["files"] = {"frames": "frames/frame_NNNN.png", "scene": "scene/"}
+    if labels:
+        meta["labels"] = labels3d.meta([b["id"] for b in scene["buildings"]], len(scene["trees"]))
+        meta["files"]["labels"] = "labels/frame_NNNN.png" if poses else "labels.png, labels.tif"
     (out_dir / "render.json").write_text(json.dumps(meta, indent=2) + "\n")
     emit("render3d_done", out=str(out_dir), seconds=round(time.time() - t0, 2))
     return meta

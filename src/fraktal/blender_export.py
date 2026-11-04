@@ -110,16 +110,23 @@ def export_scene(
         )
     out_dir.mkdir(parents=True, exist_ok=True)
     meshes = []
-    for b in buildings:
+    owner: list[int] = []  # which entry of `buildings` each mesh belongs to
+    for index, b in enumerate(buildings):
         try:
             meshes.append(
                 building_grammar.build(b["id"], b["ring"], b["height_m"], b["roof_material"], seed)
             )
+            owner.append(index)
         except ValueError:  # a sliver footprint: it stays in `buildings` (labels) but gets no mesh
             continue
     mesh = building_grammar.pack(meshes)
     for key in ("vertices", "face_sizes", "face_verts", "face_material"):
         np.save(out_dir / f"mesh_{key}.npy", mesh[key])
+    per_mesh = [len(m.faces) for m in meshes]
+    np.save(  # the building each face belongs to, for the instance labels
+        out_dir / "mesh_face_building.npy",
+        np.repeat(np.asarray(owner, dtype="int32"), per_mesh),
+    )
     np.save(out_dir / "ground.npy", ground)
     scene = {
         "schema": SCHEMA,

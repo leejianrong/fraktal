@@ -76,6 +76,7 @@ def build_ground(scene: dict, ground: np.ndarray):
     img.colorspace_settings.name = "Non-Color"  # the colours are already display reflectance
     bpy.ops.mesh.primitive_plane_add(size=1.0, location=(size / 2, size / 2, 0.0))
     plane = bpy.context.object
+    plane.name = "ground"
     plane.scale = (size, size, 1.0)
     mat = bpy.data.materials.new("ground")
     mat.use_nodes = True
@@ -141,6 +142,72 @@ def build_buildings(scene: dict, scene_dir: Path, assets: Path) -> int:
     obj = bpy.data.objects.new("buildings", mesh)
     bpy.context.collection.objects.link(obj)
     return len(scene["buildings"])
+
+
+CLASS_GROUND, CLASS_BUILDING, CLASS_TREE = 1, 2, 3
+
+
+def paint_labels(scene: dict, scene_dir: Path) -> None:
+    """Give every face a flat colour: red = class, green and blue = instance + 1 (16-bit)."""
+
+    def paint(obj, classes: np.ndarray, instances: np.ndarray) -> None:
+        mesh = obj.data
+        sizes = np.array([len(p.vertices) for p in mesh.polygons])
+        red, high, low = classes / 255.0, (instances >> 8) / 255.0, (instances & 255) / 255.0
+        face = np.stack([red, high, low, np.ones(len(sizes))], axis=1).astype("float32")
+        attr = mesh.color_attributes.new("label", "FLOAT_COLOR", "CORNER")
+        attr.data.foreach_set("color", np.repeat(face, sizes, axis=0).ravel())
+        mesh.color_attributes.active_color = attr
+
+    ground = bpy.data.objects["ground"]
+    n_ground = len(ground.data.polygons)
+    paint(ground, np.full(n_ground, CLASS_GROUND), np.zeros(n_ground, int))
+    if "buildings" in bpy.data.objects:
+        obj = bpy.data.objects["buildings"]
+        owner = np.load(scene_dir / "mesh_face_building.npy").astype("int64")
+        paint(obj, np.full(len(owner), CLASS_BUILDING), owner + 1)
+    if "trees" in bpy.data.objects:
+        obj = bpy.data.objects["trees"]
+        n = len(obj.data.polygons)
+        per_tree = n // max(1, len(scene["trees"]))
+        paint(obj, np.full(n, CLASS_TREE), np.arange(n) // per_tree + 1)
+
+
+def use_label_look(sc) -> None:
+    """Unlit, unfiltered Cycles rendering that returns the face colours unchanged.
+
+    Workbench would be cheaper but needs a GL context, which a headless pod does not have.
+    """
+    mat = bpy.data.materials.new("label")
+    mat.use_nodes = True
+    nodes, links = mat.node_tree.nodes, mat.node_tree.links
+    nodes.clear()
+    colour = nodes.new("ShaderNodeVertexColor")
+    colour.layer_name = "label"
+    emit = nodes.new("ShaderNodeEmission")
+    out = nodes.new("ShaderNodeOutputMaterial")
+    links.new(colour.outputs["Color"], emit.inputs["Color"])
+    links.new(emit.outputs["Emission"], out.inputs["Surface"])
+    for name in ("ground", "buildings", "trees"):
+        if name in bpy.data.objects:
+            mesh = bpy.data.objects[name].data
+            mesh.materials.clear()
+            mesh.materials.append(mat)
+            mesh.polygons.foreach_set("material_index", np.zeros(len(mesh.polygons), dtype="int32"))
+            mesh.update()
+    sc.cycles.samples = 1
+    sc.cycles.use_denoising = False
+    sc.cycles.filter_width = 0.01  # one sample at the pixel centre, no blur
+    sc.render.film_transparent = False
+    sc.render.dither_intensity = 0.0  # dither would add +-1 noise to the ids
+    world = bpy.data.worlds.new("black")
+    world.use_nodes = True
+    world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.0, 0.0, 0.0, 1.0)
+    sc.world = world
+    sc.view_settings.view_transform = "Raw"
+    sc.view_settings.look = "None"
+    sc.view_settings.exposure = 0.0
+    sc.view_settings.gamma = 1.0
 
 
 FOLIAGE = [(0.15, 0.31, 0.13), (0.19, 0.36, 0.14), (0.12, 0.26, 0.12)]
@@ -246,6 +313,7 @@ def main() -> int:
     p.add_argument("--px", type=int, default=0)
     p.add_argument("--samples", type=int, default=32)
     p.add_argument("--threads", type=int, default=0)
+    p.add_argument("--labels", type=Path, default=None, help="also write label images here")
     a = p.parse_args(sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else sys.argv[1:])
     scene = json.loads((a.scene_dir / "scene.json").read_text())
     ground = np.load(a.scene_dir / "ground.npy")
@@ -288,6 +356,20 @@ def main() -> int:
     else:
         cycles.render.filepath = str(a.out.resolve())
         bpy.ops.render.render(write_still=True)
+    if a.labels:
+        paint_labels(scene, a.scene_dir)
+        use_label_look(cycles)
+        if frames:
+            a.labels.mkdir(parents=True, exist_ok=True)
+            for pose in frames:
+                pose_camera(cam_obj, pose)
+                name = f"frame_{pose['index']:04d}.png"
+                cycles.render.filepath = str((a.labels / name).resolve())
+                bpy.ops.render.render(write_still=True)
+        else:
+            cycles.render.filepath = str(a.labels.resolve())
+            bpy.ops.render.render(write_still=True)
+        say("labels_rendered")
     t2 = time.time()
     say(f"rendered px={px} frames={max(1, len(frames))} samples={a.samples} seconds={t2 - t1:.1f}")
     print(
