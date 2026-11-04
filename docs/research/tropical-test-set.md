@@ -63,3 +63,23 @@ them as training data in sales material. Only aggregate metrics (a score on the 
 leave the machine. This is what makes the CC BY-NC imagery acceptable under ADR-0007. The
 licence checks in "Open items" still apply, in particular that a published metric computed on
 ODbL or CC BY data keeps its attribution.
+
+## Licence checks, 2026-11-04
+
+Read from the primary pages, not summaries. Not legal advice.
+
+- **Open Cities AI: ODbL-1.0.** The [source.coop dataset page](https://source.coop/open-cities/ai-challenge) and its [README](https://data.source.coop/open-cities/ai-challenge/README.md) both say ODbL-1.0, citing GFDRR Labs (2020), Radiant MLHub, DOI 10.34911/rdnt.f94cxb. The CC BY 4.0 seen earlier came from a STAC excerpt in an older post, so the source of record is ODbL. ODbL asks for attribution and, if a derived database is publicly used, share-alike; keeping the chips private triggers neither, and a score is a produced work. Keep the citation in `chips.json` (the loader does).
+- **Maxar Open Data: CC BY-NC 4.0.** The [AWS registry](https://registry.opendata.aws/maxar-open-data/) lists "Creative Commons Attribution Non Commercial 4.0" with no custom terms. Maxar is now Vantor, and a [Vantor registry entry](https://registry.opendata.aws/vantor-open-data/) (bucket `vantor-opendata`, full-strip COGs) carries newer activations under the same non-commercial licence. Our decision to use it for private evaluation only is made, but "non-commercial" is about the use, and evaluating a commercial product is a grey area. Settle it with Vantor, or avoid relying on Maxar numbers in sales material.
+- **Labels:** neither Maxar nor Vantor supplies building labels, so a Maxar set still needs the hand-correction plan above.
+
+## What is built
+
+`fraktal eval-set CITY/ID ...` (`src/fraktal/evalset.py`) builds an Open Cities evaluation chip
+directory in the same format as the SpaceNet chips. Scenes are cloud-optimised GeoTIFFs on
+`data.source.coop` with anonymous HTTP access, so a window is read at 0.5 m straight from the
+overviews (area averaging does the low-pass) and only the scene's label file is downloaded.
+Layout: `train_tier_1/<city>/<id>/<id>.tif` and `<id>-labels/<id>.geojson`. The chip directory
+has `eval_only: true`, an empty train split and an `EVAL_ONLY.txt`. A live fetch of
+`mon/207cc7` gave five aligned 500 px chips of dense informal settlement in about 30 seconds.
+The other scene folders were not listed (the bucket listing was too slow to page); `dar/a017f9`
+also exists. Maxar has no loader because it has no labels.
