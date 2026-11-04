@@ -10,6 +10,8 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
+
 from fraktal import chips, realism, report
 
 
@@ -31,7 +33,14 @@ def main(argv: list[str]) -> int:
     report.distribution_chart(real, sets, out / "distributions.png")
 
     def spread(cs: list[realism.Chip]) -> list[realism.Chip]:
-        return cs[:: max(1, len(cs) // 6)][:6]  # across regions, not just the first one
+        """Six chips with the most going on (pixel spread), taken evenly down that ranking.
+
+        A uniform pick lands mostly on bare ground and makes every biome look alike.
+        """
+        busy = sorted(range(len(cs)), key=lambda i: -float(np.asarray(cs[i]).mean(axis=0).std()))
+        top = busy[: max(6, len(cs) // 3)]
+        picks = top[:: max(1, len(top) // 6)][:6]
+        return [cs[i] for i in sorted(picks)]
 
     strip = {"real": real[:6], **{k: spread(v) for k, v in sets.items()}}
     report.chip_strip(strip, out / "chips.png")
