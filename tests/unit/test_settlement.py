@@ -118,3 +118,35 @@ def test_same_seed_same_world_and_a_local_only_option() -> None:
     local = build_parcels(roads, land, TRANSFORM, SEED, ParcelConfig(local_only=True))
     assert set(roads.set_index("id").loc[local.road_id, "road_class"]) == {"local"}
     assert len(local) < len(a)
+
+
+def test_block_lots_cover_more_than_frontage_strips_and_stay_valid() -> None:
+    land, roads = scene(water=True)
+    strips = build_parcels(roads, land, TRANSFORM, SEED)
+    cfg = ParcelConfig(blocks=True, block_depth_m=60.0)
+    lots = build_parcels(roads, land, TRANSFORM, SEED, cfg)
+    validate_layer(lots, "parcel")
+    assert lots.area.sum() > 1.2 * strips.area.sum()
+    geoms = list(lots.geometry)
+    index = STRtree(geoms)
+    for i, g in enumerate(geoms):
+        assert g.is_valid and g.area >= cfg.min_area_m2
+        assert all(j <= i or g.intersection(geoms[j]).area < 1e-6 for j in index.query(g))
+    carriageways = [row.geometry.buffer(row.width_m / 2) for _, row in roads.iterrows()]
+    road_index = STRtree(carriageways)
+    for g in geoms:
+        for j in road_index.query(g):
+            assert g.intersection(carriageways[j]).area <= 0.03 * g.area + 1e-6
+    assert lots.equals(build_parcels(roads, land, TRANSFORM, SEED, cfg))  # deterministic
+
+
+def test_block_buildings_sit_inside_their_lot_and_face_a_street() -> None:
+    land, roads = scene()
+    lots = build_parcels(roads, land, TRANSFORM, SEED, ParcelConfig(blocks=True))
+    lines = dict(zip(roads.id, roads.geometry, strict=True))
+    buildings = build_buildings(lots, arterial_centres(roads), SEED, road_lines=lines)
+    validate_layer(buildings, "building")
+    by_lot = dict(zip(lots.id, lots.geometry, strict=True))
+    assert len(buildings) > 50
+    for _, b in buildings.iterrows():
+        assert by_lot[b.parcel_id].buffer(1e-6).contains(b.geometry)
