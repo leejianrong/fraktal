@@ -4,7 +4,9 @@
 # Run as RP_JOB_CMD under the runpod-jobs `rp` wrapper. Needs COMMIT (a pushed sha).
 # Optional SIZE_M (1000), SAMPLES ("16 64").
 # Nothing here reads or prints a secret. Watch for: STAGE failed, ERROR, WARN, hb lines.
+echo "RP_BOOT $(date +%s) host=$(hostname) nproc=$(nproc)"  # the driver's boot check looks for this
 set -uo pipefail
+T0=$(date +%s)
 : "${COMMIT:?set COMMIT to the sha to run}"
 SIZE_M="${SIZE_M:-1000}"
 SAMPLES="${SAMPLES:-16 64}"
@@ -13,7 +15,7 @@ mkdir -p "$RUN" && cd "$RUN"
 exec > >(tee -a "$RUN/job.log") 2>&1
 : > "$RUN/status"
 
-stage() { echo "$1" > "$RUN/stage"; echo "STAGE $1"; }
+stage() { echo "$1" > "$RUN/stage"; echo "STAGE $1 t=$(( $(date +%s) - T0 ))s"; }
 fail() { echo "STAGE failed ($1; was: $(cat "$RUN/stage" 2>/dev/null))"; echo failed > "$RUN/status"; }
 trap 'fail "line $LINENO"' ERR
 set -e
