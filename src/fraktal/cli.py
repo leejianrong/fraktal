@@ -20,6 +20,7 @@ from typing import Any
 from fraktal import (
     __version__,
     ablation,
+    assets,
     benchmark,
     biomes,
     chips,
@@ -373,6 +374,17 @@ def _inspect_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--id", help="feature id (or a unique prefix of 6+ characters)")
 
 
+def _assets(args: argparse.Namespace) -> Result:
+    problems = assets.check(args.root)
+    if problems:
+        raise CliError(ExitCode.FAILURE, "asset_check_failed", "; ".join(problems))
+    return Result({"problems": []}, f"{args.root}: manifest and files agree, all licences allowed")
+
+
+def _assets_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--root", type=Path, default=Path("assets"), help="the assets directory")
+
+
 def _split_manifest(args: argparse.Namespace) -> Path:
     path: Path = args.split or args.data_dir / "spacenet2" / "khartoum-split.json"
     return path
@@ -657,6 +669,7 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "report": _report_args,
     "palette": _palette_args,
     "inspect": _inspect_args,
+    "assets": _assets_args,
 }
 
 COMMANDS: dict[str, tuple[str, Handler]] = {
@@ -673,6 +686,7 @@ COMMANDS: dict[str, tuple[str, Handler]] = {
     "palette": ("Fit render colours from the real train chips", _palette),
     "compare": ("Measure how far synthetic chips are from real imagery", _compare),
     "inspect": ("Look up a feature by ID, or summarise a world", _inspect),
+    "assets": ("Check the asset manifest and its licences", _assets),
 }
 
 

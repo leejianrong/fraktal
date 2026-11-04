@@ -27,7 +27,7 @@ make fmt               # apply ruff fixes and formatting
 - **No benchmark leakage.** Held-out test-tile footprints must never enter a world used for
   synthetic pretraining ([ADR-0006](docs/adr/0006-success-is-a-downstream-benchmark.md)).
 - **Pin GitHub Actions to full release tags** (`@v10.3.3`). Floating majors may not exist.
-- **Check licences** before adding a dependency or dataset ([ADR-0007](docs/adr/0007-sell-datasets-first-keep-the-engine-private.md)).
+- **Check licences** before adding a dependency or dataset ([ADR-0007](docs/adr/0007-sell-datasets-first-keep-the-engine-private.md)). Assets go in `assets/` with a manifest row, owned or CC0 only (`fraktal assets check`, enforced in CI; see `assets/README.md`).
 - **Tests are layered:** `tests/unit` (temp files fine) and `tests/integration`
   (`pytestmark = pytest.mark.integration`). Fix a bug with a failing test first.
 - **Long jobs report progress.** Anything that can run for minutes emits `fraktal.log.emit` lines (stderr, never stdout) so a remote run can be watched.
