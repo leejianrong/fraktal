@@ -278,7 +278,7 @@ def _roof_base(
 ) -> tuple[float, float, float]:
     """A building's base roof colour: its recorded material, else the palette or default set."""
     if material in ("tin", "tile"):
-        rust = int(fid[16:20], 16) / 65535 if material == "tin" else 0.0
+        rust = int(fid[4:8], 16) / 65535 if material == "tin" else 0.0
         base = TIN_ROOF if material == "tin" else TILE_ROOF
         return (base[0] - 28.0 * rust, base[1] - 60.0 * rust, base[2] - 70.0 * rust)
     if palette is None or not palette.roofs:
