@@ -94,3 +94,59 @@ def test_every_material_the_grammar_uses_exists_in_the_library() -> None:
         spec = json.loads((ASSETS / spec_file).read_text())
         if "image" in spec:
             assert spec["image"] in listed and (ASSETS / spec["image"]).is_file()
+
+
+BIG = [[0, 0], [20, 0], [20, 14], [0, 14], [0, 0]]
+
+
+def test_a_recorded_tin_or_tile_roof_gives_a_pitched_shed() -> None:
+    mesh = grammar.build("aaaa1111", RING, 4.0, "tin", 1)
+    assert mesh.typology == "shed"
+    z = np.array(mesh.vertices)[:, 2]
+    assert z.max() > 4.0 + 0.7 and z.max() < 4.0 + 2.3  # the ridge stands above the eaves
+    roof_faces = [f for f, m in zip(mesh.faces, mesh.materials, strict=True) if m == "roof-tin"]
+    assert len(roof_faces) == 2  # one slope each side of the ridge
+    v = np.array(mesh.vertices)
+    for face in roof_faces:  # each slope is a plane
+        pts = v[list(face)]
+        normal = np.cross(pts[1] - pts[0], pts[2] - pts[0])
+        assert all(abs(float((p - pts[0]) @ normal)) < 1e-6 for p in pts)
+        assert normal[2] > 0  # facing up
+    xy = v[:, :2]
+    assert xy.min() >= -0.1 and xy[:, 0].max() <= 14.1 and xy[:, 1].max() <= 9.1
+
+
+def test_a_shed_is_closed_at_the_gable_ends() -> None:
+    mesh = grammar.build("aaaa1111", RING, 4.0, "tile", 1)
+    v = np.array(mesh.vertices)
+    walls = [f for f, m in zip(mesh.faces, mesh.materials, strict=True) if m.startswith("wall")]
+    peaks = [f for f in walls if len(f) == 5]  # a wall that rises to the ridge has a fifth point
+    assert len(peaks) == 2 and all(
+        abs(v[list(f)][:, 2].max() - v[:, 2].max()) < 1e-9 for f in peaks
+    )
+
+
+def test_some_roomy_low_rectangles_become_courtyard_houses_and_others_stay_blocks() -> None:
+    kinds = Counter(grammar.build(f"id{i:06d}", BIG, 4.0, None, 0).typology for i in range(200))
+    assert set(kinds) == {"block", "courtyard"}
+    assert 0.2 < kinds["courtyard"] / 200 < 0.5
+    assert grammar.build("aaaa1111", BIG, 12.0, None, 0).typology == "block"  # too tall
+    assert grammar.build("aaaa1111", RING, 4.0, None, 0).typology == "block"  # too small
+
+
+def test_a_courtyard_house_has_a_yard_inside_its_roof_ring() -> None:
+    mesh = next(
+        m
+        for i in range(100)
+        if (m := grammar.build(f"id{i:06d}", BIG, 4.0, None, 0)).typology == "courtyard"
+    )
+    v = np.array(mesh.vertices)
+    roof = [f for f, m in zip(mesh.faces, mesh.materials, strict=True) if m.startswith("roof-")]
+    area = 0.0
+    for face in roof:
+        p = v[list(face)][:, :2]
+        area += 0.5 * abs(
+            sum(p[k, 0] * p[(k + 1) % 4, 1] - p[(k + 1) % 4, 0] * p[k, 1] for k in range(4))
+        )
+    assert 20 * 14 * 0.4 < area < 20 * 14 * 0.9  # a ring, not the full footprint
+    assert Counter(mesh.materials)["door"] == 1

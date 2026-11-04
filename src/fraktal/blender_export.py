@@ -140,9 +140,11 @@ def export_scene(
     owner: list[int] = []  # which entry of `buildings` each mesh belongs to
     for index, b in enumerate(buildings):
         try:
-            meshes.append(
-                building_grammar.build(b["id"], b["ring"], b["height_m"], b["roof_material"], seed)
+            built = building_grammar.build(
+                b["id"], b["ring"], b["height_m"], b["roof_material"], seed
             )
+            b["typology"] = built.typology
+            meshes.append(built)
             owner.append(index)
         except ValueError:  # a sliver footprint: it stays in `buildings` (labels) but gets no mesh
             continue
