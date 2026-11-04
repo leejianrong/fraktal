@@ -1,6 +1,8 @@
-"""Stage 0 (ADR-0010): render one exported tile with Blender Cycles, nadir, orthographic.
+"""Render one exported tile with Blender Cycles, nadir, orthographic (ADR-0010).
 
-Usage: python stage0.py SCENE_DIR OUT.png [--px N] [--samples N] [--threads N]
+Not imported by fraktal: ``fraktal.render3d`` runs it as a script with a Python that has ``bpy``.
+
+Usage: python blender_scene.py SCENE_DIR OUT.png [--px N] [--samples N] [--threads N]
 
 Needs the ``bpy`` wheel (``pip install bpy``, Python 3.11). Reads ``scene.json`` and ``ground.npy``
 written by ``fraktal.blender_export``; builds one ground plane, one extruded mesh for all the
@@ -241,6 +243,7 @@ def main() -> int:
                 "render_s": round(t2 - t1, 2),
                 "px": px,
                 "samples": a.samples,
+                "bpy": bpy.app.version_string,
                 "buildings": n,
                 "trees": nt,
             }

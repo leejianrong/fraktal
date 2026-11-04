@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Driver for the Stage 0 pod job (scripts/runpod/stage0.sh) with a boot check.
-# Usage: scripts/runpod/stage0_run.sh COMMIT OUT_DIR     (COMMIT must be pushed to GitHub)
+# Usage: [MODE=render3d] scripts/runpod/stage0_run.sh COMMIT OUT_DIR   (COMMIT must be pushed)
 #
 # A pod whose container never starts sits "initializing" and prints nothing, so the job's first
 # line is RP_BOOT. If it is not in the pod logs within BOOT_TIMEOUT seconds this saves the
@@ -23,7 +23,7 @@ export RP_COMPUTE_TYPE=CPU RP_CLOUD_TYPE=SECURE RP_INTERRUPTIBLE=false RP_CPU_FL
 export RP_VCPU_COUNT=16 RP_CONTAINER_DISK_GB=40 RP_MAX_HOURLY_USD=0.60
 export RP_MAX_LIFETIME_SECS=3000 RP_IDLE_TIMEOUT_SECS=1800 RP_EXIT_GRACE_SECS=600
 export RP_STATE_FILE="$OUT/.rp-state"
-export RP_JOB_CMD="echo $(base64 -w0 "$HERE/stage0.sh") | base64 -d > /tmp/job.sh && COMMIT=$COMMIT bash /tmp/job.sh"
+export RP_JOB_CMD="echo $(base64 -w0 "$HERE/stage0.sh") | base64 -d > /tmp/job.sh && COMMIT=$COMMIT MODE=${MODE:-stage0} bash /tmp/job.sh"
 
 cleanup() { say "teardown"; rp down >> "$LOG" 2>&1; say "pods left: $(runpodctl pod list 2>/dev/null | grep -c fraktal-stage0 || true)"; }
 trap cleanup EXIT INT TERM

@@ -4,9 +4,9 @@ Usage: python stage0_compare.py WORK_DIR [--size-m 500] [--gsd-m 0.5] [--samples
        [--bpy-python PATH] [--real DIR ...]
 
 Generates one dense_urban world, exports the tile (``fraktal.blender_export``), renders it with
-``stage0.py`` (run with ``--bpy-python``, a Python that has ``bpy``), renders the same tile with
-the 2.5D renderer, cuts both into 500 px chips, and writes ``stage0.json`` (timings and gauge
-distances against each real chip directory) and ``stage0.png`` (a side-by-side strip).
+``fraktal/blender_scene.py`` (run with ``--bpy-python``, a Python with ``bpy``), renders the same
+tile with the 2.5D renderer, cuts both into 500 px chips, and writes ``stage0.json`` (timings and
+gauge distances against each real chip directory) and ``stage0.png`` (a side-by-side strip).
 Real chips are evaluation references only.
 """
 
@@ -110,7 +110,7 @@ def main() -> int:
     t = time.time()
     cmd = [
         a.bpy_python,
-        str(Path(__file__).with_name("stage0.py")),
+        str(Path(__file__).resolve().parents[2] / "src" / "fraktal" / "blender_scene.py"),
         str(work / "scene"),
         str(work / "blender.png"),
         "--samples",
