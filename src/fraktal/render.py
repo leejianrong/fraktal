@@ -26,11 +26,12 @@ from fraktal.fields import FISHPOND, OIL_PALM, PADDY, TERRACE, row_points
 from fraktal.ids import substream
 from fraktal.kernels.filters import gaussian_blur
 from fraktal.kernels.noise import lattice_shape, value_noise
+from fraktal.kernels.sensor import apply_psf, grade
 from fraktal.kernels.shadow import shadow_mask
 from fraktal.labels import independent_building_mask
 from fraktal.objects import roof_pattern, row_objects, scatter
 from fraktal.palette import Palette
-from fraktal.sensor import add_noise, apply_psf, blank_wedge
+from fraktal.sensor import add_noise, blank_wedge
 from fraktal.terrain import TerrainError
 from fraktal.terrain_gen import octave_noise
 
@@ -92,7 +93,6 @@ TEXTURE_OCTAVES: tuple[tuple[float, float], ...] = (
 TEXTURE_CLASS_AMP: dict[int, float] = {80: 0.3, 70: 0.3}
 ROOF_TEXTURE_AMP = 0.4
 BRIGHT_ROOF_GAIN = 1.6  # metal and whitewashed roofs that saturate in real imagery
-HAZE_RGB = (200.0, 205.0, 215.0)  # colour of scattered skylight that haze adds
 CLOUD_RGB = (238.0, 240.0, 244.0)
 CLOUD_HEIGHT_M = 900.0  # cloud base: sets how far a shadow lands from its cloud
 CLOUD_SHADOW = 0.5  # how much a cloud shadow darkens open ground
@@ -392,19 +392,6 @@ def class_gains(seed: int, variation: float) -> Any:
     return gains
 
 
-def transmittance(optical_depth: float, sun_elevation_deg: float) -> float:
-    """Share of surface light that survives the haze: falls as optical depth grows."""
-    if optical_depth < 0:
-        raise ValueError("optical depth must not be negative")
-    return math.exp(-optical_depth / math.sin(math.radians(sun_elevation_deg)))
-
-
-def apply_haze(radiance: Any, optical_depth: float, sun_elevation_deg: float) -> Any:
-    """Blend (H, W, 3) radiance toward the haze colour: ``r * t + haze * (1 - t)``."""
-    t = transmittance(optical_depth, sun_elevation_deg)
-    return radiance * t + np.array(HAZE_RGB, dtype="float32") * (1.0 - t)
-
-
 def shade(
     landcover: Any,
     building_mask: Any,
@@ -455,12 +442,7 @@ def shade(
         albedo[covered] = scene_objects[0][covered]
     light = (1.0 - (1.0 - ambient) * np.clip(shadow, 0, 1)).astype("float32")[..., None]
     radiance = albedo * light
-    if haze[0] > 0:
-        radiance = apply_haze(radiance, haze[0], haze[1])
-    graded = radiance * np.array(tone, dtype="float32")
-    if contrast != 1.0:  # stretch about each channel's own mean, so dark channels (blue) survive
-        pivot = graded.reshape(-1, 3).mean(axis=0)
-        graded = (graded - pivot) * contrast + pivot
+    graded = grade(radiance, haze, tone, contrast)
     rgb = np.clip(np.rint(graded), 0, 255).astype("uint8")
     return np.moveaxis(rgb, -1, 0)
 

@@ -24,8 +24,10 @@ import rasterio
 
 from fraktal import ablation, biomes, chips, palette, realism
 from fraktal.blender_export import export_scene
+from fraktal.kernels.sensor import sensor_chain
 from fraktal.procedural import generate_world, read_buildings, read_fields, read_roads
 from fraktal.render import RenderConfig, render_region
+from fraktal.sensor import add_noise
 
 CENTER = (32.55, 15.64)
 CHIP = 500
@@ -146,7 +148,17 @@ def main() -> int:
         flat = src.read()[:3]
     blender = read_png_rgb(work / "blender.png")
 
-    sets = {"2.5d": cut(flat), "blender": cut(blender)}
+    # The same sensor kernel the 2.5D renderer uses (FRK-50), with the same settings.
+    lens = sensor_chain(
+        blender,
+        haze=(config.haze, config.sun_elevation_deg),
+        tone=config.tone,
+        contrast=config.contrast,
+        psf_sigma_px=config.psf_sigma_px,
+    )
+    lens = add_noise(lens, config.noise_sigma, config.seed, "blender")
+    np.save(work / "blender_sensor.npy", lens)
+    sets = {"2.5d": cut(flat), "blender": cut(blender), "blender+sensor": cut(lens)}
     result["gauge"] = {}
     for real_dir in a.real:
         meta = json.loads((real_dir / "chips.json").read_text())
