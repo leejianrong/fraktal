@@ -32,6 +32,7 @@ class Ranges:
     contrast: Range = (1.0, 1.0)
     bright_roofs: Range = (0.0, 0.0)
     blank_prob: Range = (0.0, 0.0)
+    cloud_cover: Range = (0.0, 0.0)  # share of the image under cloud (FRK-42)
     tone_jitter: Range = (0.9, 1.1)  # multiplies each channel of the base tone
     base_tone: tuple[float, float, float] = field(default=KHARTOUM_TONE)
 
@@ -41,6 +42,20 @@ WIDE = Ranges(
     contrast=(1.1, 1.9),
     bright_roofs=(0.05, 0.25),
     blank_prob=(0.0, 0.3),
+)
+
+# Humid tropics (FRK-42): greener, hazier, softer light under a higher sun, often cloudy. The tone
+# is a neutral guess, not fitted to real tropical imagery (that needs the Q15 test set).
+TROPICAL_TONE: tuple[float, float, float] = (0.92, 1.0, 0.86)
+TROPICAL = Ranges(
+    sun_elevation_deg=(55.0, 85.0),
+    haze=(0.12, 0.35),
+    ambient=(0.30, 0.45),
+    contrast=(0.9, 1.3),
+    bright_roofs=(0.05, 0.2),
+    blank_prob=(0.0, 0.1),
+    cloud_cover=(0.0, 0.7),
+    base_tone=TROPICAL_TONE,
 )
 
 COMPONENTS = (
@@ -56,6 +71,7 @@ COMPONENTS = (
     "contrast",
     "bright_roofs",
     "blank_prob",
+    "cloud_cover",
 )
 
 

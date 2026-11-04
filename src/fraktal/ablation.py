@@ -58,17 +58,22 @@ OBJECTS = "v8_objects"
 OBJECT_FIELDS: dict[str, Any] = {"objects": 1.0, "roof_detail": 0.12}
 # Everything per region: the objects variant with its extremes drawn from WIDE ranges (FRK-33).
 WIDE_RANDOMISED = "v9_randomised_wide"
+# The same, drawn from the humid-tropics ranges: haze, soft light and cloud cover (FRK-42).
+TROPICAL_RANDOMISED = "v10_tropical"
 VARIANTS: tuple[str, ...] = (
     *(name for name, _ in STEPS),
     RANDOMISED,
     EXTREMES,
     OBJECTS,
     WIDE_RANDOMISED,
+    TROPICAL_RANDOMISED,
 )
 
 
 def variant_ranges(name: str | None) -> randomise.Ranges:
     """Per-region ranges for a randomised variant: the wide set for v9, the default otherwise."""
+    if name == TROPICAL_RANDOMISED:
+        return randomise.TROPICAL
     return randomise.WIDE if name == WIDE_RANDOMISED else randomise.Ranges()
 
 
@@ -83,9 +88,9 @@ def variant_config(name: str, base: RenderConfig) -> tuple[RenderConfig, bool]:
             break
     if name in (EXTREMES, OBJECTS):
         fields.update(EXTREME_FIELDS)
-    if name in (OBJECTS, WIDE_RANDOMISED):
+    if name in (OBJECTS, WIDE_RANDOMISED, TROPICAL_RANDOMISED):
         fields.update(OBJECT_FIELDS)
-    if name in (RANDOMISED, WIDE_RANDOMISED):
+    if name in (RANDOMISED, WIDE_RANDOMISED, TROPICAL_RANDOMISED):
         return dataclasses.replace(base, **fields), True
     return dataclasses.replace(base, **fields), False
 
