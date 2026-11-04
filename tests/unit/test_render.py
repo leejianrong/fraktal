@@ -10,7 +10,15 @@ from rasterio.transform import from_origin
 from shapely.geometry import box
 
 from fraktal import cli
-from fraktal.render import AMBIENT, RenderConfig, region_grid, render_region, shade, utm_epsg
+from fraktal.render import (
+    AMBIENT,
+    RenderConfig,
+    region_grid,
+    render_region,
+    roof_table,
+    shade,
+    utm_epsg,
+)
 from fraktal.terrain import TerrainError
 from fraktal.world import make_layer
 
@@ -458,3 +466,10 @@ def test_contrast_stretches_about_the_channel_means_so_dark_channels_survive() -
     stretched = shade(land, none, shadow, tone=dark_blue, contrast=1.5).astype(float)
     assert stretched[2].mean() == pytest.approx(plain[2].mean(), abs=1.0)  # mean kept
     assert abs(np.diff(stretched[2][0])[0]) > abs(np.diff(plain[2][0])[0])  # but spread wider
+
+
+def test_roof_material_sets_the_roof_colour_family() -> None:
+    ids = ["0123456789abcdef0000", "fedcba9876543210ffff"]
+    table = roof_table(ids, 0.0, materials=["tile", "tin"])
+    assert table[1][0] > table[1][2] + 40  # clay tile is red
+    assert abs(table[2][0] - table[2][2]) < 60 and table[2][1] > table[1][1]  # tin is greyer

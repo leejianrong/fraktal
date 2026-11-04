@@ -32,7 +32,13 @@ DEFAULT_BIOME = "khartoum"
 MANIFEST = "world.json"
 # Config fields added after the first worlds: left out of the world id while at their default,
 # so those worlds keep their ids.
-LATER_FIELDS = (("buildings", "width_share"), ("buildings", "depth_share"))
+LATER_FIELDS = (
+    ("buildings", "width_share"),
+    ("buildings", "depth_share"),
+    ("buildings", "roof_materials"),
+    ("buildings", "tin_share"),
+    ("parcels", "skew_deg"),
+)
 
 
 @dataclass(frozen=True)

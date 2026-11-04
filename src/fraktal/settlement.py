@@ -34,6 +34,7 @@ class ParcelConfig:
     min_area_m2: float = 150.0
     local_only: bool = False  # parcels on arterials too by default
     road_overlap_share: float = 0.03  # sliver a curved carriageway may clip off a parcel edge
+    skew_deg: float = 0.0  # random shear of each parcel's side edges; 0 keeps them square
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,8 @@ class BuildingConfig:
     height_edge_m: tuple[float, float] = (3.0, 8.0)
     width_share: tuple[float, float] = (0.55, 0.85)  # of the usable parcel frontage
     depth_share: tuple[float, float] = (0.45, 0.8)  # of the usable parcel depth
+    roof_materials: bool = False  # record tin or tile on each building
+    tin_share: float = 0.6  # share of tin (corrugated metal) roofs when materials are recorded
 
 
 def _cell_is_water(landcover: Any, inverse: Affine, x: float, y: float) -> bool:
@@ -66,6 +69,9 @@ def _frontage_parcels(
         while s < line.length:
             width = float(rng.uniform(*config.frontage_m))
             depth = float(rng.uniform(*config.depth_m))
+            shear = 0.0
+            if config.skew_deg:
+                shear = math.tan(math.radians(rng.uniform(-1, 1) * config.skew_deg))
             if s + width > line.length:
                 break
             a, b = line.interpolate(s), line.interpolate(s + width)
@@ -74,13 +80,14 @@ def _frontage_parcels(
             if norm > 0:
                 nx, ny = -ty / norm * side, tx / norm * side
                 near, far = half_width, half_width + depth
+                slide = depth * shear / norm  # far edge slides along the frontage
                 out.append(
                     Polygon(
                         [
                             (a.x + nx * near, a.y + ny * near),
                             (b.x + nx * near, b.y + ny * near),
-                            (b.x + nx * far, b.y + ny * far),
-                            (a.x + nx * far, a.y + ny * far),
+                            (b.x + nx * far + tx * slide, b.y + ny * far + ty * slide),
+                            (a.x + nx * far + tx * slide, a.y + ny * far + ty * slide),
                         ]
                     )
                 )
@@ -175,21 +182,23 @@ def build_buildings(
         )
         lo, hi = config.height_core_m if urban > 0.5 else config.height_edge_m
         height, roof = float(rng.uniform(lo, hi)), ROOF_TYPES[int(rng.integers(0, len(ROOF_TYPES)))]
+        tin_roll = float(rng.uniform()) if config.roof_materials else 0.0
         if roll >= chance:
             continue
         footprint = _footprint(parcel.geometry, config, width_share, depth_share)
         if footprint is None:
             continue
-        features.append(
-            {
-                "geometry": footprint,
-                "provenance": BUILDING_PROVENANCE,
-                "height_m": height,
-                "roof_type": roof,
-                "land_use": "commercial" if urban > 0.5 else "residential",
-                "parcel_id": parcel.id,
-            }
-        )
+        feature: dict[str, Any] = {
+            "geometry": footprint,
+            "provenance": BUILDING_PROVENANCE,
+            "height_m": height,
+            "roof_type": roof,
+            "land_use": "commercial" if urban > 0.5 else "residential",
+            "parcel_id": parcel.id,
+        }
+        if config.roof_materials:
+            feature["roof_material"] = "tin" if tin_roll < config.tin_share else "tile"
+        features.append(feature)
     if not features:
         raise ValueError("no buildings were placed")
     return make_layer("building", world, features, str(parcels.crs))

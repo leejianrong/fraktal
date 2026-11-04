@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from shapely.geometry import Point
 
-from fraktal import biomes, cli
+from fraktal import biomes, cli, world
 from fraktal.biomes import BiomeError, resolve
 from fraktal.procedural import (
     DEFAULT_BIOME,
@@ -116,7 +116,7 @@ def test_dense_urban_is_denser_taller_and_gridded(tmp_path: Path) -> None:
     dry_b, urban_b = read_buildings(tmp_path / "dry"), read_buildings(tmp_path / "urban")
     area = 1200.0**2
     urban_cover = float(urban_b.geometry.area.sum() / area)
-    assert 0.06 <= urban_cover <= 0.30  # configured range for a tropical core
+    assert 0.08 <= urban_cover <= 0.30  # configured range for a tropical core
     assert urban_cover > 3 * float(dry_b.geometry.area.sum() / area)
     assert 18.0 <= float(urban_b["height_m"].mean()) <= 40.0
     roads = read_roads(tmp_path / "urban")
@@ -140,3 +140,46 @@ def test_dense_urban_is_byte_identical_per_seed(tmp_path: Path) -> None:
     assert one["world_id"] == two["world_id"]
     assert one["layers"] == two["layers"] and one["rasters"] == two["rasters"]
     assert one["biome"] == "dense_urban"
+
+
+def _informal_world(path: Path, seed: int) -> Any:
+    config = resolve("informal_settlement", {"size_m": 1200.0})
+    return generate_world(path, URBAN_CENTER, seed, config)
+
+
+def test_informal_settlement_has_small_close_buildings_with_tin_and_tile_roofs(
+    tmp_path: Path,
+) -> None:
+    _informal_world(tmp_path, 3)
+    b = read_buildings(tmp_path)
+    assert 25.0 <= float(b.geometry.area.mean()) <= 90.0
+    pts = [(g.centroid.x, g.centroid.y) for g in b.geometry]
+    near = [
+        min(math.hypot(x - u, y - v) for j, (u, v) in enumerate(pts) if j != i)
+        for i, (x, y) in enumerate(pts[:300])
+    ]
+    assert 6.0 <= sum(near) / len(near) <= 16.0
+    assert set(b["roof_material"]) == {"tin", "tile"}
+    tin = float((b["roof_material"] == "tin").mean())
+    assert 0.5 <= tin <= 0.8
+    roads = read_roads(tmp_path)
+    assert float(roads["width_m"].max()) <= 5.0  # footpaths and lanes, no streets
+
+
+def test_informal_parcels_are_irregular_and_the_default_has_no_material_column(
+    tmp_path: Path,
+) -> None:
+    _informal_world(tmp_path / "i", 3)
+    generate_world(tmp_path / "d", URBAN_CENTER, 3, resolve(DEFAULT_BIOME, {"size_m": 1200.0}))
+    parcels = world.read_layer(tmp_path / "i" / "parcels.parquet", "parcel")
+    slanted = sum(
+        abs(p.minimum_rotated_rectangle.area - p.area) > 0.02 * p.area for p in parcels.geometry
+    )
+    assert slanted > 0.5 * len(parcels)
+    assert "roof_material" not in read_buildings(tmp_path / "d")
+
+
+def test_informal_settlement_is_byte_identical_per_seed(tmp_path: Path) -> None:
+    one, two = _informal_world(tmp_path / "a", 5), _informal_world(tmp_path / "b", 5)
+    assert one["world_id"] == two["world_id"] and one["layers"] == two["layers"]
+    assert one["biome"] == "informal_settlement"
