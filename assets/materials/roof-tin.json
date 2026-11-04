@@ -4,9 +4,9 @@
   "image": "textures/corrugatedsteel007a-color.jpg",
   "scale_m": 1.5,
   "tint": [
-    1.0,
-    1.0,
-    1.0
+    1.25,
+    1.25,
+    1.2
   ],
-  "roughness": 0.5
+  "roughness": 0.8
 }

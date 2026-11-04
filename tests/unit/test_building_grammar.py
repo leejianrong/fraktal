@@ -28,7 +28,7 @@ def test_a_flat_roof_block_has_walls_roof_parapet_windows_and_a_door() -> None:
 
 
 def test_the_roof_material_follows_the_recorded_material() -> None:
-    assert "roof-tin" in grammar.build("aaaa1111", RING, 4.0, "tin", 1).materials
+    assert set(grammar.TIN_ROOFS) & set(grammar.build("aaaa1111", RING, 4.0, "tin", 1).materials)
     assert "roof-tile" in grammar.build("aaaa1111", RING, 4.0, "tile", 1).materials
 
 
@@ -110,7 +110,9 @@ def test_a_recorded_tin_or_tile_roof_gives_a_pitched_shed() -> None:
     assert mesh.typology == "shed"
     z = np.array(mesh.vertices)[:, 2]
     assert z.max() > 4.0 + 0.7 and z.max() < 4.0 + 2.3  # the ridge stands above the eaves
-    roof_faces = [f for f, m in zip(mesh.faces, mesh.materials, strict=True) if m == "roof-tin"]
+    roof_faces = [
+        f for f, m in zip(mesh.faces, mesh.materials, strict=True) if m in grammar.TIN_ROOFS
+    ]
     assert len(roof_faces) == 2  # one slope each side of the ridge
     v = np.array(mesh.vertices)
     for face in roof_faces:  # each slope is a plane
@@ -174,3 +176,20 @@ def test_the_openings_do_not_move_when_facade_detail_is_added() -> None:
     a = grammar.build("aaaa1111", RING, 9.0, None, 1)
     glass = [f for f, m in zip(a.faces, a.materials, strict=True) if m == "window-glass"]
     assert len(glass) >= 10  # the same bays as before: the facade has its own random stream
+
+
+def test_tin_roofs_come_in_several_colours_in_the_set_proportions() -> None:
+    picks = Counter(
+        next(
+            m
+            for m in grammar.build(f"id{i:06d}", RING, 4.0, "tin", 0).materials
+            if m in grammar.TIN_ROOFS
+        )
+        for i in range(600)
+    )
+    assert set(picks) == set(grammar.TIN_ROOFS)
+    for name, weight in zip(grammar.TIN_ROOFS, grammar.TIN_WEIGHTS, strict=True):
+        assert abs(picks[name] / 600 - weight) < 0.07
+    assert grammar.build("aaaa1111", RING, 4.0, "tin", 1) == grammar.build(
+        "aaaa1111", RING, 4.0, "tin", 1
+    )

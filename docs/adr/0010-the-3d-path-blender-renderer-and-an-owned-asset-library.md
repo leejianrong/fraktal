@@ -509,3 +509,26 @@ image shows synthetic output only.
 
 Cost: Blender 24 to 27 s wall for a 2000 px tile against 17 to 22 s for three 2.5D renders (one
 laptop, 16 cores), so the 3D path is the same order of cost per tile at 16 samples.
+
+### After FRK-71: roof colours
+
+FRK-67's strip showed informal-settlement roofs as pale blue and near-black, where real roofs are
+red, rust, grey and brown. Two causes: the silver tin reflected the blue sky fill, and the CC0 roof-tile
+map is dark slate, so about 40% of the roofs (tiles and the shadowed slope) came out black. Changes:
+
+- Tin roofs now come in four colours, drawn per building from its own sub-stream: silver 15%, painted
+  red 35%, rust 30%, dark 20% (three new owned material definitions with manifest rows, tinting the
+  same CC0 corrugated-steel map; `roof-tin` itself is now rougher so it mirrors less sky).
+- The roof-tile tint is raised to terracotta (it multiplies the dark map, so values above 1 are used).
+- The shed pitch is lowered from 35% to 22% of the half-width (about 12 degrees), so the slope away
+  from the sun is not half as bright as the other.
+
+![2.5D (left) and 3D with the sensor (right), informal settlement, after the colour fix](../img/tin-roofs.png)
+
+Same run as FRK-67 (informal_settlement, 1 km, three sensor draws, 90 real chips), 3D with the
+sensor: colour W1 0.051 to 0.048, edge-energy gap 0.012 to 0.030, noise gap 0.111 to 0.120, contrast
+gap 0.071 to **0.167**, strong-edge gap 0.236 to 0.338. So the roofs look right and the gauge got a
+little worse on four of five measures, mostly contrast: brighter, more varied roofs raise contrast
+beyond the real chips. Per ADR-0009 the strip is the better guide here, but the contrast gap is
+a reason to look at the sensor's contrast draw for the 3D path, not a result to hide. About 15% of
+roofs are still silver and read cool blue-grey. The numbers are one seed and one tile.
