@@ -1,0 +1,56 @@
+# A tropical real test set (Q15, FRK-43)
+
+Written 2026-11-04 from web searches only. Every licence below is a claim to check against the
+dataset's own terms before any commercial use; nothing here was downloaded or verified. See
+ADR-0007 (we sell synthetic datasets, so licence mistakes cost money) and ADR-0008 (V1 used
+Khartoum, tropical deferred).
+
+## What the test set must do
+
+Measure whether a model trained on synthetic data does better on **real tropical imagery with
+building labels**. It is for evaluation only: we never train on it, never ship it, never leak its
+footprints into a synthetic world (ADR-0006). A small set is enough, since it steers and does not
+gate (ADR-0009): about 30 to 60 chips of 500 by 500 pixels at roughly 0.5 m.
+
+## Candidates
+
+| Candidate | Tropical? | Imagery | Labels | Licence as reported | Fit |
+|---|---|---|---|---|---|
+| [Open Cities AI Challenge](https://source.coop/open-cities) | Yes: 10 African cities and regions (Dar es Salaam, Zanzibar, Kampala and others) | Drone, not satellite; far finer than 0.5 m, so it would be resampled | About 790k footprints, community-mapped and validated | **Conflict**: the [source.coop README](https://data.source.coop/open-cities/ai-challenge/README.md) says ODbL-1.0, a [GFDRR/OpenDRI post](https://opendri.org/?p=6981) shows CC BY 4.0 | Best ready-made labels. Wrong continent and sensor |
+| [Maxar Open Data](https://registry.opendata.aws/maxar-open-data/) | Yes: Indonesia earthquakes (2018, 2022), Philippines Typhoon Goni (2020), Myanmar earthquake (2025) | Real VHR satellite, the right sensor class | None supplied | CC BY-NC 4.0 per [Maxar](https://blog.maxar.com/open-data-program/2020/open-data-response-to-typhoon-goni) and AWS; a Myanmar release is described as for humanitarian response; Maxar is now Vantor, so recheck terms | Right sensor and region, no labels, and the NC term needs a ruling |
+| [xBD / xView2](https://arxiv.org/pdf/1911.09296) | Partly: includes the 2018 Palu tsunami | Pre and post event DigitalGlobe | Building polygons | **Unverified**: only the code licence was found; data terms need checking on the xView2 site | Labelled and disaster-skewed, so rubble and damage. Licence unknown |
+| [Google Open Buildings V3](https://developers.google.com/earth-engine/datasets/catalog/GOOGLE_Research_open-buildings_v3_polygons) | Yes: South and Southeast Asia | None | About 1.8 billion model-derived outlines with a confidence score | CC BY 4.0 (some HDX copies list ODbL) | Good as seed labels for hand correction, not as ground truth on its own |
+| [GBSS](https://arxiv.org/pdf/2401.01178) | Unclear | 0.25 m tiles from Google Maps | OSM-derived | Not found | Imagery source terms look doubtful; skip |
+| OSM plus a licensed or open image | Yes, anywhere | Whatever we can use | Volunteer footprints, uneven quality in informal areas | ODbL for the labels | Fallback building block |
+
+No SpaceNet product for Southeast Asia turned up, and no labelled Bangkok, Jakarta or Manila
+imagery dataset was found.
+
+## Recommendation (provisional, for Jian to confirm)
+
+1. **Primary, ready now: Open Cities AI**, resampled to about 0.5 m and blurred to a satellite-like
+   response. It is the only candidate with real labels, real tropical cities and a permissive
+   licence on either reading. Its weaknesses are the drone sensor and that it is Africa, not
+   Southeast Asia. Treat results as "tropical, not yet Southeast Asian".
+2. **Secondary, for the Southeast Asian claim: a small hand-corrected Maxar set** (about 30 to 40
+   chips from the Indonesian or Philippine releases), seeded from Google Open Buildings or OSM so
+   that labelling is correction, not drawing. Use it for private evaluation only, and settle the
+   NC question before relying on any number from it in sales material.
+3. **Do not use xBD or GBSS** until their data licences are checked.
+
+## Hand-label plan, sized
+
+If no candidate is accepted: 40 chips, each corrected from seed footprints. Assuming about 100
+buildings a chip and 3 to 6 minutes a chip to fix or add the misses, that is roughly 2 to 4 hours
+of labelling plus a few hours of setup. These are estimates, not measurements. Informal
+settlements are slower, because roofs touch and seed footprints are poor there.
+
+## Open items
+
+- Which licence does Open Cities AI really carry? Check the Radiant MLHub or source.coop
+  dataset card and the dataset documentation.
+- Does a private, evaluation-only use of CC BY-NC imagery fit ADR-0007? This is a decision for
+  Jian, possibly with advice.
+- Access cost and size of the Open Cities and Maxar files were not checked.
+- An ingest path is not built: the benchmark harness takes the dataset as config (ADR-0008), so a
+  loader for chips plus a label raster is the work once a choice is confirmed.

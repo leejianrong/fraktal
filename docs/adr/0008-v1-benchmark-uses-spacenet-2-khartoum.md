@@ -37,3 +37,11 @@ SpaceNet 2's labelled train split is publicly listable on S3 (`s3://spacenet-dat
 ## Consequences
 
 V1 can start now with a real baseline. Khartoum is arid, with low-rise dense buildings, so results say nothing yet about tropical transfer. If the licence review finds SpaceNet unusable for commercial claims, the benchmark switches datasets, which costs days, not weeks, because the benchmark harness takes the dataset as a config.
+
+## Update, 2026-11-04: the tropical test set (FRK-43)
+
+The survey is in [docs/research/tropical-test-set.md](../research/tropical-test-set.md). The provisional
+choice is Open Cities AI (resampled to about 0.5 m) for a ready tropical measurement, plus a small
+hand-corrected Maxar Open Data set from Indonesia or the Philippines for the Southeast Asian claim.
+Open Cities carries conflicting licence statements (ODbL against CC BY 4.0) and Maxar is CC BY-NC,
+so both licences need checking before any number is used in sales material. No loader is built yet.
