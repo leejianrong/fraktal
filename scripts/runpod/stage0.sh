@@ -63,13 +63,16 @@ echo "commit $COMMIT nproc $(nproc)"
 # bpy is a headless wheel but still links X11 and GL libraries the image lacks
 timeout 300 apt-get update -qq > /dev/null
 timeout 600 apt-get install -y -qq libxrender1 libxi6 libxxf86vm1 libxfixes3 libgl1 libsm6 libxkbcommon0 libegl1 > /dev/null
-pip install -q --root-user-action=ignore ./src bpy matplotlib
-python -c "import bpy; print('bpy', bpy.app.version_string)"
+pip install -q --root-user-action=ignore ./src matplotlib
+# bpy pins its own numpy, which breaks pyarrow in the main environment: give it a venv
+python -m venv /workspace/bpyenv
+/workspace/bpyenv/bin/pip install -q bpy numpy
+/workspace/bpyenv/bin/python -c "import bpy; print('bpy', bpy.app.version_string)"
 mkdir -p review
 for s in $SAMPLES; do
   stage "render_$s"
   timeout 2400 python src/scripts/blender/stage0_compare.py "review/s$s" --size-m "$SIZE_M" --gsd-m 0.5 --samples "$s" \
-    --threads "$(nproc)" > "review/s$s.out" 2> "review/s$s.err" || { echo "ERROR samples=$s failed"; tail -n 15 "review/s$s.err"; }
+    --threads "$(nproc)" --bpy-python /workspace/bpyenv/bin/python > "review/s$s.out" 2> "review/s$s.err" || { echo "ERROR samples=$s failed"; tail -n 15 "review/s$s.err"; }
   echo "RP_STAGE0_BEGIN $s"; tr -d '\n ' < "review/s$s/stage0.json" 2>/dev/null; echo; echo "RP_STAGE0_END"
 done
 rm -rf review/s*/world review/s*/r25
