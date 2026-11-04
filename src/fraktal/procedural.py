@@ -30,6 +30,9 @@ from fraktal.terrain_gen import add_detail, fractal_terrain
 GENERATOR_VERSION = "procedural-0.1"
 DEFAULT_BIOME = "khartoum"
 MANIFEST = "world.json"
+# Config fields added after the first worlds: left out of the world id while at their default,
+# so those worlds keep their ids.
+LATER_FIELDS = (("buildings", "width_share"), ("buildings", "depth_share"))
 
 
 @dataclass(frozen=True)
@@ -149,6 +152,10 @@ def _jsonable(config: ProceduralConfig) -> dict[str, Any]:
     out: dict[str, Any] = json.loads(json.dumps(dataclasses.asdict(config)))
     if out["biome"] == DEFAULT_BIOME:
         del out["biome"]  # keeps the ids of worlds made before biomes existed
+    default: dict[str, Any] = json.loads(json.dumps(dataclasses.asdict(ProceduralConfig())))
+    for section, key in LATER_FIELDS:  # settings added after worlds existed: omitted at default
+        if out[section][key] == default[section][key]:
+            del out[section][key]
     return out
 
 

@@ -130,6 +130,7 @@ Make the worlds specifically tropical SE Asian, and measure regional transfer.
 
 1. Biome rules for five types: dense urban, informal settlement, plantation (oil palm), paddy, mangrove/coast.
    Plumbing is in place (FRK-36): `src/fraktal/biomes.py` holds named presets (each a full `ProceduralConfig`), `generate --biome NAME --biome-config FILE.json` selects and overrides one, unknown names or keys fail loudly, and the biome is recorded in `world.json`. A preset is data; add one to `BIOMES` per biome story.
+   `dense_urban` (FRK-37) is the first added preset: street spacing 58 m, parcels 9 to 15 m by 22 to 26 m, buildings filling 80 to 95% of the usable parcel, heights 12 to 45 m in the core. About 9% of a tile is roofs against about 2% for khartoum, mean height about 28 m, and roughly 90% of streets leave an arterial within 25 degrees of square. `BuildingConfig.width_share` and `depth_share` are new settings and are left out of the world id while at their defaults (`procedural.LATER_FIELDS`), so older worlds keep their ids.
 2. Informal settlement generator (irregular parcels, tin and tile roofs, tight spacing).
 3. Plantation and paddy patterns (regular rows and terraced fields) with seasonal states.
 4. Find or assemble a small tropical real test set (candidates: Open Cities AI, local OSM-labelled areas); record licence.

@@ -1,13 +1,22 @@
 import dataclasses
 import hashlib
 import json
+import math
 from pathlib import Path
+from typing import Any
 
 import pytest
+from shapely.geometry import Point
 
 from fraktal import biomes, cli
 from fraktal.biomes import BiomeError, resolve
-from fraktal.procedural import DEFAULT_BIOME, ProceduralConfig, generate_world
+from fraktal.procedural import (
+    DEFAULT_BIOME,
+    ProceduralConfig,
+    generate_world,
+    read_buildings,
+    read_roads,
+)
 
 CENTER = (32.55, 15.64)
 SMALL = {"size_m": 600.0, "gsd_m": 5.0}
@@ -90,3 +99,44 @@ def test_generate_cli_takes_a_biome_and_rejects_a_bad_config(
     )  # fmt: skip
     assert code == 2 and not (tmp_path / "x").exists()
     assert "aridty" in capsys.readouterr().err
+
+
+URBAN_CENTER = (100.50, 13.75)
+
+
+def _urban_world(path: Path, seed: int) -> Any:
+    config = resolve("dense_urban", {"size_m": 1200.0})
+    return generate_world(path, URBAN_CENTER, seed, config)
+
+
+def test_dense_urban_is_denser_taller_and_gridded(tmp_path: Path) -> None:
+    arid = resolve(DEFAULT_BIOME, {"size_m": 1200.0})
+    generate_world(tmp_path / "dry", URBAN_CENTER, 3, arid)
+    _urban_world(tmp_path / "urban", 3)
+    dry_b, urban_b = read_buildings(tmp_path / "dry"), read_buildings(tmp_path / "urban")
+    area = 1200.0**2
+    urban_cover = float(urban_b.geometry.area.sum() / area)
+    assert 0.06 <= urban_cover <= 0.30  # configured range for a tropical core
+    assert urban_cover > 3 * float(dry_b.geometry.area.sum() / area)
+    assert 18.0 <= float(urban_b["height_m"].mean()) <= 40.0
+    roads = read_roads(tmp_path / "urban")
+    arterials = roads[roads["road_class"] == "arterial"]
+    streets = roads[roads["road_class"] == "local"]
+    square = 0
+    for street in streets.geometry:
+        c = list(street.coords)
+        hook = Point(c[0])
+        art = min(arterials.geometry, key=hook.distance)
+        t = art.project(hook)
+        a, b = art.interpolate(max(t - 8, 0)), art.interpolate(min(t + 8, art.length))
+        turn = math.degrees(math.atan2(c[1][1] - c[0][1], c[1][0] - c[0][0]))
+        turn -= math.degrees(math.atan2(b.y - a.y, b.x - a.x))
+        square += abs((turn + 180) % 180 - 90) <= 25
+    assert square / len(streets) >= 0.8  # streets leave the arterials at right angles
+
+
+def test_dense_urban_is_byte_identical_per_seed(tmp_path: Path) -> None:
+    one, two = _urban_world(tmp_path / "a", 5), _urban_world(tmp_path / "b", 5)
+    assert one["world_id"] == two["world_id"]
+    assert one["layers"] == two["layers"] and one["rasters"] == two["rasters"]
+    assert one["biome"] == "dense_urban"
