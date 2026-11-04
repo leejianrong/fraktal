@@ -188,8 +188,18 @@ def _road_raster(roads: gpd.GeoDataFrame, transform: Affine, side: int) -> Any:
     return rasterize(shapes, (side, side), transform=transform, dtype="uint8")
 
 
-def _roof_base(fid: str, palette: Palette | None) -> tuple[float, float, float]:
-    """A building's base roof colour: from the fitted palette (by share) or the default set."""
+TIN_ROOF = (178.0, 176.0, 172.0)  # corrugated metal, often rusting
+TILE_ROOF = (156.0, 92.0, 72.0)  # fired clay
+
+
+def _roof_base(
+    fid: str, palette: Palette | None, material: str | None = None
+) -> tuple[float, float, float]:
+    """A building's base roof colour: its recorded material, else the palette or default set."""
+    if material in ("tin", "tile"):
+        rust = int(fid[16:20], 16) / 65535 if material == "tin" else 0.0
+        base = TIN_ROOF if material == "tin" else TILE_ROOF
+        return (base[0] - 28.0 * rust, base[1] - 60.0 * rust, base[2] - 70.0 * rust)
     if palette is None or not palette.roofs:
         return ROOF_MATERIALS[int(fid[:8], 16) % len(ROOF_MATERIALS)]
     draw = int(fid[:8], 16) / 0xFFFFFFFF
@@ -202,7 +212,11 @@ def _roof_base(fid: str, palette: Palette | None) -> tuple[float, float, float]:
 
 
 def roof_table(
-    ids: Any, variation: float, bright_fraction: float = 0.0, palette: Palette | None = None
+    ids: Any,
+    variation: float,
+    bright_fraction: float = 0.0,
+    palette: Palette | None = None,
+    materials: Any = None,
 ) -> Any:
     """Roof colour per building (row i -> entry i + 1; entry 0 is unused), from each stable id.
 
@@ -211,7 +225,8 @@ def roof_table(
     """
     table = np.zeros((len(ids) + 1, 3), dtype="float32")
     for i, fid in enumerate(ids):
-        base = np.array(_roof_base(str(fid), palette))
+        material = None if materials is None else str(materials[i])
+        base = np.array(_roof_base(str(fid), palette, material))
         brightness = 1.0 + variation * (int(str(fid)[8:12], 16) / 65535 * 2 - 1)
         if int(str(fid)[12:16], 16) / 65535 < bright_fraction:
             brightness *= BRIGHT_ROOF_GAIN
@@ -413,7 +428,11 @@ def render_region(
     }
     if config.variation > 0:
         roofs = roof_table(
-            local["id"].to_numpy(), config.variation, config.bright_roofs, config.palette
+            local["id"].to_numpy(),
+            config.variation,
+            config.bright_roofs,
+            config.palette,
+            local["roof_material"].to_numpy() if "roof_material" in local else None,
         )[index]
         gains = class_gains(config.seed, config.variation)
         rgb = shade(surface, mask, shadow, gains=gains, roofs=roofs, **common)
