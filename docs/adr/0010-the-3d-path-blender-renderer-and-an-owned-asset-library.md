@@ -231,3 +231,29 @@ and scene content can. A real tropical satellite reference would settle the rest
 question (whether CC BY-NC imagery may be used to evaluate) is what blocks it. Five chips from one
 scene are also a thin base for any single number. Condition 3 of the Stage 0 go is met for colour;
 the pod timing at 1 km is the one open condition.
+
+### After FRK-58: the pod timing
+
+One run on a 16 vCPU CPU pod ($0.48/h, SECURE on-demand, `cpu3c`), commit `1292c90`, driven by
+`scripts/runpod/stage0_run.sh`. The boot check passed on the first attempt (the job's first line,
+`RP_BOOT`, was in the logs 23 s after launch), so the watchdog was armed but not exercised.
+
+| step | seconds |
+|---|---|
+| pod launch to first output | 23 |
+| install (apt libs, pip, bpy venv) | 33 |
+| 1 km tile at 0.5 m (2000 px), 16 samples: Cycles render | 10.0 |
+| the same at 64 samples | 37.1 |
+| scene build (1150 buildings, 1292 trees) | 0.5 |
+| 2.5D render of the same tile | 1.8 to 2.6 |
+| whole job to artifact, teardown included | 154 |
+
+At 37 s for a 64-sample 1 km tile, a tile costs about $0.005 in compute (a 16-sample tile about
+$0.0013). The earlier estimate held for the 1 km tile; the "per 500 m chip" figure above was
+mislabelled, since a 1 km tile at 0.5 m holds sixteen 500 px chips, so a chip is about $0.0003 at 64
+samples. The run's own bill was about $0.02 (154 s). Startup and install, 56 s, cost more than one
+16-sample tile, so a real batch should render many tiles per pod. Pods left afterwards: 0.
+
+One measurement on one pod type, so it is a figure to plan with, not a benchmark. It also confirms
+that the stalls seen earlier were intermittent, not a property of this image or flavor. All three
+Stage 0 conditions now have an answer; FRK-48 (the renderer file contract) is next on the 3D path.
