@@ -276,3 +276,48 @@ What is still wrong, from the chip strip:
 - Edge-energy gap grew (0.12 for v8) because the scenes have fewer hard edges, not more blur.
 - Roof and ground textures are still smooth next to real imagery (see the 3D assets note,
   docs/research/3d-assets-and-realism.md).
+
+## FRK-44: biome sheet and per-biome review (no training)
+
+Two free checks, both on CPU, nothing trained. Pod costs: one that never started its container
+(terminated after 15 minutes, about $0.14) and one 8-minute run, about $0.10 in all.
+
+**Overview sheet** (`scripts/biome_overview.py`, committed as `docs/img/biome-overview.jpg`): one clear-sky
+1 km window per biome, same seed. It shows each generator doing what it was built to do:
+dense_urban has gridded blocks of tall roofs; oil_palm_plantation has staggered palm rows with a
+track and shadows; paddy_terraces has tiled blocks in three states; mangrove_coast has sea, a mud
+flat, a mangrove belt and creeks, with ponds behind it. informal_settlement shows up only along
+one road in this window, so its density is low. The land cover under everything is still
+pixelated at the 5 m cell size.
+
+**Gauge against the Khartoum chips** (`scripts/runpod/biomes.sh`; 3 regions a biome, up to 30
+chips; tropical biomes drawn from `v10_tropical`, the Khartoum reference from `v9_randomised_wide`).
+The real chips are arid Khartoum, so for the tropical biomes these numbers measure distance from
+Khartoum, not from the tropics. Without a tropical set (Q15, FRK-43) they cannot say more.
+
+| set | colour W1 | edge gap | noise gap | contrast gap | strong-edge gap |
+|---|---|---|---|---|---|
+| khartoum, v9 | 0.074 | 0.051 | 0.048 | 0.136 | 0.417 |
+| dense_urban | 0.292 | 0.030 | 0.043 | 0.095 | 0.547 |
+| informal_settlement | 0.293 | 0.011 | 0.045 | 0.039 | 0.612 |
+| oil_palm_plantation | 0.280 | 0.000 | 0.047 | 0.015 | 0.652 |
+| paddy_terraces | 0.270 | 0.024 | 0.053 | 0.051 | 0.730 |
+| mangrove_coast | 0.293 | 0.003 | 0.048 | 0.033 | 0.656 |
+
+Reading it: colour distance is about 0.28 for every tropical biome against 0.07 for the Khartoum
+reference, which is what the greener, hazier tone and cloud should do against arid reference
+chips; the tone is an untuned guess. Noise, edge and contrast gaps are small everywhere. The
+strong-edge gap is large for all of them (0.4 to 0.7): synthetic scenes still have too few hard
+edges.
+
+**Problems found, not fixed:**
+- The pod chip strip is a weak review. Every biome uses the same seeds, so ground, trees and
+  clouds repeat across rows, and uniform chip picks land mostly on bare ground or sea. The strip
+  now takes the busiest chips, which skips smooth ones (sea, cloud). The overview sheet above is
+  the better tool.
+- `v10_tropical` cloud and haze hide large parts of many chips (several are near-white), which
+  also depresses the gauge's edge numbers.
+- 9 of 30 chips are dropped by label validation in the Khartoum set; this was not investigated.
+- At a 2 m pixel size `dense_urban` loses its tile in label validation (a few boundary pixels
+  differ between the two rasterisers). The default 0.5 m is unaffected.
+- Scenes outside the built areas are still empty ground.
