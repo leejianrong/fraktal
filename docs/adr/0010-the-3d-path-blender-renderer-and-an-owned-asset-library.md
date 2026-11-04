@@ -1,6 +1,6 @@
 # ADR-0010: The 3D path: a headless Blender renderer fed by our world files, with an asset library we own or that is CC0
 
-- Status: Proposed (answers Q18; for Jian to accept or change)
+- Status: Accepted 2026-11-04 (answers Q18)
 - Date: 2026-11-04
 - Deciders: Jian
 
