@@ -53,7 +53,13 @@ BIOMES: dict[str, Biome] = {
                 local_length_m=(150.0, 500.0),
                 local_probability=1.0,
             ),
-            parcels=ParcelConfig(frontage_m=(9.0, 15.0), depth_m=(28.0, 33.0), min_area_m2=120.0),
+            parcels=ParcelConfig(
+                frontage_m=(9.0, 15.0),
+                depth_m=(28.0, 33.0),
+                min_area_m2=120.0,
+                blocks=True,
+                block_depth_m=30.0,
+            ),
             buildings=BuildingConfig(
                 built_probability_core=0.99,
                 built_probability_edge=0.9,
@@ -84,7 +90,12 @@ BIOMES: dict[str, Biome] = {
                 local_probability=1.0,
             ),
             parcels=ParcelConfig(
-                frontage_m=(5.0, 9.0), depth_m=(9.0, 16.0), min_area_m2=40.0, skew_deg=18.0
+                frontage_m=(5.0, 9.0),
+                depth_m=(9.0, 16.0),
+                min_area_m2=40.0,
+                skew_deg=18.0,
+                blocks=True,
+                block_depth_m=32.0,
             ),
             buildings=BuildingConfig(
                 built_probability_core=0.97,

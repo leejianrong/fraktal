@@ -15,7 +15,9 @@ from typing import Any
 import geopandas as gpd
 import numpy as np
 from affine import Affine
-from shapely.geometry import Polygon
+from shapely import affinity
+from shapely.geometry import LineString, Point, Polygon, box
+from shapely.ops import split, unary_union
 from shapely.strtree import STRtree
 
 from fraktal.coast import UNBUILDABLE
@@ -35,6 +37,8 @@ class ParcelConfig:
     local_only: bool = False  # parcels on arterials too by default
     road_overlap_share: float = 0.03  # sliver a curved carriageway may clip off a parcel edge
     skew_deg: float = 0.0  # random shear of each parcel's side edges; 0 keeps them square
+    blocks: bool = False  # carve street blocks and subdivide them, interior lots included
+    block_depth_m: float = 60.0  # blocks reach this far from a street edge, no further
 
 
 @dataclass(frozen=True)
@@ -95,6 +99,62 @@ def _frontage_parcels(
     return out
 
 
+def _split_lot(lot: Polygon, rng: Any, config: ParcelConfig, depth: int = 0) -> list[Polygon]:
+    """Cut a block piece across its long side until each lot is about one parcel in area."""
+    lo = config.frontage_m[0] * config.depth_m[0]
+    hi = config.frontage_m[1] * config.depth_m[1]
+    target = float(rng.uniform(lo, hi))
+    if lot.area <= target or lot.area < 2 * config.min_area_m2 or depth >= 12:
+        return [lot]
+    (x0, y0), (x1, y1), (x2, y2), _ = list(lot.minimum_rotated_rectangle.exterior.coords)[:4]
+    a, b = math.hypot(x1 - x0, y1 - y0), math.hypot(x2 - x1, y2 - y1)
+    ux, uy = ((x1 - x0) / a, (y1 - y0) / a) if a >= b else ((x2 - x1) / b, (y2 - y1) / b)
+    cx, cy = lot.centroid.x, lot.centroid.y
+    t = float(rng.uniform(-0.15, 0.15)) * max(a, b)
+    px, py = cx + ux * t, cy + uy * t
+    reach = lot.length  # longer than any chord through the lot
+    if config.skew_deg:  # slant the cut so neighbouring plots are not parallel
+        angle = math.radians(float(rng.uniform(-1, 1)) * config.skew_deg * 0.5)
+        c, sn = math.cos(angle), math.sin(angle)
+        ux, uy = ux * c - uy * sn, ux * sn + uy * c
+    cut = LineString([(px - uy * reach, py + ux * reach), (px + uy * reach, py - ux * reach)])
+    pieces = [g for g in split(lot, cut).geoms if isinstance(g, Polygon) and g.area > 1e-6]
+    if len(pieces) < 2:
+        return [lot]
+    pieces.sort(key=lambda g: (round(g.centroid.x, 3), round(g.centroid.y, 3)))
+    return [lot2 for g in pieces for lot2 in _split_lot(g, rng, config, depth + 1)]
+
+
+def _block_parcels(
+    roads: gpd.GeoDataFrame, dry: gpd.GeoDataFrame, transform: Affine, shape: tuple[int, ...],
+    seed: int, config: ParcelConfig,
+) -> list[tuple[Polygon, str, str]]:  # fmt: skip
+    """Lots cut from the land between the streets, out to ``block_depth_m`` from a street edge."""
+    west, north = transform @ (0, 0)
+    east, south = transform @ (shape[1], shape[0])
+    region = box(min(west, east), min(south, north), max(west, east), max(south, north))
+    carriage = unary_union([r.geometry.buffer(r.width_m / 2) for _, r in roads.iterrows()])
+    halo = unary_union(
+        [
+            r.geometry.buffer(r.width_m / 2 + config.block_depth_m)
+            for _, r in dry.sort_values("id").iterrows()
+        ]
+    )
+    band = region.intersection(halo).difference(carriage)
+    blocks = [g for g in getattr(band, "geoms", [band]) if isinstance(g, Polygon) and g.area > 1]
+    blocks.sort(key=lambda g: (round(g.centroid.x, 3), round(g.centroid.y, 3)))
+    ids = list(dry.sort_values("id").id)
+    tree = STRtree([r.geometry for _, r in dry.sort_values("id").iterrows()])
+    out: list[tuple[Polygon, str, str]] = []
+    for block in blocks:
+        key = f"{round(block.centroid.x)}:{round(block.centroid.y)}"
+        rng = substream(seed, f"blocks:{key}")
+        for lot in _split_lot(block, rng, config):
+            road_id = ids[int(tree.nearest(lot.centroid))]
+            out.append((lot, road_id, "local"))
+    return out
+
+
 def build_parcels(
     roads: gpd.GeoDataFrame,
     landcover: Any,
@@ -115,10 +175,13 @@ def build_parcels(
     ]
     road_tree = STRtree([g for g, _ in carriageways])
     candidates: list[tuple[Polygon, str, str]] = []
-    for _, road in dry_roads.sort_values("id").iterrows():
-        rng = substream(seed, f"parcels:{road.id}")
-        for poly in _frontage_parcels(road.geometry, road.width_m / 2, rng, config):
-            candidates.append((poly, road.id, road.road_class))
+    if config.blocks:
+        candidates = _block_parcels(roads, dry_roads, transform, landcover.shape, seed, config)
+    else:
+        for _, road in dry_roads.sort_values("id").iterrows():
+            rng = substream(seed, f"parcels:{road.id}")
+            for poly in _frontage_parcels(road.geometry, road.width_m / 2, rng, config):
+                candidates.append((poly, road.id, road.road_class))
     polys = [p for p, _, _ in candidates]
     tree = STRtree(polys)
     accepted = [False] * len(candidates)
@@ -158,6 +221,7 @@ def build_buildings(
     seed: int,
     config: BuildingConfig | None = None,
     world: str = "buildings",
+    road_lines: dict[str, Any] | None = None,
 ) -> gpd.GeoDataFrame:
     """A ``building`` layer with one footprint inside each chosen parcel, facing its road."""
     config = config or BuildingConfig()
@@ -185,7 +249,12 @@ def build_buildings(
         tin_roll = float(rng.uniform()) if config.roof_materials else 0.0
         if roll >= chance:
             continue
-        footprint = _footprint(parcel.geometry, config, width_share, depth_share)
+        if road_lines is None:
+            footprint = _footprint(parcel.geometry, config, width_share, depth_share)
+        else:  # block lots are free-form: fit a rectangle facing the street
+            footprint = _lot_footprint(
+                parcel.geometry, road_lines[parcel.road_id], config, width_share, depth_share
+            )
         if footprint is None:
             continue
         feature: dict[str, Any] = {
@@ -231,6 +300,25 @@ def _footprint(
             corner(left, near + d),
         ]
     )
+
+
+def _lot_footprint(
+    lot: Polygon, street: Any, config: BuildingConfig, width_share: float, depth_share: float
+) -> Polygon | None:
+    """A footprint in a free-form lot: its bounding rectangle turned so the street side is first."""
+    ring = list(lot.minimum_rotated_rectangle.exterior.coords)[:4]
+    near = [street.distance(Point((a[0] + b[0]) / 2, (a[1] + b[1]) / 2))
+            for a, b in zip(ring, ring[1:] + ring[:1], strict=True)]  # fmt: skip
+    k = int(np.argmin(near))
+    rect = Polygon(ring[k:] + ring[:k])
+    centre = lot.centroid
+    for step in range(0, 13):  # shrink about the centre until the footprint fits the lot
+        f = 1.0 - 0.05 * step
+        fitted = affinity.scale(rect, f, f, origin=centre)
+        footprint = _footprint(fitted, config, width_share, depth_share)
+        if footprint is not None and lot.buffer(1e-6).contains(footprint):
+            return footprint
+    return None
 
 
 def arterial_centres(roads: gpd.GeoDataFrame) -> list[tuple[float, float]]:

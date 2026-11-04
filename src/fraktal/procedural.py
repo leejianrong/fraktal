@@ -41,6 +41,8 @@ LATER_FIELDS = (
     ("buildings", "roof_materials"),
     ("buildings", "tin_share"),
     ("parcels", "skew_deg"),
+    ("parcels", "blocks"),
+    ("parcels", "block_depth_m"),
 )
 
 
@@ -117,8 +119,13 @@ def generate_world(
     emit("generate_stage", stage="terrain_and_landcover_done")
     roads = build_roads(dem, land, config.gsd_m, transform, crs, seed, config.roads, world="roads")
     parcels = settlement.build_parcels(roads, land, transform, seed, config.parcels)
+    lines = {r.id: r.geometry for _, r in roads.iterrows()} if config.parcels.blocks else None
     buildings = settlement.build_buildings(
-        parcels, settlement.arterial_centres(roads), seed, config.buildings
+        parcels,
+        settlement.arterial_centres(roads),
+        seed,
+        config.buildings,
+        road_lines=lines,
     )
     fields = build_fields(
         land,

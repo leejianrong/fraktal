@@ -120,3 +120,21 @@ alleys take space from the parcels on the streets already there; lifting the cap
 centres changed nothing. The targets on the card (25% and 20%) were not reached. What limits
 cover now is that parcels exist only in strips along streets, so a street-block generator is the
 next step, not more parameters.
+
+### After FRK-60 (street blocks)
+
+`ParcelConfig.blocks` (off by default, on for dense_urban and informal_settlement) carves the land
+between the streets, out to `block_depth_m` from a street edge, and splits each block across its long
+side until a lot is about one parcel in area. Interior lots are included, so a lot need not touch a
+street; each takes the id of its nearest street, and its building is fitted as a rectangle turned to
+face that street. Informal cuts are slanted by up to half of `skew_deg`, so plots are not parallel.
+Block names come from the rounded block centre, so a block's lots do not move when another block
+changes. The default biome and every other biome keep their ids and bytes (the pinned test passes);
+the two new settings are left out of the world id while at their defaults.
+
+Building cover over a 2 km tile, seed 3: dense_urban 22.2% to 26.9% (depth 30 m); informal_settlement
+11.3% to 22.5% (depth 32 m). The targets were 25% and 20%. Building counts rose from 2,960 to 6,415 and
+from 7,518 to 18,620. Cover depends on tile size and seed (a 1 km tile gave lower numbers), so these
+are one seed, one size. The effect on edge energy and contrast against the 5 real chips was **not
+re-measured**; the earlier table above is from before blocks. The overview sheet
+(`docs/img/biome-overview.jpg`) is regenerated.
