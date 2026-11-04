@@ -51,6 +51,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "NPY"]
 [tool.mypy]
 strict = true
 files = ["src", "tests"]
+exclude = ["src/fraktal/blender_scene\\.py"]  # runs inside Blender; bpy has no stubs
 
 [[tool.mypy.overrides]]
 module = ["geopandas.*", "pyarrow.*", "shapely.*", "pandas.*", "rasterio.*", "torch.*", "matplotlib.*", "reportlab.*", "PIL.*"]

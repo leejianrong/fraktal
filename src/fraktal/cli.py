@@ -31,6 +31,7 @@ from fraktal import (
     procedural,
     realism,
     render,
+    render3d,
     report,
     skeleton,
     split,
@@ -374,6 +375,46 @@ def _inspect_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--id", help="feature id (or a unique prefix of 6+ characters)")
 
 
+def _render3d(args: argparse.Namespace) -> Result:
+    try:
+        meta = render3d.render(
+            args.world,
+            args.out,
+            (args.center[0], args.center[1]),
+            args.size_m,
+            args.gsd_m,
+            sun=(args.sun_azimuth, args.sun_elevation),
+            seed=args.seed,
+            samples=args.samples,
+            threads=args.threads,
+            bpy_python=args.bpy_python or os.environ.get("FRAKTAL_BPY_PYTHON"),
+            timeout_s=args.timeout_s,
+        )
+    except (OSError, ValueError, render3d.RenderError) as err:
+        raise CliError(ExitCode.FAILURE, "render3d_failed", str(err)) from err
+    secs = meta["seconds"]["blender_render"]
+    text = (
+        f"rendered {meta['px']} px ({meta['buildings']} buildings, {meta['trees']} trees) "
+        f"to {args.out}, blender {secs} s"
+    )
+    return Result(meta, text)
+
+
+def _render3d_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("world", type=Path, help="a world directory (from `fraktal generate`)")
+    parser.add_argument("--out", type=Path, required=True, help="output directory")
+    parser.add_argument("--center", type=float, nargs=2, metavar=("LON", "LAT"), required=True)
+    parser.add_argument("--size-m", type=float, default=500.0, help="tile side in metres")
+    parser.add_argument("--gsd-m", type=float, default=0.5)
+    parser.add_argument("--sun-azimuth", type=float, default=135.0)
+    parser.add_argument("--sun-elevation", type=float, default=50.0)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--samples", type=int, default=32, help="Cycles samples per pixel")
+    parser.add_argument("--threads", type=int, default=0, help="0 means all cores")
+    parser.add_argument("--bpy-python", help="a Python with bpy (default $FRAKTAL_BPY_PYTHON)")
+    parser.add_argument("--timeout-s", type=float, default=1800.0)
+
+
 def _assets(args: argparse.Namespace) -> Result:
     problems = assets.check(args.root)
     if problems:
@@ -670,6 +711,7 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "palette": _palette_args,
     "inspect": _inspect_args,
     "assets": _assets_args,
+    "render3d": _render3d_args,
 }
 
 COMMANDS: dict[str, tuple[str, Handler]] = {
@@ -687,6 +729,7 @@ COMMANDS: dict[str, tuple[str, Handler]] = {
     "compare": ("Measure how far synthetic chips are from real imagery", _compare),
     "inspect": ("Look up a feature by ID, or summarise a world", _inspect),
     "assets": ("Check the asset manifest and its licences", _assets),
+    "render3d": ("Render a world tile with Blender (3D path)", _render3d),
 }
 
 

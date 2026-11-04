@@ -3,7 +3,7 @@
 Writes ``scene.json`` (building footprints and heights, in metres from the tile's south-west
 corner, east and north positive) and ``ground.npy`` (an H x W x 3 float image, north up, of the
 ground colours with roads painted, the same palette the 2.5D renderer uses). The Blender side
-(``scripts/blender/stage0.py``) reads only these two files, so this is the renderer file contract
+(``src/fraktal/blender_scene.py``) reads only these two files, so this is the renderer file contract
 in miniature: the scene is data, not objects in memory.
 """
 

@@ -105,7 +105,7 @@ be expected to until the sensor and ground work below is shared.
 
 What was built (all in `scripts/blender/` and `src/fraktal/blender_export.py`): the tile is
 exported to `scene.json` (building footprints and heights) plus `ground.npy` (ground colours with
-roads painted, from the 2.5D palette). `stage0.py` builds one ground plane, one extruded mesh for
+roads painted, from the 2.5D palette). `blender_scene.py` builds one ground plane, one extruded mesh for
 all buildings, procedural noise materials, a sun and a flat sky fill, and renders nadir with an
 orthographic camera in Cycles on CPU, with no tone curve so 8-bit values compare with the 2.5D
 render. `stage0_compare.py` renders the same tile in both and scores both against real chips;
@@ -186,7 +186,7 @@ ground texture and trees (condition 2) are next.
 
 The export now carries the 2.5D renderer's own ground texture (the fractal field, with the same
 per-class amplitude, baked into `ground.npy`) and its scattered trees (`scene.json` `trees`: the
-same placement code and seed, so the same places). `stage0.py` builds the trees as one mesh of
+same placement code and seed, so the same places). `blender_scene.py` builds the trees as one mesh of
 low-poly crown ellipsoids and samples the ground image with linear, not nearest, interpolation.
 
 ![2.5D and Blender, same 150 m corner of a tile](../img/stage0-ground-trees.png)

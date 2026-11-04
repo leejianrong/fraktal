@@ -10,6 +10,7 @@ T0=$(date +%s)
 : "${COMMIT:?set COMMIT to the sha to run}"
 SIZE_M="${SIZE_M:-1000}"
 SAMPLES="${SAMPLES:-16 64}"
+MODE="${MODE:-stage0}"  # stage0: timing loop; render3d: the CLI end to end plus a scene equality check
 RUN=/workspace/run
 mkdir -p "$RUN" && cd "$RUN"
 exec > >(tee -a "$RUN/job.log") 2>&1
@@ -71,6 +72,31 @@ python -m venv /workspace/bpyenv
 /workspace/bpyenv/bin/pip install -q bpy numpy
 /workspace/bpyenv/bin/python -c "import bpy; print('bpy', bpy.app.version_string)"
 mkdir -p review
+if [ "$MODE" = render3d ]; then
+  stage generate
+  export FRAKTAL_BPY_PYTHON=/workspace/bpyenv/bin/python
+  fraktal generate --help > /dev/null  # fail early if the CLI did not install
+  python - <<'PY'
+from pathlib import Path
+from fraktal import biomes
+from fraktal.procedural import generate_world
+generate_world(Path("review/world"), (32.55, 15.64), 3, biomes.resolve("dense_urban"))
+PY
+  for run in a b; do
+    stage "render3d_$run"
+    fraktal render3d review/world --out "review/r$run" --center 32.55 15.64 --size-m 300 --gsd-m 0.5 \
+      --samples 16 --seed 7 --threads "$(nproc)" > "review/r$run.out" 2> "review/r$run.err" \
+      || { echo "ERROR render3d $run failed"; tail -n 15 "review/r$run.err"; }
+    echo "RP_RENDER3D_$run $(tr -d '\n ' < "review/r$run/render.json" 2>/dev/null)"
+  done
+  if [ "$(python -c "import json;print(json.load(open('review/ra/render.json'))['scene_sha256'])")" = "$(python -c "import json;print(json.load(open('review/rb/render.json'))['scene_sha256'])")" ]; then
+    echo "RP_SCENE_EQUAL yes"
+  else
+    echo "RP_SCENE_EQUAL NO"
+  fi
+  rm -rf review/world
+  exit 0
+fi
 for s in $SAMPLES; do
   stage "render_$s"
   timeout 2400 python src/scripts/blender/stage0_compare.py "review/s$s" --size-m "$SIZE_M" --gsd-m 0.5 --samples "$s" \
