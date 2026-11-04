@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "assets": [
+    {
+      "id": "mat-concrete-plain",
+      "file": "materials/concrete-plain.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "f000986a7dd2daefc87d013c7222f922c9bbd1b15e445520dd8cb130ce0154dd",
+      "verified": true
+    }
+  ]
+}

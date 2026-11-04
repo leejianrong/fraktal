@@ -1,0 +1,13 @@
+{
+  "name": "concrete-plain",
+  "kind": "material",
+  "albedo": [
+    0.55,
+    0.52,
+    0.48
+  ],
+  "roughness": 0.9,
+  "noise_scale": 4.0,
+  "noise_detail": 8.0,
+  "darken": 0.72
+}
