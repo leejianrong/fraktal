@@ -469,7 +469,19 @@ def test_contrast_stretches_about_the_channel_means_so_dark_channels_survive() -
 
 
 def test_roof_material_sets_the_roof_colour_family() -> None:
-    ids = ["0123456789abcdef0000", "fedcba9876543210ffff"]
+    ids = ["0123456789abcdef", "fedcba9876543210"]  # real ids are 16 hex characters
     table = roof_table(ids, 0.0, materials=["tile", "tin"])
     assert table[1][0] > table[1][2] + 40  # clay tile is red
     assert abs(table[2][0] - table[2][2]) < 60 and table[2][1] > table[1][1]  # tin is greyer
+
+
+def test_roof_table_accepts_every_generated_building_id(tmp_path: Path) -> None:
+    from fraktal import biomes
+    from fraktal.procedural import generate_world, read_buildings
+
+    generate_world(
+        tmp_path, (104.0, 1.5), 1, biomes.resolve("informal_settlement", {"size_m": 400.0})
+    )
+    b = read_buildings(tmp_path)
+    table = roof_table(b["id"].to_numpy(), 0.1, 0.1, None, b["roof_material"].to_numpy())
+    assert table.shape == (len(b) + 1, 3) and (table[1:] > 0).all()
