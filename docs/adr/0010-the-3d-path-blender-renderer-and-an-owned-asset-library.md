@@ -181,3 +181,24 @@ the Khartoum-fitted `v8_objects` variant, whose tone is a green-yellow cast that
 have. That is the sensor config being wrong for the place, not the kernel being wrong; a tropical
 profile belongs in the randomised ranges, as for the 2.5D path. Condition 1 of the Stage 0 go is met;
 ground texture and trees (condition 2) are next.
+
+### After FRK-56: ground texture and trees
+
+The export now carries the 2.5D renderer's own ground texture (the fractal field, with the same
+per-class amplitude, baked into `ground.npy`) and its scattered trees (`scene.json` `trees`: the
+same placement code and seed, so the same places). `stage0.py` builds the trees as one mesh of
+low-poly crown ellipsoids and samples the ground image with linear, not nearest, interpolation.
+
+![2.5D and Blender, same 150 m corner of a tile](../img/stage0-ground-trees.png)
+
+What the crop shows: the ground is no longer flat colour, the trees are round crowns that cast
+shadows, and they sit where the 2.5D trees do. What it still shows: the 10 m land-cover squares
+(a property of the world's landcover raster, shared with the 2.5D render) read as patches, and the
+trees are small and dark against grass. Cost on a 600 m tile at 1 m, 32 samples, local niced CPU:
+about 4.5 s to render with 409 trees and 506 buildings, so trees are not a time problem.
+
+Not claimed: a gauge comparison. I scored a 600 m, 1 m tile against the Khartoum and Open Cities
+chips, but those numbers are not comparable with the 500 m, 0.5 m table above, so the table stays
+as it was. Rerun at the old settings when the tropical sensor profile lands. Condition 2 of the
+Stage 0 go is met in kind (texture and trees exist); remaining conditions are a tropical sensor
+profile and one real pod timing at 1 km.
