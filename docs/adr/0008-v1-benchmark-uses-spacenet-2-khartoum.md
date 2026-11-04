@@ -45,3 +45,6 @@ choice is Open Cities AI (resampled to about 0.5 m) for a ready tropical measure
 hand-corrected Maxar Open Data set from Indonesia or the Philippines for the Southeast Asian claim.
 Open Cities carries conflicting licence statements (ODbL against CC BY 4.0) and Maxar is CC BY-NC,
 so both licences need checking before any number is used in sales material. No loader is built yet.
+
+Decision (Jian, 2026-11-04): Open Cities AI and Maxar Open Data are for private evaluation only:
+no training, no redistribution, no inclusion in a dataset product. Aggregate scores only.

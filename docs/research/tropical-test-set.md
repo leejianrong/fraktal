@@ -54,3 +54,12 @@ settlements are slower, because roofs touch and seed footprints are poor there.
 - Access cost and size of the Open Cities and Maxar files were not checked.
 - An ingest path is not built: the benchmark harness takes the dataset as config (ADR-0008), so a
   loader for chips plus a label raster is the work once a choice is confirmed.
+
+## Decision, 2026-11-04 (Jian)
+
+Open Cities AI and Maxar Open Data are used **for private evaluation only**. We do not train on
+them, redistribute them or their derived chips, ship them inside a dataset product, or quote
+them as training data in sales material. Only aggregate metrics (a score on the test set) may
+leave the machine. This is what makes the CC BY-NC imagery acceptable under ADR-0007. The
+licence checks in "Open items" still apply, in particular that a published metric computed on
+ODbL or CC BY data keeps its attribution.
