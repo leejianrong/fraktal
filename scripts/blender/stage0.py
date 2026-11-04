@@ -21,8 +21,9 @@ import time
 import zlib
 from pathlib import Path
 
-import bmesh
+# ruff: noqa: I001  (bpy must be imported before bmesh and mathutils, so the order is not sorted)
 import bpy
+import bmesh
 import numpy as np
 from mathutils import Vector
 
