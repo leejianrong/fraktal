@@ -297,3 +297,33 @@ threads. Limits, as built: the ground is the tile only, so a view that reaches p
 shows sky; frames are not georeferenced (they are oblique, so there is no `tile.tif`); there is no
 motion blur, rolling shutter or lens model beyond field of view; building heights are the
 procedural defaults and look tall from the side.
+
+### After FRK-49: one building typology, with materials from the asset library
+
+`fraktal.building_grammar` builds the flat-roof block, one typology, from a footprint, a height and
+a roof material: walls, a parapet (an outer lip, inner face and cap stitched edge to edge, skipped
+when the footprint is too thin to inset), a flat roof, a window grid per storey (one storey per 3 m,
+only on edges of 3 m or more, each bay skipped with a per-building probability), a street door on the
+longest edge, and roof clutter (a water tank, a stair box) on roofs of 60 m² or more. Walls pick one
+of four finishes, flat roofs one of four (pale, terracotta paint, bitumen, bare concrete), and a
+recorded `tin` or `tile` roof uses its own material. Everything is drawn from
+`substream(seed, "building:<id>")`, so a building is the same wherever it is built. The mesh goes
+into the scene as four `mesh_*.npy` arrays (in `scene_sha256`), so Blender reads data and the grammar
+needs no Blender. The old plain extrusion is gone.
+
+Materials come from `assets/`: five ambientCG colour maps (Plaster001, Concrete034, Concrete031,
+CorrugatedSteel007A, RoofingTiles013A; CC0-1.0, licence page read 2026-11-05, downscaled to 512 px)
+and ten owned JSON material definitions that tint and scale them. Each has a manifest row and the CI
+check covers it. Textures are applied by box projection in world metres, so there are no UVs.
+
+![oblique still and nadir corner of one tile](../img/building-grammar.png)
+
+How it looks, said plainly: it reads as a dense mid-rise city, with believable surfaces, window
+rhythm, parapets and roof clutter, and the nadir view has the roof-colour variety back. I have no real
+oblique chips to put it next to (Open Cities and the Khartoum chips are nadir), so "credible next to
+real oblique imagery" is not tested, only judged by eye. Known weaknesses: the towers are far taller
+than Khartoum's low-rise (heights come from the world's height model, untouched here); windows are
+dark squares with no frames or reveal depth; walls have no balconies, stains or ground-floor
+variation; the typology does not fit informal settlement, courtyard houses or tin-roofed sheds, which
+still get this block with a tin or tile roof on top. Next typologies and a height model fit would be
+separate cards.

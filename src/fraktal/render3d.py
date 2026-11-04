@@ -3,7 +3,8 @@
 Contract. In: a world directory (the same GeoParquet and GeoTIFF layers the 2.5D renderer reads),
 a tile (centre, side, pixel size), a sun, and a seed. Out, in ``out_dir``:
 
-- ``scene/scene.json`` and ``scene/ground.npy``: the tile as data (``fraktal.blender_export``).
+- ``scene/``: the tile as data (``fraktal.blender_export``): ``scene.json``, ``ground.npy`` and the
+  building meshes ``mesh_*.npy`` (``fraktal.building_grammar``) naming materials in ``assets/``.
   The same world, tile, sun and seed give byte-identical files, which is how determinism is
   defined for the 3D path (ADR-0010 decision 7): seeded scene equality, not pixel equality.
 - ``image.png``: the Blender render, 8-bit RGB, north up, no tone curve.
@@ -11,7 +12,7 @@ a tile (centre, side, pixel size), a sun, and a seed. Out, in ``out_dir``:
 - For a camera sequence (``trajectory``): ``scene/camera.json`` (the poses, part of the scene hash)
   and ``frames/frame_0000.png`` and on, instead of ``image.png`` and ``tile.tif``, with every
   frame's pose also in ``render.json``.
-- ``render.json``: metadata, including ``scene_sha256`` (a hash of the two scene files), timings,
+- ``render.json``: metadata, including ``scene_sha256`` (a hash of the scene files), timings,
   the Blender version, and every input needed to repeat the render.
 
 Blender runs in a subprocess (``fraktal.blender_scene``, with a Python that has ``bpy``), so a hang
@@ -24,6 +25,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -40,6 +42,8 @@ from fraktal.blender_export import export_scene
 from fraktal.log import emit
 
 SCHEMA = 1
+DEFAULT_ASSETS = Path(__file__).resolve().parents[2] / "assets"  # a source checkout
+MESH_FILES = ("vertices", "face_sizes", "face_verts", "face_material")
 BLENDER_SCRIPT = Path(__file__).with_name("blender_scene.py")
 
 
@@ -48,9 +52,10 @@ class RenderError(RuntimeError):
 
 
 def scene_sha256(scene_dir: Path) -> str:
-    """One hash over the exported scene, the thing that must repeat for the same seed."""
+    """One hash over the exported scene files, the thing that must repeat for the same seed."""
     digest = hashlib.sha256()
-    for name in ("scene.json", "ground.npy", "camera.json"):  # camera.json only for sequences
+    names = ("scene.json", "ground.npy", "camera.json")  # camera.json only for sequences
+    for name in (*names, *(f"mesh_{k}.npy" for k in MESH_FILES)):
         if (scene_dir / name).exists():
             digest.update((scene_dir / name).read_bytes())
     return digest.hexdigest()
@@ -118,9 +123,13 @@ def render(
     trajectory: str | None = None,
     camera_options: dict[str, float] | None = None,
     frame_px: int = 512,
+    assets_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Export the tile, render it in Blender, write the contract files, return ``render.json``."""
     python = bpy_python or sys.executable
+    assets = assets_dir or Path(os.environ.get("FRAKTAL_ASSETS", DEFAULT_ASSETS))
+    if not (assets / "manifest.json").is_file():
+        raise RenderError(f"no assets directory at {assets}; pass --assets or set FRAKTAL_ASSETS")
     emit("render3d_start", world=str(world_dir), size_m=size_m, gsd_m=gsd_m, samples=samples)
     out_dir.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
@@ -141,7 +150,7 @@ def render(
         seconds=round(t1 - t0, 2),
     )
     target = out_dir / "frames" if poses else out_dir / "image.png"
-    args = [str(out_dir / "scene"), str(target), "--samples", str(samples)]
+    args = [str(out_dir / "scene"), str(target), "--samples", str(samples), "--assets", str(assets)]
     if poses:
         args += ["--px", str(frame_px)]
     if threads:
@@ -172,6 +181,7 @@ def render(
         "seed": seed,
         "samples": samples,
         "scene_sha256": digest,
+        "assets": str(assets),
         "buildings": blender.get("buildings"),
         "trees": blender.get("trees"),
         "bpy": blender.get("bpy"),

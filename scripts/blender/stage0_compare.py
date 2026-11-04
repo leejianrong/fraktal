@@ -113,6 +113,8 @@ def main() -> int:
         str(Path(__file__).resolve().parents[2] / "src" / "fraktal" / "blender_scene.py"),
         str(work / "scene"),
         str(work / "blender.png"),
+        "--assets",
+        str(Path(__file__).resolve().parents[2] / "assets"),
         "--samples",
         str(a.samples),
     ]

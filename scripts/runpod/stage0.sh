@@ -75,6 +75,7 @@ mkdir -p review
 if [ "$MODE" = render3d ]; then
   stage generate
   export FRAKTAL_BPY_PYTHON=/workspace/bpyenv/bin/python
+  export FRAKTAL_ASSETS="$RUN/src/assets"  # the installed package has no assets/ beside it
   fraktal generate --help > /dev/null  # fail early if the CLI did not install
   python - <<'PY'
 from pathlib import Path

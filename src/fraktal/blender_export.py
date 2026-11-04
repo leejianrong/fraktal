@@ -1,10 +1,11 @@
 """Export one tile of a procedural world for the Blender experiment (ADR-0010, Stage 0).
 
 Writes ``scene.json`` (building footprints and heights, in metres from the tile's south-west
-corner, east and north positive) and ``ground.npy`` (an H x W x 3 float image, north up, of the
+corner, east and north positive), the building meshes from ``fraktal.building_grammar`` as four
+``mesh_*.npy`` arrays, and ``ground.npy`` (an H x W x 3 float image, north up, of the
 ground colours with roads painted, the same palette the 2.5D renderer uses). The Blender side
-(``src/fraktal/blender_scene.py``) reads only these two files, so this is the renderer file contract
-in miniature: the scene is data, not objects in memory.
+(``src/fraktal/blender_scene.py``) reads only these files and the assets directory, so this is
+the renderer file contract in miniature: the scene is data, not objects in memory.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from typing import Any
 import numpy as np
 from rasterio.enums import Resampling
 
+from fraktal import building_grammar
 from fraktal.objects import place
 from fraktal.procedural import read_buildings, read_roads
 from fraktal.render import (
@@ -107,6 +109,17 @@ def export_scene(
             }
         )
     out_dir.mkdir(parents=True, exist_ok=True)
+    meshes = []
+    for b in buildings:
+        try:
+            meshes.append(
+                building_grammar.build(b["id"], b["ring"], b["height_m"], b["roof_material"], seed)
+            )
+        except ValueError:  # a sliver footprint: it stays in `buildings` (labels) but gets no mesh
+            continue
+    mesh = building_grammar.pack(meshes)
+    for key in ("vertices", "face_sizes", "face_verts", "face_material"):
+        np.save(out_dir / f"mesh_{key}.npy", mesh[key])
     np.save(out_dir / "ground.npy", ground)
     scene = {
         "schema": SCHEMA,
@@ -117,6 +130,7 @@ def export_scene(
         "crs": f"EPSG:{epsg}",
         "origin_sw": [west, south],
         "buildings": buildings,
+        "materials": mesh["materials"],
         "trees": trees,
     }
     (out_dir / "scene.json").write_text(json.dumps(scene) + "\n")

@@ -1,0 +1,12 @@
+{
+  "name": "roof-flat-concrete",
+  "role": "roof",
+  "image": "textures/concrete031-color.jpg",
+  "scale_m": 2.5,
+  "tint": [
+    0.9,
+    0.88,
+    0.84
+  ],
+  "roughness": 0.95
+}

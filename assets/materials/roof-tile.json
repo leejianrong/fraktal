@@ -1,0 +1,12 @@
+{
+  "name": "roof-tile",
+  "role": "roof",
+  "image": "textures/roofingtiles013a-color.jpg",
+  "scale_m": 2.0,
+  "tint": [
+    1.0,
+    0.9,
+    0.85
+  ],
+  "roughness": 0.8
+}

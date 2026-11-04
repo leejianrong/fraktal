@@ -1,0 +1,12 @@
+{
+  "name": "wall-plaster-ochre",
+  "role": "wall",
+  "image": "textures/plaster001-color.jpg",
+  "scale_m": 3.0,
+  "tint": [
+    0.88,
+    0.66,
+    0.42
+  ],
+  "roughness": 0.9
+}

@@ -1,0 +1,10 @@
+{
+  "name": "door",
+  "role": "opening",
+  "color": [
+    0.16,
+    0.2,
+    0.22
+  ],
+  "roughness": 0.6
+}

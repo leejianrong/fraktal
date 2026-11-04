@@ -1,0 +1,12 @@
+{
+  "name": "wall-plaster-sand",
+  "role": "wall",
+  "image": "textures/plaster001-color.jpg",
+  "scale_m": 3.0,
+  "tint": [
+    0.92,
+    0.8,
+    0.62
+  ],
+  "roughness": 0.9
+}

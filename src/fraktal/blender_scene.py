@@ -2,12 +2,13 @@
 
 Not imported by fraktal: ``fraktal.render3d`` runs it as a script with a Python that has ``bpy``.
 
-Usage: python blender_scene.py SCENE_DIR OUT.png [--px N] [--samples N] [--threads N]
+Usage: python blender_scene.py SCENE_DIR OUT.png --assets DIR [--px N] [--samples N] [--threads N]
 
 Needs the ``bpy`` wheel (``pip install bpy``, Python 3.11). Reads ``scene.json`` and ``ground.npy``
 written by ``fraktal.blender_export``; builds one ground plane, one extruded mesh for all the
 buildings and a sun plus sky; writes an 8-bit PNG and prints timings as ``STAGE`` lines.
-Materials are procedural (noise-modulated colour), so no third-party asset enters the render.
+Building materials come from the assets directory (owned or CC0, see assets/manifest.json); the
+ground and tree materials are procedural, so no other third-party asset enters the render.
 """
 
 from __future__ import annotations
@@ -15,7 +16,6 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import random
 import struct
 import sys
 import tempfile
@@ -28,11 +28,6 @@ import bpy
 import bmesh
 import numpy as np
 from mathutils import Vector
-
-# Wall and roof colours (0-1 linear-ish), echoing the 2.5D palette: concrete, clay, metal, bitumen.
-ROOFS = [(0.55, 0.50, 0.45), (0.61, 0.36, 0.28), (0.73, 0.73, 0.72), (0.31, 0.31, 0.33)]
-WALLS = [(0.80, 0.76, 0.68), (0.72, 0.62, 0.52), (0.86, 0.84, 0.80)]
-MATERIAL_ROOF = {"tin": 2, "tile": 1}
 
 
 def say(msg: str) -> None:
@@ -93,41 +88,59 @@ def build_ground(scene: dict, ground: np.ndarray):
     plane.data.materials.append(mat)
 
 
-def build_buildings(scene: dict) -> int:
-    mats = [material(f"roof{i}", c, 0.7, i) for i, c in enumerate(ROOFS)]
-    mats += [material(f"wall{i}", c, 0.9, 10 + i) for i, c in enumerate(WALLS)]
-    bm = bmesh.new()
-    rng = random.Random(0)
-    n = 0
-    for b in scene["buildings"]:
-        ring = b["ring"][:-1]
-        if len(ring) < 3:
-            continue
-        height = max(2.0, b["height_m"])
-        roof = MATERIAL_ROOF.get(b["roof_material"] or "", rng.randrange(len(ROOFS)))
-        wall = len(ROOFS) + rng.randrange(len(WALLS))
-        low = [bm.verts.new((x, y, 0.0)) for x, y in ring]
-        high = [bm.verts.new((x, y, height)) for x, y in ring]
-        try:
-            top = bm.faces.new(high)
-            top.material_index = roof
-            for i in range(len(ring)):
-                j = (i + 1) % len(ring)
-                face = bm.faces.new((low[i], low[j], high[j], high[i]))
-                face.material_index = wall
-            n += 1
-        except ValueError:  # a degenerate footprint
-            continue
-    bm.normal_update()
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+def load_material(name: str, assets: Path):
+    """A Blender material from ``assets/materials/<name>.json``: a tinted texture or a colour."""
+    spec = json.loads((assets / "materials" / f"{name}.json").read_text())
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nodes, links = mat.node_tree.nodes, mat.node_tree.links
+    bsdf = nodes["Principled BSDF"]
+    bsdf.inputs["Roughness"].default_value = spec.get("roughness", 0.8)
+    if "image" not in spec:
+        bsdf.inputs["Base Color"].default_value = (*spec["color"], 1.0)
+        return mat
+    img = bpy.data.images.load(str(assets / spec["image"]))
+    img.colorspace_settings.name = "Non-Color"  # stored colours are display reflectance
+    coords = nodes.new("ShaderNodeTexCoord")
+    mapping = nodes.new("ShaderNodeMapping")
+    mapping.inputs["Scale"].default_value = (1 / spec["scale_m"],) * 3
+    tex = nodes.new("ShaderNodeTexImage")
+    tex.image = img
+    tex.projection = "BOX"  # no UVs: the texture follows world metres on every face
+    tex.projection_blend = 0.2
+    tint = nodes.new("ShaderNodeMix")
+    tint.data_type = "RGBA"
+    tint.blend_type = "MULTIPLY"
+    tint.inputs[0].default_value = 1.0
+    tint.inputs[7].default_value = (*spec["tint"], 1.0)
+    links.new(coords.outputs["Object"], mapping.inputs["Vector"])
+    links.new(mapping.outputs["Vector"], tex.inputs["Vector"])
+    links.new(tex.outputs["Color"], tint.inputs[6])
+    links.new(tint.outputs[2], bsdf.inputs["Base Color"])
+    return mat
+
+
+def build_buildings(scene: dict, scene_dir: Path, assets: Path) -> int:
+    """One mesh for every building, read from the exported ``mesh_*.npy`` arrays."""
+    load = lambda key: np.load(scene_dir / f"mesh_{key}.npy")  # noqa: E731
+    co, sizes, face_verts, face_mat = (
+        load("vertices"), load("face_sizes"), load("face_verts"), load("face_material")
+    )  # fmt: skip
     mesh = bpy.data.meshes.new("buildings")
-    bm.to_mesh(mesh)
-    bm.free()
+    mesh.vertices.add(len(co))
+    mesh.vertices.foreach_set("co", co.astype("float32").ravel())
+    mesh.loops.add(len(face_verts))
+    mesh.loops.foreach_set("vertex_index", face_verts)
+    mesh.polygons.add(len(sizes))
+    mesh.polygons.foreach_set("loop_start", np.cumsum(sizes) - sizes)
+    mesh.polygons.foreach_set("loop_total", sizes)
+    mesh.polygons.foreach_set("material_index", face_mat.astype("int32"))
+    mesh.update(calc_edges=True)
+    for name in scene["materials"]:
+        mesh.materials.append(load_material(name, assets))
     obj = bpy.data.objects.new("buildings", mesh)
     bpy.context.collection.objects.link(obj)
-    for m in mats:
-        mesh.materials.append(m)
-    return n
+    return len(scene["buildings"])
 
 
 FOLIAGE = [(0.15, 0.31, 0.13), (0.19, 0.36, 0.14), (0.12, 0.26, 0.12)]
@@ -229,6 +242,7 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("scene_dir", type=Path)
     p.add_argument("out", type=Path)
+    p.add_argument("--assets", type=Path, required=True, help="the assets directory")
     p.add_argument("--px", type=int, default=0)
     p.add_argument("--samples", type=int, default=32)
     p.add_argument("--threads", type=int, default=0)
@@ -240,7 +254,7 @@ def main() -> int:
     t0 = time.time()
     bpy.ops.wm.read_factory_settings(use_empty=True)
     build_ground(scene, ground)
-    n = build_buildings(scene)
+    n = build_buildings(scene, a.scene_dir, a.assets)
     nt = build_trees(scene)
     build_light(scene)
     camera_file = a.scene_dir / "camera.json"
