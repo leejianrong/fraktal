@@ -188,7 +188,8 @@ def build_eval_set(
         "tiles": sorted(ids),
     }
     (out_dir / "chips.json").write_text(json.dumps(meta, indent=2) + "\n")
-    (out_dir / "EVAL_ONLY.txt").write_text(meta["use"] + f"\nLicence: {LICENCE}\n{CITATION}\n")
+    notice = "private evaluation only: never train on, redistribute or ship these chips"
+    (out_dir / "EVAL_ONLY.txt").write_text(f"{notice}\nLicence: {LICENCE}\n{CITATION}\n")
     return out_dir
 
 
