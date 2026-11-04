@@ -114,7 +114,11 @@ def main() -> int:
     ]
     if a.threads:
         cmd += ["--threads", str(a.threads)]
-    log = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode:
+        print(proc.stdout[-1500:], proc.stderr[-3000:], file=sys.stderr)
+        raise SystemExit(f"blender render failed with exit code {proc.returncode}")
+    log = proc.stdout
     result["blender_wall_s"] = round(time.time() - t, 2)
     result["blender"] = json.loads([ln for ln in log.splitlines() if ln.startswith("{")][-1])
 
