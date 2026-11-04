@@ -138,3 +138,32 @@ from 7,518 to 18,620. Cover depends on tile size and seed (a 1 km tile gave lowe
 are one seed, one size. The effect on edge energy and contrast against the 5 real chips was **not
 re-measured**; the earlier table above is from before blocks. The overview sheet
 (`docs/img/biome-overview.jpg`) is regenerated.
+
+### After FRK-70 (ten evaluation scenes)
+
+The evaluation set grew from one scene (5 chips) to ten scenes and 90 chips, all from Open Cities AI
+tier 1 (ODbL-1.0, evaluation only, `eval_only: true`, empty train split, `EVAL_ONLY.txt`):
+
+| city | scenes (chips) |
+|---|---|
+| Monrovia | `mon/207cc7` (5), `mon/401175` (10) |
+| Accra | `acc/665946` (10), `acc/a42435` (10) |
+| Pointe-Noire | `ptn/abe1a3` (10) |
+| Kampala | `kam/4e7c7f` (10) |
+| Dar es Salaam | `dar/a017f9` (10), `dar/b15fce` (10) |
+| Zanzibar | `znz/33cae6` (10) |
+| Niamey | `nia/825a50` (5) |
+
+Rebuild with `fraktal eval-set mon/207cc7 mon/401175 acc/665946 acc/a42435 ptn/abe1a3 kam/4e7c7f
+dar/a017f9 dar/b15fce znz/33cae6 nia/825a50 --max-chips 10 --out data/eval/open-cities-10` (about
+2.5 minutes). The scene list comes from the tier's STAC files, which the earlier note could not get
+by listing the bucket: `train_tier_1/catalog.json` names the seven cities and each city's
+`collection.json` names its scenes (`acc` 4, `mon` 4, `ptn` 2, `kam` 1, `dar` 6, `znz` 13, `nia` 1;
+the `-labels` entries are the label folders). Picked here: every scene of the small cities, two of
+Accra and Dar, and one of Zanzibar, so the set spans dense red-roof settlement (Monrovia, Accra,
+Dar), planned estates, a dry Sahelian scene (Niamey, the closest to Khartoum) and a coast (Zanzibar).
+
+Caveats: chips are random windows, so some are nearly empty (one Zanzibar chip is open sea; the
+loader keeps at most 10% empty chips per scene by design); 10 of the 60 scenes are used; Zanzibar and
+Niamey have few built-up chips; and the set is **not committed** (it lives under `data/`, which git
+ignores). Not done: re-running the biome comparison on the larger set, which is FRK-67.
