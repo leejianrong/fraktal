@@ -39,6 +39,9 @@ from fraktal import (
     terrain,
     world,
 )
+from fraktal import (
+    camera as cameras,
+)
 
 PROCEDURAL_MARGIN_M = 200.0  # world border beyond the rendered region, so edge tiles stay inside
 
@@ -389,10 +392,23 @@ def _render3d(args: argparse.Namespace) -> Result:
             threads=args.threads,
             bpy_python=args.bpy_python or os.environ.get("FRAKTAL_BPY_PYTHON"),
             timeout_s=args.timeout_s,
+            trajectory=args.trajectory,
+            camera_options={
+                "altitude_m": args.altitude_m,
+                "off_nadir_deg": args.off_nadir,
+                "fov_deg": args.fov,
+                "duration_s": args.duration_s,
+                "fps": args.fps,
+            },
+            frame_px=args.frame_px,
         )
     except (OSError, ValueError, render3d.RenderError) as err:
         raise CliError(ExitCode.FAILURE, "render3d_failed", str(err)) from err
     secs = meta["seconds"]["blender_render"]
+    if "frames" in meta:
+        n, kind = len(meta["frames"]), meta["trajectory"]
+        text = f"rendered {n} {kind} frames to {args.out}, blender {secs} s"
+        return Result(meta, text)
     text = (
         f"rendered {meta['px']} px ({meta['buildings']} buildings, {meta['trees']} trees) "
         f"to {args.out}, blender {secs} s"
@@ -413,6 +429,13 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--threads", type=int, default=0, help="0 means all cores")
     parser.add_argument("--bpy-python", help="a Python with bpy (default $FRAKTAL_BPY_PYTHON)")
     parser.add_argument("--timeout-s", type=float, default=1800.0)
+    parser.add_argument("--trajectory", choices=cameras.KINDS, help="render a perspective sequence")
+    parser.add_argument("--altitude-m", type=float, default=300.0)
+    parser.add_argument("--off-nadir", type=float, default=35.0, help="degrees from straight down")
+    parser.add_argument("--fov", type=float, default=40.0, help="field of view in degrees")
+    parser.add_argument("--duration-s", type=float, default=2.0)
+    parser.add_argument("--fps", type=float, default=12.0)
+    parser.add_argument("--frame-px", type=int, default=512, help="frame side for a sequence")
 
 
 def _assets(args: argparse.Namespace) -> Result:

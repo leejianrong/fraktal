@@ -278,3 +278,22 @@ pod job is `MODE=render3d scripts/runpod/stage0_run.sh COMMIT OUT`. RunPod had n
 launch (all three attempts failed in seconds), so the driver now waits 60 s between failed launches.
 The real-Blender test is `tests/integration/test_render3d_blender.py`, which runs when
 `FRAKTAL_BPY_PYTHON` is set (CI does not have `bpy`).
+
+### After FRK-51: camera trajectories
+
+`fraktal.camera` holds a pose (position in tile metres, heading clockwise from north, off-nadir angle,
+field of view, and where the image centre meets the ground) and `trajectory(kind, ...)`, which makes
+a seeded `still`, `orbit` (turns through `sweep_deg` around the tile centre) or `flight` (a straight
+pass over the centre at a set speed, with a small slow wobble in heading and height). It refuses a
+path whose view centre leaves the tile margin. `fraktal render3d --trajectory flight --off-nadir 40
+--altitude-m 250 --fov 45 --duration-s 2 --fps 12` renders it: Blender gets a perspective camera
+and writes `frames/frame_NNNN.png`, and `render.json` lists every frame's pose. The poses go into
+`scene/camera.json`, which is part of `scene_sha256`, so the same seed repeats the same sequence.
+
+![six frames of a 2 s oblique flight](../img/oblique-flight.png)
+
+A 24-frame, 640 px flight over a 500 m dense_urban tile took 149 s at 16 samples on 4 local
+threads. Limits, as built: the ground is the tile only, so a view that reaches past the tile edge
+shows sky; frames are not georeferenced (they are oblique, so there is no `tile.tif`); there is no
+motion blur, rolling shutter or lens model beyond field of view; building heights are the
+procedural defaults and look tall from the side.
