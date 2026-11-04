@@ -350,3 +350,23 @@ integration test asks for 0.9), and the label image holds exactly one colour per
 for ground. Not covered: a building cut by the tile edge counts as one instance; labels carry no
 roads, water or shadow classes yet (roads and water are ground until FRK-69); a label pass adds about
 one extra render of the frame at one sample.
+
+### After FRK-62: storey mixes per biome in the 3D path
+
+The towers in the 3D renders came from the world's heights, which were set for the 2.5D shadows and
+are taller than Khartoum's low-rise. `fraktal.heights.remap` now gives the 3D path a storey mix per
+biome and keeps the world untouched: buildings are ranked by their world height and mapped onto the
+distribution, so the tall ones stay the tall ones (they are still near the centres), at 3 m a storey
+plus up to 0.8 m of parapet. `khartoum` uses 45/35/12/5/3% of 1 to 5 storeys; `informal_settlement`
+and the village biomes use 70/27/3% of 1 to 3; `dense_urban` keeps its world heights. The remap runs
+over the whole world, so a building's height does not depend on the tile window, and `--height-profile
+world` turns it off.
+
+![world heights and the 3D heights per biome](../img/heights-3d.png)
+
+**These mixes are assumptions, not a fit.** The repository has no real height data (SpaceNet and Open
+Cities are footprints), so they come from general knowledge of the building stock and should be
+replaced if we find a height source. Visible in the plot: Khartoum's mean falls from 10.8 m to 6.0 m;
+informal rises a little (3.6 to 4.4 m) because one storey is 3 m and the world's informal heights go
+down to 2.5 m; `dense_urban` still has heights to 45 m, which is what a tropical core looks like but
+is a choice, not a measurement. The 2.5D renderer, the default world and its pinned hash are unchanged.

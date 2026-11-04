@@ -18,6 +18,7 @@ import numpy as np
 from rasterio.enums import Resampling
 
 from fraktal import building_grammar
+from fraktal import heights as heights_mod
 from fraktal.objects import place
 from fraktal.procedural import read_buildings, read_roads
 from fraktal.render import (
@@ -35,6 +36,30 @@ from fraktal.render import (
 SCHEMA = 1
 
 
+def _tile_heights(world_dir: Path, buildings: Any, profile: str, seed: int) -> dict[str, float]:
+    """Each building's height: the world's own, or remapped to the biome's storey profile.
+
+    ``profile`` is ``"world"`` (keep), ``"auto"`` (the biome's, from ``world.json``) or a name in
+    ``heights.PROFILES``. The remap runs over the whole world, so a building's height does not
+    depend on the tile window.
+    """
+    raw = (
+        buildings["height_m"].to_numpy(dtype="float64")
+        if "height_m" in buildings
+        else np.full(len(buildings), np.nan)
+    )
+    base = np.where(np.isnan(raw), DEFAULT_HEIGHT_M, raw)
+    ids = [str(i) for i in buildings["id"]]
+    if profile == "auto":
+        biome = json.loads((world_dir / "world.json").read_text()).get("biome", "")
+        chosen = heights_mod.profile_for(biome)
+    else:
+        chosen = None if profile == "world" else profile
+    if chosen is not None:
+        base = heights_mod.remap(base, ids, chosen, seed)
+    return dict(zip(ids, (float(h) for h in base), strict=True))
+
+
 def export_scene(
     world_dir: Path,
     out_dir: Path,
@@ -45,6 +70,7 @@ def export_scene(
     seed: int = 0,
     texture: float = 0.7,
     tree_density: float = 1.0,
+    height_profile: str = "auto",
 ) -> dict[str, Any]:
     """Write the tile around ``center_lonlat`` and return the scene description.
 
@@ -57,6 +83,7 @@ def export_scene(
     west, north = transform.c, transform.f
     south = north - side * gsd_m
     local = read_buildings(world_dir).to_crs(epsg)
+    height_of = _tile_heights(world_dir, local, height_profile, seed)
     roads = read_roads(world_dir).to_crs(epsg)
     landcover = _warp(world_dir / "landcover.tif", transform, epsg, side, Resampling.nearest)
     _, mask, _ = _building_rasters(local, transform, side)
@@ -93,7 +120,7 @@ def export_scene(
             _box(west, south, west + side * gsd_m, north)
         ):
             continue
-        height = DEFAULT_HEIGHT_M if np.isnan(getattr(row, "height_m", np.nan)) else row.height_m
+        height = height_of[row.id]
         material = getattr(row, "roof_material", None)
         buildings.append(
             {
