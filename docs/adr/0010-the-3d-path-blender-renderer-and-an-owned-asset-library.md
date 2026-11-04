@@ -248,10 +248,10 @@ One run on a 16 vCPU CPU pod ($0.48/h, SECURE on-demand, `cpu3c`), commit `1292c
 | 2.5D render of the same tile | 1.8 to 2.6 |
 | whole job to artifact, teardown included | 154 |
 
-At 37 s for a 64-sample 1 km tile, a tile costs about $0.005 in compute (a 16-sample tile about
-$0.0013). The earlier estimate held for the 1 km tile; the "per 500 m chip" figure above was
-mislabelled, since a 1 km tile at 0.5 m holds sixteen 500 px chips, so a chip is about $0.0003 at 64
-samples. The run's own bill was about $0.02 (154 s). Startup and install, 56 s, cost more than one
+A 1 km tile costs about $0.0013 in compute at 16 samples and $0.005 at 64. The earlier estimate
+(above) said $0.005 for 16 samples, so it was about four times too high at 16 samples and about
+right at 64: it came from thread-seconds on a slower local machine. A 500 px chip (250 m at 0.5 m)
+is a sixteenth of the tile, about $0.0003 at 64 samples. The run's own bill was about $0.02 (154 s). Startup and install, 56 s, cost more than one
 16-sample tile, so a real batch should render many tiles per pod. Pods left afterwards: 0.
 
 One measurement on one pod type, so it is a figure to plan with, not a benchmark. It also confirms
