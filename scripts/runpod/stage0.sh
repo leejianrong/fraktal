@@ -60,6 +60,9 @@ stage install
 git clone -q https://github.com/leejianrong/fraktal.git src
 git -C src checkout -q "$COMMIT"
 echo "commit $COMMIT nproc $(nproc)"
+# bpy is a headless wheel but still links X11 and GL libraries the image lacks
+timeout 300 apt-get update -qq > /dev/null
+timeout 600 apt-get install -y -qq libxrender1 libxi6 libxxf86vm1 libxfixes3 libgl1 libsm6 libxkbcommon0 libegl1 > /dev/null
 pip install -q --root-user-action=ignore ./src bpy matplotlib
 python -c "import bpy; print('bpy', bpy.app.version_string)"
 mkdir -p review
