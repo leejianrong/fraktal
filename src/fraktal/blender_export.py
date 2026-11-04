@@ -19,14 +19,20 @@ from rasterio.enums import Resampling
 
 from fraktal import building_grammar, trees3d
 from fraktal import heights as heights_mod
+from fraktal.coast import TIDAL_FLAT
+from fraktal.landcover_gen import WATER
 from fraktal.objects import place
-from fraktal.procedural import read_buildings, read_roads
+from fraktal.procedural import read_buildings, read_fields, read_roads
 from fraktal.render import (
     DEFAULT_HEIGHT_M,
+    FISHPOND_WATER,
     LANDCOVER_RGB,
+    PADDY_CODES,
     TEXTURE_CLASS_AMP,
     RenderConfig,
     _building_rasters,
+    _field_raster,
+    _field_trees,
     _road_raster,
     _warp,
     region_grid,
@@ -34,6 +40,8 @@ from fraktal.render import (
 )
 
 SCHEMA = 1
+WET_CODES = (WATER, PADDY_CODES["flooded"], FISHPOND_WATER)  # standing water: glossy
+ROUGH_WATER, ROUGH_MUD, ROUGH_LAND = 0.06, 0.35, 0.95
 
 
 def _tile_heights(world_dir: Path, buildings: Any, profile: str, seed: int) -> dict[str, float]:
@@ -92,6 +100,20 @@ def export_scene(
     if road is not None:
         road[mask > 0] = 0
         surface = np.where(road > 0, road, landcover).astype("uint8")
+    fields = read_fields(world_dir)
+    field_palms = None
+    if fields is not None and len(fields):
+        dem = _warp(world_dir / "dem.tif", transform, epsg, side, Resampling.bilinear)
+        local_fields = fields.to_crs(epsg)
+        painted = _field_raster(local_fields, transform, side, dem)
+        painted[mask > 0] = 0
+        if road is not None:
+            painted[road > 0] = 0
+        surface = np.where(painted > 0, painted, surface).astype("uint8")
+        field_palms = _field_trees(local_fields, transform, side, seed)
+    rough = np.full((side, side), ROUGH_LAND, dtype="float32")
+    rough[np.isin(surface, WET_CODES)] = ROUGH_WATER
+    rough[surface == TIDAL_FLAT] = ROUGH_MUD
     ground = np.zeros((side, side, 3), dtype="float32")
     for code in np.unique(surface):
         ground[surface == code] = np.array(LANDCOVER_RGB.get(int(code), (120, 118, 116))) / 255.0
@@ -117,6 +139,12 @@ def export_scene(
                         trees3d.species_for(biome, tx, ty, float(height), seed),
                     ]
                 )
+    if field_palms is not None:  # planted rows: every palm of an oil-palm field
+        palm_shapes, palm_heights, _ = field_palms
+        for (row, col, radius, *_rest), height in zip(palm_shapes, palm_heights, strict=True):
+            x, y = round((col + 0.5) * gsd_m, 2), round((side - row - 0.5) * gsd_m, 2)
+            if 0 <= x <= side * gsd_m and 0 <= y <= side * gsd_m:
+                trees.append([x, y, round(radius * gsd_m, 2), round(float(height), 2), "palm"])
     buildings = []
     for row in local.itertuples():
         if row.geometry.is_empty or not row.geometry.intersects(
@@ -160,6 +188,7 @@ def export_scene(
         np.repeat(np.asarray(owner, dtype="int32"), per_mesh),
     )
     np.save(out_dir / "ground.npy", ground)
+    np.save(out_dir / "ground_rough.npy", rough)
     scene = {
         "schema": SCHEMA,
         "size_m": side * gsd_m,

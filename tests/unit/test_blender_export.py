@@ -63,3 +63,36 @@ def test_the_3d_heights_follow_the_biome_and_world_keeps_the_original(tmp_path: 
     assert max(b["height_m"] for b in kept["buildings"]) > max(tall)
     again = export_scene(world, tmp_path / "b", CENTER, 400.0, 1.0)
     assert again["buildings"] == auto["buildings"]
+
+
+def _world(tmp_path: Path, biome: str) -> Path:
+    world = tmp_path / biome
+    generate_world(world, CENTER, 3, biomes.resolve(biome))
+    return world
+
+
+def test_water_is_glossy_in_the_roughness_map(tmp_path: Path) -> None:
+    world = _world(tmp_path, "mangrove_coast")
+    export_scene(world, tmp_path / "m", CENTER, 800.0, 1.0)
+    rough = np.load(tmp_path / "m" / "ground_rough.npy")
+    ground = np.load(tmp_path / "m" / "ground.npy")
+    assert rough.shape == ground.shape[:2] and rough.min() < 0.1 and rough.max() > 0.9
+    assert 0.05 < float((rough < 0.1).mean()) < 0.9  # some, not all, of the tile is open water
+
+
+def test_oil_palm_rows_become_palms_in_regular_rows(tmp_path: Path) -> None:
+    world = _world(tmp_path, "oil_palm_plantation")
+    scene = export_scene(world, tmp_path / "o", CENTER, 800.0, 1.0)
+    palms = [t for t in scene["trees"] if t[4] == "palm"]
+    assert all(0 <= t[0] <= 800 and 0 <= t[1] <= 800 for t in palms)
+    assert sum(t[3] > 7.9 for t in palms) > 200  # planted rows are 8 to 13 m, scattered trees less
+    again = export_scene(world, tmp_path / "o2", CENTER, 800.0, 1.0)
+    assert again["trees"] == scene["trees"]
+
+
+def test_paddy_fields_change_the_ground_colour(tmp_path: Path) -> None:
+    world = _world(tmp_path, "paddy_terraces")
+    export_scene(world, tmp_path / "p", CENTER, 800.0, 1.0)
+    colours = np.load(tmp_path / "p" / "ground.npy").reshape(-1, 3)
+    greens = colours[(colours[:, 1] > 0.55) & (colours[:, 0] < 0.5)]  # bright young rice
+    assert len(greens) > 1000
