@@ -10,7 +10,8 @@
 # ~/.runpod/config.toml and is never printed.
 set -uo pipefail
 COMMIT="${1:?commit sha}"; OUT="${2:?output dir}"
-BOOT_TIMEOUT="${BOOT_TIMEOUT:-300}"; ATTEMPTS="${ATTEMPTS:-3}"; POLL="${POLL:-15}"
+BOOT_TIMEOUT="${BOOT_TIMEOUT:-300}"; ATTEMPTS="${ATTEMPTS:-5}"; POLL="${POLL:-15}"
+LAUNCH_RETRY_SECS="${LAUNCH_RETRY_SECS:-60}"  # RunPod sometimes has no stock; wait, then try again
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mkdir -p "$OUT"; LOG="$OUT/driver.log"
 say() { echo "$(date +%H:%M:%S) $*" | tee -a "$LOG"; }
@@ -19,7 +20,7 @@ RUNPOD_API_KEY=$(python3 -c "import tomllib,os;print(tomllib.load(open(os.path.e
 export RUNPOD_API_KEY
 export PATH="$HOME/.claude/skills/runpod-jobs/scripts:$PATH"
 export RP_POD_NAME=fraktal-stage0 RP_POD_IMAGE=runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04
-export RP_COMPUTE_TYPE=CPU RP_CLOUD_TYPE=SECURE RP_INTERRUPTIBLE=false RP_CPU_FLAVORS=cpu3c,cpu5c
+export RP_COMPUTE_TYPE=CPU RP_CLOUD_TYPE=SECURE RP_INTERRUPTIBLE=false RP_CPU_FLAVORS="${RP_CPU_FLAVORS:-cpu3c,cpu5c,cpu3g,cpu5g}"
 export RP_VCPU_COUNT=16 RP_CONTAINER_DISK_GB=40 RP_MAX_HOURLY_USD=0.60
 export RP_MAX_LIFETIME_SECS=3000 RP_IDLE_TIMEOUT_SECS=1800 RP_EXIT_GRACE_SECS=600
 export RP_STATE_FILE="$OUT/.rp-state"
@@ -31,7 +32,7 @@ trap cleanup EXIT INT TERM
 booted=0
 for n in $(seq 1 "$ATTEMPTS"); do
   say "attempt $n: launching"
-  rp up >> "$LOG" 2>&1 || { say "launch failed"; rp down >> "$LOG" 2>&1; continue; }
+  rp up >> "$LOG" 2>&1 || { say "launch failed (no stock?); retrying in ${LAUNCH_RETRY_SECS}s"; rp down >> "$LOG" 2>&1; sleep "$LAUNCH_RETRY_SECS"; continue; }
   start=$(date +%s)
   while :; do
     elapsed=$(( $(date +%s) - start ))
