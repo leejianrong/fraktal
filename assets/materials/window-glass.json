@@ -1,0 +1,10 @@
+{
+  "name": "window-glass",
+  "role": "opening",
+  "color": [
+    0.05,
+    0.07,
+    0.1
+  ],
+  "roughness": 0.1
+}

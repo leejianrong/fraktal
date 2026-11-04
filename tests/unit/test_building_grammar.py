@@ -1,0 +1,96 @@
+import json
+from collections import Counter
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from fraktal import building_grammar as grammar
+
+ASSETS = Path(__file__).resolve().parents[2] / "assets"
+RING = [[0, 0], [14, 0], [14, 9], [0, 9], [0, 0]]
+
+
+def test_the_same_id_and_seed_give_the_same_mesh_and_another_id_a_different_one() -> None:
+    a = grammar.build("aaaa1111", RING, 9.0, None, 1)
+    assert a == grammar.build("aaaa1111", RING, 9.0, None, 1)
+    assert a != grammar.build("bbbb2222", RING, 9.0, None, 1)
+    assert a != grammar.build("aaaa1111", RING, 9.0, None, 2)
+
+
+def test_a_flat_roof_block_has_walls_roof_parapet_windows_and_a_door() -> None:
+    mesh = grammar.build("aaaa1111", RING, 9.0, None, 1)
+    kinds = Counter(mesh.materials)
+    assert sum(v for k, v in kinds.items() if k.startswith("roof-flat")) == 1
+    assert kinds["door"] == 1 and kinds["window-glass"] >= 10
+    z = np.array(mesh.vertices)[:, 2]
+    assert z.min() == 0.0 and z.max() > 9.0  # the parapet and clutter rise above the roof
+
+
+def test_the_roof_material_follows_the_recorded_material() -> None:
+    assert "roof-tin" in grammar.build("aaaa1111", RING, 4.0, "tin", 1).materials
+    assert "roof-tile" in grammar.build("aaaa1111", RING, 4.0, "tile", 1).materials
+
+
+def test_flat_roofs_vary_between_buildings() -> None:
+    roofs = {
+        next(
+            m
+            for m in grammar.build(f"id{i:06d}", RING, 6.0, None, 0).materials
+            if m.startswith("roof-")
+        )
+        for i in range(40)
+    }
+    assert len(roofs) == 4
+
+
+def test_storeys_follow_the_height() -> None:
+    low = Counter(grammar.build("cccc3333", RING, 3.0, None, 5).materials)["window-glass"]
+    tall = Counter(grammar.build("cccc3333", RING, 12.0, None, 5).materials)["window-glass"]
+    assert tall > low
+
+
+def test_nothing_sticks_out_of_the_footprint_sideways_except_openings() -> None:
+    mesh = grammar.build("aaaa1111", RING, 9.0, None, 1)
+    xy = np.array(mesh.vertices)[:, :2]
+    assert xy.min() >= -0.05 and xy[:, 0].max() <= 14.05 and xy[:, 1].max() <= 9.05
+
+
+def test_a_clockwise_ring_gives_the_same_building() -> None:
+    cw = grammar.build("aaaa1111", RING[::-1], 9.0, None, 1)
+    ccw = grammar.build("aaaa1111", RING, 9.0, None, 1)
+    assert Counter(cw.materials) == Counter(ccw.materials)
+
+
+@pytest.mark.parametrize(
+    "ring", [[[0, 0], [1, 0]], [[0, 0], [0.5, 0], [0.5, 0.5], [0, 0.5], [0, 0]]]
+)
+def test_an_unusable_footprint_is_refused(ring: list[list[float]]) -> None:
+    with pytest.raises(ValueError, match="no usable area"):
+        grammar.build("aaaa1111", ring, 6.0, None, 1)
+
+
+def test_an_l_shaped_footprint_builds() -> None:
+    ring = [[0, 0], [12, 0], [12, 5], [5, 5], [5, 12], [0, 12], [0, 0]]
+    mesh = grammar.build("dddd4444", ring, 6.0, None, 3)
+    assert len(mesh.faces) > 20 and len(mesh.faces) == len(mesh.materials)
+
+
+def test_pack_gives_flat_arrays_that_index_each_other() -> None:
+    meshes = [grammar.build(f"id{i:06d}", RING, 6.0, None, 0) for i in range(3)]
+    packed = grammar.pack(meshes)
+    assert packed["face_sizes"].sum() == len(packed["face_verts"])
+    assert packed["face_verts"].max() < len(packed["vertices"])
+    assert packed["face_material"].max() < len(packed["materials"])
+    assert len(packed["face_sizes"]) == sum(len(m.faces) for m in meshes)
+
+
+def test_every_material_the_grammar_uses_exists_in_the_library() -> None:
+    manifest = json.loads((ASSETS / "manifest.json").read_text())["assets"]
+    listed = {row["file"] for row in manifest}
+    for name in grammar.MATERIALS:
+        spec_file = f"materials/{name}.json"
+        assert spec_file in listed, name
+        spec = json.loads((ASSETS / spec_file).read_text())
+        if "image" in spec:
+            assert spec["image"] in listed and (ASSETS / spec["image"]).is_file()

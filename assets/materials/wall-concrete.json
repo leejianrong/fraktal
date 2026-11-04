@@ -1,0 +1,12 @@
+{
+  "name": "wall-concrete",
+  "role": "wall",
+  "image": "textures/concrete034-color.jpg",
+  "scale_m": 2.5,
+  "tint": [
+    1.0,
+    1.0,
+    1.0
+  ],
+  "roughness": 0.9
+}

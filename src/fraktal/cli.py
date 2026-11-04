@@ -401,6 +401,7 @@ def _render3d(args: argparse.Namespace) -> Result:
                 "fps": args.fps,
             },
             frame_px=args.frame_px,
+            assets_dir=args.assets,
         )
     except (OSError, ValueError, render3d.RenderError) as err:
         raise CliError(ExitCode.FAILURE, "render3d_failed", str(err)) from err
@@ -435,6 +436,7 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--fov", type=float, default=40.0, help="field of view in degrees")
     parser.add_argument("--duration-s", type=float, default=2.0)
     parser.add_argument("--fps", type=float, default=12.0)
+    parser.add_argument("--assets", type=Path, help="assets directory (default $FRAKTAL_ASSETS)")
     parser.add_argument("--frame-px", type=int, default=512, help="frame side for a sequence")
 
 

@@ -1,0 +1,12 @@
+{
+  "name": "roof-flat-terracotta",
+  "role": "roof",
+  "image": "textures/concrete031-color.jpg",
+  "scale_m": 2.5,
+  "tint": [
+    1.2,
+    0.62,
+    0.46
+  ],
+  "roughness": 0.95
+}
