@@ -202,3 +202,32 @@ chips, but those numbers are not comparable with the 500 m, 0.5 m table above, s
 as it was. Rerun at the old settings when the tropical sensor profile lands. Condition 2 of the
 Stage 0 go is met in kind (texture and trees exist); remaining conditions are a tropical sensor
 profile and one real pod timing at 1 km.
+
+### After FRK-57: sensor settings drawn from the tropical ranges
+
+`stage0_compare.py` takes `--variant v10_tropical --scenes N`: each scene draws haze, tone, contrast,
+blur and noise from `randomise.TROPICAL` (FRK-42), and the Blender render goes through the shared
+sensor kernel with those settings. Nothing is fitted to the Monrovia chips, which are evaluation
+only. The scene's ambient light, bright roofs and cloud are not applied to the Blender path.
+
+500 m tile at 0.5 m, 32 samples, 8 scenes pooled for the tropical rows, gauge distances (0 is
+perfect), columns colour / edge energy / noise / contrast / strong edge:
+
+| render | vs Khartoum chips | vs Monrovia chips (5) |
+|---|---|---|
+| 2.5D, Khartoum-fitted (v8_objects) | .08 .06 .12 .27 .16 | .27 .48 .50 .12 .72 |
+| Blender + sensor, Khartoum-fitted | .09 .12 .09 .09 .20 | .25 .45 .49 .37 .80 |
+| 2.5D, tropical ranges (v10) | .28 .21 .08 .35 .10 | .09 .40 .39 .07 .78 |
+| Blender + sensor, tropical ranges | .14 .32 .10 .00 .29 | .09 .35 .38 .31 .68 |
+| Blender, no sensor | .12 .21 .25 .33 .83 | .16 .41 .30 .09 .55 |
+
+Reading it: against Monrovia the tropical ranges fix colour for both renderers (0.25 to 0.09 for
+Blender, 0.27 to 0.09 for 2.5D), which is the problem FRK-50 left. The Khartoum-fitted settings stay
+better against Khartoum, as they should. The remaining Monrovia gaps (noise 0.38, contrast 0.31,
+strong edge 0.68) are not a profile problem: Open Cities is drone imagery averaged down to 0.5 m, so
+it is cleaner and crisper than a satellite sensor, and the raw Blender render is closer on noise,
+contrast and strong edges. Sensor blur and noise cannot be judged against drone chips; only colour
+and scene content can. A real tropical satellite reference would settle the rest, and the Maxar
+question (whether CC BY-NC imagery may be used to evaluate) is what blocks it. Five chips from one
+scene are also a thin base for any single number. Condition 3 of the Stage 0 go is met for colour;
+the pod timing at 1 km is the one open condition.
