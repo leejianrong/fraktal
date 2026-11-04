@@ -103,3 +103,20 @@ tiny and one scene, so read the pattern, not the digits.
 - Edges, noise and strong edges are far off (0.4 to 0.9). The synthetic look is too smooth, not
   the wrong colour. That points at texture and fine detail, and at scene density, not at palette.
 - Next: more scenes (more cities and a built-up Monrovia scene) before trusting any number.
+
+### After FRK-54 (denser buildings)
+
+Building cover over a 2 km tile: dense_urban 15.4% to 22.2%, informal_settlement 5.8% to 11.3%.
+That came from filling more of each parcel (smaller setbacks, wider width and depth shares) and,
+for informal, closer and longer footpaths. Same 5 real chips, re-rendered:
+
+| biome | edge energy | contrast | strong edge |
+|---|---|---|---|
+| dense_urban | 0.40 to 0.32 | 0.19 to 0.10 | 0.72 to 0.57 |
+| informal_settlement | 0.43 to 0.41 | 0.32 to 0.32 | 0.81 to 0.78 |
+
+Tried and dropped: a second street tier (alleys) made roads denser but buildings sparser, because
+alleys take space from the parcels on the streets already there; lifting the cap of 8 settlement
+centres changed nothing. The targets on the card (25% and 20%) were not reached. What limits
+cover now is that parcels exist only in strips along streets, so a street-block generator is the
+next step, not more parameters.
