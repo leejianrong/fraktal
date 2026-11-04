@@ -22,6 +22,7 @@ CAR_COLOURS = np.array(
     [(235, 235, 235), (40, 40, 45), (150, 30, 30), (170, 175, 180), (30, 60, 120)], dtype="float32"
 )
 TREE_RGB = (38.0, 78.0, 34.0)
+PALM_RGB = (52.0, 92.0, 38.0)
 
 
 def _pick(
@@ -107,10 +108,30 @@ def scatter(
     density: float,
     seed: int,
     road: Any = None,
+    extra: tuple[Any, Any, Any] | None = None,
 ) -> tuple[Any, Any, Any]:
-    """Height (m), colour and coverage rasters for the trees and cars of one region."""
+    """Height (m), colour and coverage rasters for the trees and cars of one region.
+
+    ``extra`` is more (shapes, heights, colours), such as planted rows, painted last.
+    """
     shapes, heights, colours = place(landcover, building_mask, gsd_m, density, seed, road)
+    if extra is not None and len(extra[0]):
+        shapes = np.concatenate([shapes, extra[0]])
+        heights = np.concatenate([heights, extra[1]])
+        colours = np.concatenate([colours, extra[2]])
     return paint_objects(landcover.shape, shapes, heights, colours, building_mask)
+
+
+def row_objects(points_px: Any, gsd_m: float, seed: int) -> tuple[Any, Any, Any]:
+    """Palm crowns at pixel positions (N, 2 as row, col): shapes, heights and colours."""
+    n = len(points_px)
+    rng = substream(seed, "objects:rows")
+    radius = rng.uniform(2.3, 3.0, n) / gsd_m
+    zeros = np.zeros(n)
+    shapes = np.column_stack([points_px[:, 0], points_px[:, 1], radius, radius, zeros, zeros])
+    heights = rng.uniform(8.0, 13.0, n)
+    colours = np.array(PALM_RGB, dtype="float32") * rng.uniform(0.8, 1.2, n)[:, None]
+    return shapes, heights, colours
 
 
 def roof_pattern(index: Any, ids: Any, gsd_m: float, amplitude: float) -> Any:

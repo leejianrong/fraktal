@@ -22,7 +22,13 @@ from shapely.strtree import STRtree
 
 from fraktal.ids import substream
 from fraktal.log import emit
-from fraktal.procedural import ProceduralConfig, generate_world, read_buildings, read_roads
+from fraktal.procedural import (
+    ProceduralConfig,
+    generate_world,
+    read_buildings,
+    read_fields,
+    read_roads,
+)
 from fraktal.randomise import Ranges, sample_config
 from fraktal.render import RenderConfig, render_region
 from fraktal.split import read_manifest
@@ -146,6 +152,7 @@ def synthesize(
                     region_dir,
                     scene,
                     roads=read_roads(world_dir),
+                    fields=read_fields(world_dir),
                 )
             else:
                 assert layer is not None
