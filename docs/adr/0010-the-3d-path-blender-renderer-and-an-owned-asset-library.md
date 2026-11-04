@@ -96,3 +96,63 @@ consistent with ADR-0009. Many licence points in the note are marked unverified.
 - How labels are produced in 3D (object-index passes against rasterised footprints) and how the
   existing label-agreement check ports across.
 - Camera and sun trajectories for video, and how they are seeded.
+
+## Stage 0 result (FRK-46, 2026-11-04)
+
+**Verdict: go, with conditions.** Blender Cycles is cheap enough and gives visibly richer
+geometry and light than the 2.5D renderer. It does not yet beat it on the gauge, and it should not
+be expected to until the sensor and ground work below is shared.
+
+What was built (all in `scripts/blender/` and `src/fraktal/blender_export.py`): the tile is
+exported to `scene.json` (building footprints and heights) plus `ground.npy` (ground colours with
+roads painted, from the 2.5D palette). `stage0.py` builds one ground plane, one extruded mesh for
+all buildings, procedural noise materials, a sun and a flat sky fill, and renders nadir with an
+orthographic camera in Cycles on CPU, with no tone curve so 8-bit values compare with the 2.5D
+render. `stage0_compare.py` renders the same tile in both and scores both against real chips;
+`stage0_strip.py` makes the strip. No third-party asset is used, so no licence enters yet.
+
+Same dense_urban tile (the busiest 500 m window, 379 buildings), 0.5 m pixel, 1000 px, run on
+this machine with 6 threads, 32 samples, no denoiser:
+
+| | seconds | note |
+|---|---|---|
+| Blender scene build | 0.4 | pure Python mesh building, no add-on needed |
+| Blender render | 26.0 | about 156 thread-seconds |
+| 2.5D render | 2.2 | with objects, texture and palette |
+
+![real chip, 2.5D render, Blender render](../img/stage0-strip.png)
+
+Gauge distances (0 is a perfect match). The real sets are tiny and both renders show the same
+dense scene, so read the pattern, not the digits:
+
+| against | render | colour | edge energy | noise | contrast | strong edge |
+|---|---|---|---|---|---|---|
+| Khartoum chips | 2.5D | 0.077 | 0.23 | 0.01 | 0.77 | 0.72 |
+| Khartoum chips | Blender | 0.126 | 0.14 | 0.23 | 0.29 | 0.74 |
+| Open Cities (Monrovia) | 2.5D | 0.233 | 0.39 | 0.44 | 0.22 | 0.58 |
+| Open Cities (Monrovia) | Blender | 0.152 | 0.44 | 0.31 | 0.11 | 0.57 |
+
+Reading it:
+- The 2.5D palette is fitted to Khartoum, so it wins colour there. Blender's natural colours win
+  against the Monrovia tropical chips. Neither is the better renderer from colour alone.
+- Blender has the better edge energy and contrast against Khartoum (real walls, proper shadows)
+  and is no better on strong edges or noise, because it has none of the sensor model yet (blur,
+  noise, haze) and its ground is a blocky 0.5 m colour image with no texture or trees.
+- Every gap Blender shows is something the 2.5D renderer already has. That is the argument for
+  FRK-50, the shared sensor-effects kernel: apply the same post-process to both.
+
+Cost. Not measured on a pod: four pod attempts failed (two on my own bugs, two never got past
+container start, and one of those held the pod for its whole 50-minute lifetime; about $0.7 spent
+in total). From the local thread-seconds, 156 thread-seconds on a 16 vCPU CPU pod at $0.48 an hour
+is about 10 s and $0.0013 per 500 m chip. A 1 km tile at 0.5 m is about four times that, $0.005,
+and 64 samples doubles it. Treat these as estimates until a pod run lands. Render cost is not the
+constraint; scene content is.
+
+Conditions on the go:
+1. Share the sensor effects between renderers (FRK-50) before judging Blender on the gauge.
+2. Add ground texture and instanced trees, because the flat colour image is the most visible gap.
+3. Keep the renderer file contract (FRK-48): the Stage 0 scene files are its starting shape.
+4. Take one real pod timing at 1 km before quoting any cost to anyone.
+
+Not tested: Blender GPU, denoising, asset textures, oblique cameras and labels from object
+indices. Those stay with FRK-48, FRK-49 and FRK-51.
