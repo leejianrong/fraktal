@@ -203,6 +203,8 @@ def render(
         "assets": str(assets),
         "buildings": blender.get("buildings"),
         "trees": blender.get("trees"),
+        "vehicles": len(scene["vehicles"]),
+        "poles": len(scene["poles"]),
         "bpy": blender.get("bpy"),
         "seconds": {
             "export": round(t1 - t0, 2),
@@ -218,7 +220,12 @@ def render(
         meta["frames"] = [p.as_dict() for p in poses]
         meta["files"] = {"frames": "frames/frame_NNNN.png", "scene": "scene/"}
     if labels:
-        meta["labels"] = labels3d.meta([b["id"] for b in scene["buildings"]], len(scene["trees"]))
+        meta["labels"] = labels3d.meta(
+            [b["id"] for b in scene["buildings"]],
+            len(scene["trees"]),
+            len(scene["vehicles"]),
+            len(scene["poles"]),
+        )
         meta["files"]["labels"] = "labels/frame_NNNN.png" if poses else "labels.png, labels.tif"
     (out_dir / "render.json").write_text(json.dumps(meta, indent=2) + "\n")
     emit("render3d_done", out=str(out_dir), seconds=round(time.time() - t0, 2))

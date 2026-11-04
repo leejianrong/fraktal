@@ -11,6 +11,7 @@ the renderer file contract in miniature: the scene is data, not objects in memor
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -21,13 +22,15 @@ from fraktal import building_grammar, trees3d
 from fraktal import heights as heights_mod
 from fraktal.coast import TIDAL_FLAT
 from fraktal.landcover_gen import WATER
-from fraktal.objects import place
+from fraktal.objects import CAR_COLOURS, place
 from fraktal.procedural import read_buildings, read_fields, read_roads
 from fraktal.render import (
     DEFAULT_HEIGHT_M,
     FISHPOND_WATER,
     LANDCOVER_RGB,
     PADDY_CODES,
+    ROAD_ARTERIAL,
+    ROAD_LOCAL,
     TEXTURE_CLASS_AMP,
     RenderConfig,
     _building_rasters,
@@ -68,6 +71,60 @@ def _tile_heights(world_dir: Path, buildings: Any, profile: str, seed: int) -> d
     return dict(zip(ids, (float(h) for h in base), strict=True))
 
 
+POLE_SPACING_M = 40.0
+POLE_HEIGHT_M = 8.0
+POLE_MIN_ROAD_WIDTH_M = 6.0
+CAR_LENGTH_M, CAR_WIDTH_M = 4.5, 1.9
+
+
+def _vehicles(
+    surface: Any, road: Any, mask: Any, gsd_m: float, side: int, density: float, seed: int
+) -> list[list[float]]:
+    """Cars on the roads: x, y, heading (radians, anticlockwise from east), body colour index."""
+    if road is None or density <= 0:
+        return []
+    on_road = np.where(np.isin(road, (ROAD_LOCAL, ROAD_ARTERIAL)), road, 0)
+    shapes, _, colours = place(surface, mask, gsd_m, density, seed, on_road)
+    out: list[list[float]] = []
+    palette = [tuple(c) for c in CAR_COLOURS.tolist()]
+    for (row, col, _a, _b, theta, kind), colour in zip(shapes, colours, strict=True):
+        if kind != 1:  # trees come first and are ellipses
+            continue
+        out.append(
+            [
+                round((col + 0.5) * gsd_m, 2),
+                round((side - row - 0.5) * gsd_m, 2),
+                round(-float(theta), 4),  # image rows run south, so the angle flips
+                float(palette.index(tuple(colour))),
+            ]
+        )
+    return out
+
+
+def _poles(
+    roads: Any, mask: Any, west: float, south: float, gsd_m: float, side: int
+) -> list[list[float]]:
+    """Roadside poles every 40 m on streets wide enough for traffic, alternating sides."""
+    out: list[list[float]] = []
+    size = side * gsd_m
+    for _, r in roads.sort_values("id").iterrows():
+        if r.width_m < POLE_MIN_ROAD_WIDTH_M or r.geometry.length < 2 * POLE_SPACING_M / 2:
+            continue
+        for k, d in enumerate(np.arange(POLE_SPACING_M / 2, r.geometry.length, POLE_SPACING_M)):
+            p = r.geometry.interpolate(float(d))
+            a, b = r.geometry.interpolate(max(d - 1.0, 0.0)), r.geometry.interpolate(d + 1.0)
+            tx, ty = b.x - a.x, b.y - a.y
+            norm = math.hypot(tx, ty)
+            if norm == 0:
+                continue
+            offset = (r.width_m / 2 + 1.2) * (1 if k % 2 == 0 else -1)
+            x, y = p.x - ty / norm * offset - west, p.y + tx / norm * offset - south
+            col, row = int(x / gsd_m), int(side - 1 - y / gsd_m)
+            if 0 <= x < size and 0 <= y < size and mask[row, col] == 0:
+                out.append([round(x, 2), round(y, 2), POLE_HEIGHT_M])
+    return out
+
+
 def export_scene(
     world_dir: Path,
     out_dir: Path,
@@ -78,6 +135,7 @@ def export_scene(
     seed: int = 0,
     texture: float = 0.7,
     tree_density: float = 1.0,
+    vehicle_density: float = 1.0,
     height_profile: str = "auto",
 ) -> dict[str, Any]:
     """Write the tile around ``center_lonlat`` and return the scene description.
@@ -145,6 +203,8 @@ def export_scene(
             x, y = round((col + 0.5) * gsd_m, 2), round((side - row - 0.5) * gsd_m, 2)
             if 0 <= x <= side * gsd_m and 0 <= y <= side * gsd_m:
                 trees.append([x, y, round(radius * gsd_m, 2), round(float(height), 2), "palm"])
+    vehicles = _vehicles(surface, road, mask, gsd_m, side, vehicle_density, seed)
+    poles = _poles(roads, mask, west, south, gsd_m, side)
     buildings = []
     for row in local.itertuples():
         if row.geometry.is_empty or not row.geometry.intersects(
@@ -200,6 +260,8 @@ def export_scene(
         "buildings": buildings,
         "materials": mesh["materials"],
         "trees": trees,
+        "vehicles": vehicles,
+        "poles": poles,
     }
     (out_dir / "scene.json").write_text(json.dumps(scene) + "\n")
     return scene
