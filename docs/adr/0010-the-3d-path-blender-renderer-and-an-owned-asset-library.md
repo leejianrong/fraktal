@@ -370,3 +370,27 @@ replaced if we find a height source. Visible in the plot: Khartoum's mean falls 
 informal rises a little (3.6 to 4.4 m) because one storey is 3 m and the world's informal heights go
 down to 2.5 m; `dense_urban` still has heights to 45 m, which is what a tropical core looks like but
 is a choice, not a measurement. The 2.5D renderer, the default world and its pinned hash are unchanged.
+
+### After FRK-63: shed and courtyard typologies
+
+`building_grammar` now has three typologies, chosen per building by `typology_for` and recorded in
+`scene.json` (`typology` on each building):
+
+- **shed**: any building with a recorded tin or tile roof. A gable roof along the footprint's long
+  axis, split into two planar slopes at the ridge (rise 35% of the half-width, 0.8 to 2.2 m), with
+  walls that rise to the ridge at the gable ends. This is what `informal_settlement` buildings get.
+- **courtyard**: a rectangle of at least 140 m² and 11 m on its short side, no taller than 7.5 m, drawn
+  with probability 0.35 from its own sub-stream (`typology:<id>`). A ring of rooms round an open yard
+  (3 to 5.5 m deep), with outer and inner walls, a flat roof ring, and windows facing both ways.
+- **block**: everything else, as before. The block's random draws are unchanged, so a block looks the
+  same as it did.
+
+![informal sheds on the left, low-rise Khartoum with two courtyard houses on the right](../img/typologies.png)
+
+What it looks like: the informal tile now reads as a settlement of pitched tin and tile roofs instead
+of towers, and Khartoum (with the FRK-62 storey mix) is low flat-roofed blocks with some yard houses.
+Known weaknesses: the tin roof reflects so much sky that it looks pale blue from a high angle; sheds
+have no eave overhang or ridge cap and are plain rectangles in plan; a courtyard's yard is ground in
+the 3D labels but building in the world's footprint, so on a courtyard house the 3D building label is
+smaller than the 2.5D one (the 3D label is the true visible surface); the share of courtyards (35% of
+eligible rectangles) is a guess. Not done: L-shaped houses, verandas, multi-wing compounds.
