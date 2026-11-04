@@ -22,7 +22,7 @@ from pathlib import Path
 import numpy as np
 import rasterio
 
-from fraktal import ablation, biomes, chips, palette, realism
+from fraktal import ablation, biomes, chips, palette, randomise, realism
 from fraktal.blender_export import export_scene
 from fraktal.kernels.sensor import sensor_chain
 from fraktal.procedural import generate_world, read_buildings, read_fields, read_roads
@@ -86,6 +86,8 @@ def main() -> int:
     p.add_argument("--palette", type=Path)
     p.add_argument("--real", type=Path, action="append", default=[])
     p.add_argument("--biome", default="dense_urban")
+    p.add_argument("--variant", default="v8_objects", help="2.5D variant; v10 draws per scene")
+    p.add_argument("--scenes", type=int, default=1, help="scenes drawn for a randomised variant")
     a = p.parse_args()
     work: Path = a.work
     work.mkdir(parents=True, exist_ok=True)
@@ -132,33 +134,40 @@ def main() -> int:
         seed=0,
         palette=palette.read(a.palette) if a.palette else None,
     )
-    config, _ = ablation.variant_config("v8_objects", base)
-    t = time.time()
-    render_region(
-        world,
-        read_buildings(world),
-        centre,
-        work / "r25",
-        config,
-        roads=read_roads(world),
-        fields=read_fields(world),
-    )
-    result["render25d_s"] = round(time.time() - t, 2)
-    with rasterio.open(work / "r25" / "tiles" / "r00_c00.tif") as src:
-        flat = src.read()[:3]
+    config, drawn = ablation.variant_config(a.variant, base)
+    ranges = ablation.variant_ranges(a.variant)
     blender = read_png_rgb(work / "blender.png")
-
-    # The same sensor kernel the 2.5D renderer uses (FRK-50), with the same settings.
-    lens = sensor_chain(
-        blender,
-        haze=(config.haze, config.sun_elevation_deg),
-        tone=config.tone,
-        contrast=config.contrast,
-        psf_sigma_px=config.psf_sigma_px,
-    )
-    lens = add_noise(lens, config.noise_sigma, config.seed, "blender")
-    np.save(work / "blender_sensor.npy", lens)
-    sets = {"2.5d": cut(flat), "blender": cut(blender), "blender+sensor": cut(lens)}
+    sets: dict[str, list[np.ndarray]] = {"2.5d": [], "blender": cut(blender), "blender+sensor": []}
+    result["variant"] = a.variant
+    result["scene_configs"] = []
+    t = time.time()
+    for k in range(a.scenes if drawn else 1):
+        scene_config = randomise.sample_config(config, ranges, 0, k) if drawn else config
+        out = work / f"r25_{k}"
+        render_region(
+            world, read_buildings(world), centre, out, scene_config,
+            roads=read_roads(world), fields=read_fields(world),
+        )  # fmt: skip
+        with rasterio.open(out / "tiles" / "r00_c00.tif") as src:
+            flat = src.read()[:3]
+        # The same sensor kernel the 2.5D renderer uses (FRK-50), with this scene's settings.
+        lens = sensor_chain(
+            blender,
+            haze=(scene_config.haze, scene_config.sun_elevation_deg),
+            tone=scene_config.tone,
+            contrast=scene_config.contrast,
+            psf_sigma_px=scene_config.psf_sigma_px,
+        )
+        lens = add_noise(lens, scene_config.noise_sigma, scene_config.seed, "blender")
+        sets["2.5d"] += cut(flat)
+        sets["blender+sensor"] += cut(lens)
+        result["scene_configs"].append(
+            {"haze": scene_config.haze, "tone": scene_config.tone, "gain": scene_config.contrast}
+        )
+        if k == 0:
+            np.save(work / "flat.npy", flat)
+            np.save(work / "blender_sensor.npy", lens)
+    result["render25d_s"] = round(time.time() - t, 2)
     result["gauge"] = {}
     for real_dir in a.real:
         meta = json.loads((real_dir / "chips.json").read_text())
@@ -169,7 +178,6 @@ def main() -> int:
                 real_chips, [s for s in synth]
             )["distances"]
     (work / "stage0.json").write_text(json.dumps(result, indent=2) + "\n")
-    np.save(work / "flat.npy", flat)
     np.save(work / "blender.npy", blender)
     print(json.dumps(result, indent=2))
     return 0
