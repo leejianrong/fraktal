@@ -327,3 +327,26 @@ dark squares with no frames or reveal depth; walls have no balconies, stains or 
 variation; the typology does not fit informal settlement, courtyard houses or tin-roofed sheds, which
 still get this block with a tin or tile roof on top. Next typologies and a height model fit would be
 separate cards.
+
+### After FRK-61: labels from the 3D renderer
+
+`fraktal render3d` now writes labels next to every render (skip with `--no-labels`): `labels.png` and a
+georeferenced `labels.tif` for a nadir tile, `labels/frame_NNNN.png` for a sequence. Red is the class
+(0 none, 1 ground, 2 building, 3 tree) and green and blue are a 16-bit instance number, the index into
+`render.json["labels"]["buildings"]` (or the tree list) plus one. `fraktal.labels3d.decode` returns the
+two arrays. The export gained `mesh_face_building.npy` (which building each mesh face belongs to; it is
+in `scene_sha256`).
+
+It is a second Cycles pass over the same scene and camera with an unlit emission material that shows
+each face's colour: one sample, a 0.01 px filter, Raw view and **dither off** (Blender's default dither
+added plus or minus one to the ids until I turned it off). Workbench would be cheaper but crashes
+without a GL context, which a pod does not have. Because it is a render, labels are right for any
+camera, occlusion included, and a wall hidden behind another building does not leak.
+
+![oblique frames next to their labels](../img/labels-3d.png)
+
+Checked: on a 120 m nadir tile the building labels match the rasterised footprints with IoU 1.0 (the
+integration test asks for 0.9), and the label image holds exactly one colour per building, per tree and
+for ground. Not covered: a building cut by the tile edge counts as one instance; labels carry no
+roads, water or shadow classes yet (roads and water are ground until FRK-69); a label pass adds about
+one extra render of the frame at one sample.

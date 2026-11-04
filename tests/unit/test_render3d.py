@@ -21,6 +21,7 @@ FAKE_BLENDER = textwrap.dedent(
     px = scene["px"]
     if "--px" in sys.argv:
         px = int(sys.argv[sys.argv.index("--px") + 1])
+    labels = sys.argv[sys.argv.index("--labels") + 1] if "--labels" in sys.argv else None
     cam = sys.argv[1] + "/camera.json"
     if os.path.exists(cam):
         frames = json.load(open(cam))["frames"]
@@ -30,6 +31,12 @@ FAKE_BLENDER = textwrap.dedent(
             name = "%s/frame_%04d.png" % (sys.argv[2], f["index"])
             with rasterio.open(name, "w", **kw) as d:
                 d.write(np.full((3, px, px), 60, dtype="uint8"))
+        if labels:
+            os.makedirs(labels, exist_ok=True)
+            for f in frames:
+                kw = dict(driver="PNG", count=3, dtype="uint8", height=px, width=px)
+                with rasterio.open("%s/frame_%04d.png" % (labels, f["index"]), "w", **kw) as d:
+                    d.write(np.full((3, px, px), 1, dtype="uint8"))
         print("STAGE frame done")
         print(json.dumps({"build_s": 0.1, "render_s": 0.2, "px": px, "frames": len(frames),
                           "buildings": 1, "trees": 1, "bpy": "fake"}))
@@ -40,6 +47,9 @@ FAKE_BLENDER = textwrap.dedent(
     kw = dict(driver="PNG", count=3, dtype="uint8", height=px, width=px)
     with rasterio.open(sys.argv[2], "w", **kw) as d:
         d.write(rgb)
+    if labels:
+        with rasterio.open(labels, "w", **kw) as d:
+            d.write(np.full((3, px, px), 1, dtype="uint8"))
     print(json.dumps({"build_s": 0.1, "render_s": 0.2, "px": px, "samples": 4,
                       "buildings": nb, "trees": nt, "bpy": "fake"}))
     """
@@ -67,6 +77,8 @@ def test_the_contract_files_are_written(world: Path, tmp_path: Path) -> None:
     assert json.loads((out / "render.json").read_text()) == meta
     assert meta["px"] == 100 and meta["seed"] == 2 and meta["bpy"] == "fake"
     assert meta["scene_sha256"] == render3d.scene_sha256(out / "scene")
+    assert (out / "labels.png").is_file() and (out / "labels.tif").is_file()
+    assert meta["labels"]["classes"]["building"] == 2 and len(meta["labels"]["buildings"]) > 0
     with rasterio.open(out / "tile.tif") as tif:
         assert tif.count == 3 and tif.width == 100 and str(tif.crs).startswith("EPSG:")
         assert tif.transform.a == 1.0 and tif.transform.e == -1.0
@@ -131,3 +143,9 @@ def test_a_camera_sequence_writes_frames_and_poses(world: Path, tmp_path: Path) 
         world, tmp_path / "n", CENTER, 300.0, 1.0, seed=4, script=fake(tmp_path)
     )
     assert nadir["scene_sha256"] != meta["scene_sha256"]  # the camera path is part of the scene
+
+
+def test_labels_can_be_skipped(world: Path, tmp_path: Path) -> None:
+    out = tmp_path / "nolabels"
+    meta = render3d.render(world, out, CENTER, 60.0, 1.0, script=fake(tmp_path), labels=False)
+    assert "labels" not in meta and not (out / "labels.png").exists()
