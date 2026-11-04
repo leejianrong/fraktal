@@ -23,6 +23,7 @@ from fraktal import (
     benchmark,
     biomes,
     chips,
+    evalset,
     ingest,
     inspection,
     palette,
@@ -166,6 +167,42 @@ def _render(args: argparse.Namespace) -> Result:
     n = len(manifest["tiles"])
     data = {"out": str(out), "tiles": n, "crs": manifest["crs"]}
     return Result(data, f"rendered {n} tiles to {out}")
+
+
+def _eval_set(args: argparse.Namespace) -> Result:
+    out = args.out or args.data_dir / "eval" / "open-cities"
+    try:
+        scenes = [evalset.parse_scene(s) for s in args.scenes]
+        path = evalset.build_eval_set(
+            scenes,
+            out,
+            base=args.base,
+            gsd_m=args.gsd_m,
+            chip_px=args.chip_px,
+            max_chips_per_scene=args.max_chips,
+            seed=args.seed,
+        )
+    except (OSError, ValueError) as err:
+        raise CliError(ExitCode.FAILURE, "eval_set_failed", str(err)) from err
+    meta = json.loads((path / "chips.json").read_text())
+    data = {"chips": str(path), "tiles": len(meta["tiles"]), "scenes": meta["scenes"]}
+    return Result(data, f"wrote {len(meta['tiles'])} evaluation chips to {path} (eval only)")
+
+
+def _eval_set_args(parser: argparse.ArgumentParser) -> None:
+    _data_dir_arg(parser)
+    parser.add_argument(
+        "scenes",
+        nargs="+",
+        metavar="CITY/ID",
+        help="Open Cities train_tier_1 scenes, e.g. dar/a017f9",
+    )
+    parser.add_argument("--base", default=evalset.BASE_URL, help="scene root (URL or directory)")
+    parser.add_argument("--gsd-m", type=float, default=0.5, help="chip pixel size in metres")
+    parser.add_argument("--chip-px", type=int, default=500)
+    parser.add_argument("--max-chips", type=int, default=20, help="chips per scene")
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--out", type=Path, help="default <data-dir>/eval/open-cities")
 
 
 def _benchmark(args: argparse.Namespace) -> Result:
@@ -612,6 +649,7 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "split": _split_args,
     "render": _render_args,
     "benchmark": _benchmark_args,
+    "eval-set": _eval_set_args,
     "generate": _generate_cli_args,
     "synth": _synth_args,
     "compare": _compare_args,
@@ -629,6 +667,7 @@ COMMANDS: dict[str, tuple[str, Handler]] = {
     "synth": ("Render synthetic pretraining chips from the world", _synth),
     "render": ("Render a world to imagery and labels", _render),
     "benchmark": ("Run the downstream benchmark", _benchmark),
+    "eval-set": ("Build real evaluation chips from Open Cities AI (eval only)", _eval_set),
     "ablate": ("Run the realism ablation benchmark", _ablate),
     "report": ("Build the realism report PDF from an ablation", _report),
     "palette": ("Fit render colours from the real train chips", _palette),
