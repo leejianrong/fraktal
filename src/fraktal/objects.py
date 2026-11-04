@@ -16,7 +16,7 @@ from fraktal.kernels.objects import paint_objects
 
 TREES_PER_HA = 25.0
 CARS_PER_HA = 6.0
-TREE_CLASSES = (10, 20, 30, 40, 50, 60)  # trees stand on vegetation and bare or built-up ground
+TREE_CLASSES = (10, 20, 30, 40, 50, 60, 95)  # trees stand on vegetation and bare or built-up ground
 CAR_CLASSES = (50, 60)  # vehicles stand on built-up and bare ground
 CAR_COLOURS = np.array(
     [(235, 235, 235), (40, 40, 45), (150, 30, 30), (170, 175, 180), (30, 60, 120)], dtype="float32"

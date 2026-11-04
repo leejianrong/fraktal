@@ -22,7 +22,7 @@ from rasterio.features import rasterize
 from rasterio.transform import Affine, from_origin
 from rasterio.warp import reproject
 
-from fraktal.fields import OIL_PALM, PADDY, TERRACE, row_points
+from fraktal.fields import FISHPOND, OIL_PALM, PADDY, TERRACE, row_points
 from fraktal.ids import substream
 from fraktal.kernels.filters import gaussian_blur
 from fraktal.kernels.noise import lattice_shape, value_noise
@@ -40,6 +40,7 @@ FIELD_PALM = 203  # oil palm ground
 ROAD_TRACK = 204  # plantation access track
 PADDY_CODES = {"flooded": 205, "planted": 206, "harvested": 207}
 PADDY_BUND = 208
+FISHPOND_WATER = 212
 TERRACE_A, TERRACE_B, TERRACE_RISER = 209, 210, 211  # alternate steps, and the edge between
 BUND_WIDTH_M = 0.9
 AMBIENT = 0.35  # share of direct light that reaches a shadowed pixel
@@ -72,6 +73,7 @@ LANDCOVER_RGB: dict[int, tuple[float, float, float]] = {
     PADDY_CODES["planted"]: (112.0, 158.0, 62.0),  # bright young rice
     PADDY_CODES["harvested"]: (190.0, 170.0, 112.0),  # stubble and dry mud
     PADDY_BUND: (146.0, 132.0, 98.0),  # earth bund between plots
+    FISHPOND_WATER: (72.0, 96.0, 84.0),  # murky green pond water
     TERRACE_A: (118.0, 154.0, 66.0),
     TERRACE_B: (92.0, 130.0, 58.0),
     TERRACE_RISER: (78.0, 92.0, 48.0),  # the shaded edge of a step
@@ -228,12 +230,14 @@ def _field_raster(fields: gpd.GeoDataFrame, transform: Affine, side: int, dem: A
             shapes.append((f.geometry, FIELD_PALM))
         elif f.field_type == PADDY:
             shapes.append((f.geometry, PADDY_CODES.get(str(f.state), PADDY_CODES["planted"])))
+        elif f.field_type == FISHPOND:
+            shapes.append((f.geometry, FISHPOND_WATER))
     if shapes:
         out = rasterize(shapes, (side, side), transform=transform, dtype="uint8")
     bunds = [
         (f.geometry.exterior.buffer(BUND_WIDTH_M / 2), PADDY_BUND)
         for _, f in ordered.iterrows()
-        if f.field_type == PADDY
+        if f.field_type in (PADDY, FISHPOND)
     ]
     if bunds:
         edge = rasterize(bunds, (side, side), transform=transform, dtype="uint8")

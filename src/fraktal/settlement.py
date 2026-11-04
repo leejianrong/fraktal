@@ -18,8 +18,8 @@ from affine import Affine
 from shapely.geometry import Polygon
 from shapely.strtree import STRtree
 
+from fraktal.coast import UNBUILDABLE
 from fraktal.ids import substream
-from fraktal.landcover_gen import WATER
 from fraktal.world import make_layer
 
 PARCEL_PROVENANCE = "procedural:parcels"
@@ -57,7 +57,7 @@ def _cell_is_water(landcover: Any, inverse: Affine, x: float, y: float) -> bool:
     r, c = int(math.floor(row)), int(math.floor(col))
     if not (0 <= r < landcover.shape[0] and 0 <= c < landcover.shape[1]):
         return True  # outside the grid counts as unusable
-    return bool(landcover[r, c] == WATER)
+    return bool(landcover[r, c] in UNBUILDABLE)
 
 
 def _frontage_parcels(

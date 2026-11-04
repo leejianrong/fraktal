@@ -18,9 +18,10 @@ from affine import Affine
 from shapely.geometry import LineString, Point
 from shapely.ops import unary_union
 
+from fraktal.coast import UNBUILDABLE
 from fraktal.ids import substream
 from fraktal.kernels.pathing import least_cost_path
-from fraktal.landcover_gen import WATER, slope_degrees
+from fraktal.landcover_gen import slope_degrees
 from fraktal.world import make_layer
 
 PROVENANCE = "procedural:roads"
@@ -170,6 +171,19 @@ def _join_hooks(features: list[dict[str, Any]], hooks: list[Point]) -> None:
             break
 
 
+def _unique(features: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop a road that sits on another's centroid: two links can share one stretch of route."""
+    seen: set[tuple[float, float]] = set()
+    out = []
+    for feature in features:
+        c = feature["geometry"].centroid
+        key = (round(c.x, 3), round(c.y, 3))
+        if key not in seen:
+            seen.add(key)
+            out.append(feature)
+    return out
+
+
 def build_roads(
     dem: Any,
     landcover: Any,
@@ -186,7 +200,7 @@ def build_roads(
     if dem.shape != landcover.shape:
         raise RoadError("dem and landcover must have the same shape")
     slope = slope_degrees(dem, gsd_m)
-    water = landcover == WATER
+    water = np.isin(landcover, UNBUILDABLE)
     arterial_cost = _cost(slope, water, True, config)
     local_cost = _cost(slope, water, False, config)
     picked = centres or _choose_centres(slope, water, gsd_m, seed, config)
@@ -274,4 +288,4 @@ def build_roads(
                         hooks.append(hook)
             i += max(1, int(spacing * rng.uniform(0.7, 1.3)))
     _join_hooks(features, hooks)
-    return make_layer("road", world, features, crs)
+    return make_layer("road", world, _unique(features), crs)

@@ -13,6 +13,7 @@ import dataclasses
 from dataclasses import dataclass
 from typing import Any
 
+from fraktal.coast import CoastConfig
 from fraktal.fields import FieldConfig
 from fraktal.procedural import DEFAULT_BIOME, ProceduralConfig
 from fraktal.roads import RoadConfig
@@ -122,6 +123,19 @@ BIOMES: dict[str, Biome] = {
             roads=RoadConfig(centres_per_km2=1.0, local_probability=0.4),
             buildings=BuildingConfig(built_probability_core=0.8, built_probability_edge=0.3),
             fields=FieldConfig(paddy_zones=5, paddy_zone_radius_m=550.0, terrace_count=5),
+        ),
+    ),
+    "mangrove_coast": Biome(
+        "mangrove_coast",
+        "Tidal coast: sea, mud flats, a mangrove belt cut by creeks, fish ponds behind it.",
+        ProceduralConfig(
+            biome="mangrove_coast",
+            relief_m=6.0,
+            aridity=0.1,
+            roads=RoadConfig(centres_per_km2=1.0, local_probability=0.5),
+            buildings=BuildingConfig(built_probability_core=0.8, built_probability_edge=0.35),
+            fields=FieldConfig(pond_zones=3),
+            coast=CoastConfig(sea_share=0.35),
         ),
     ),
 }
