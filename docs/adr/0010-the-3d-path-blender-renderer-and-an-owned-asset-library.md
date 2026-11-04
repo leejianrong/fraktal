@@ -394,3 +394,20 @@ have no eave overhang or ridge cap and are plain rectangles in plan; a courtyard
 the 3D labels but building in the world's footprint, so on a courtyard house the 3D building label is
 smaller than the 2.5D one (the 3D label is the true visible surface); the share of courtyards (35% of
 eligible rectangles) is a guess. Not done: L-shaped houses, verandas, multi-wing compounds.
+
+### After FRK-66: tree species
+
+Trees in the scene now carry a species, `broadleaf`, `palm` or `shrub` (a fifth value in each
+`scene.json` tree), chosen by `fraktal.trees3d.species_for`: a tree under 3.5 m is a shrub, the rest
+are drawn from a per-biome mix with a sub-stream of the tree's own position, so a tree keeps its
+species when the tile window changes. Broadleaf is the old round crown, now on a trunk; a palm is a
+thin trunk with eight drooping fronds; a shrub is a wide low mound. The tree labels follow the
+faces (a tree is no longer a fixed number of faces), and a render of 80 trees shows 80 instances.
+
+![dense_urban and informal_settlement, trees by species](../img/tree-species.png)
+
+The mixes (khartoum 85% broadleaf, dense_urban 55/35/10 broadleaf, palm, shrub, and so on) are
+assumptions, not counts. Palms are narrow and read as small from far away; every broadleaf crown is
+the same lumpy sphere, only larger or smaller; trees are still placed by the 2.5D rules (land cover
+and density), so **plantation palms in rows are not here**: they need the field geometry, which is
+FRK-69.

@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 from rasterio.enums import Resampling
 
-from fraktal import building_grammar
+from fraktal import building_grammar, trees3d
 from fraktal import heights as heights_mod
 from fraktal.objects import place
 from fraktal.procedural import read_buildings, read_roads
@@ -101,17 +101,20 @@ def export_scene(
             amp[code] = value
         modulation = texture * texture_field(seed, (side, side), gsd_m) * amp[surface]
         ground = np.clip(ground * (1.0 + modulation)[..., None], 0.0, 1.0).astype("float32")
+    biome = json.loads((world_dir / "world.json").read_text()).get("biome", "")
     trees = []
     if tree_density > 0:
         shapes, heights, _ = place(surface, mask, gsd_m, tree_density, seed)
         for (row, col, radius, *_rest, is_car), height in zip(shapes, heights, strict=True):
             if is_car == 0:  # trees come first and have no car flag
+                tx, ty = round((col + 0.5) * gsd_m, 2), round((side - row - 0.5) * gsd_m, 2)
                 trees.append(
                     [
-                        round((col + 0.5) * gsd_m, 2),
-                        round((side - row - 0.5) * gsd_m, 2),
+                        tx,
+                        ty,
                         round(radius * gsd_m, 2),
                         round(float(height), 2),
+                        trees3d.species_for(biome, tx, ty, float(height), seed),
                     ]
                 )
     buildings = []

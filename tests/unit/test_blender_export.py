@@ -33,8 +33,9 @@ def test_export_has_textured_ground_and_trees_in_tile(tmp_path: Path) -> None:
     generate_world(world, CENTER, 3, biomes.resolve("dense_urban"))
     scene = export_scene(world, tmp_path / "t", CENTER, 200.0, 1.0)
     assert scene["trees"], "dense_urban tiles still have some trees"
-    for x, y, radius, height in scene["trees"]:
+    for x, y, radius, height, species in scene["trees"]:
         assert 0 <= x <= 200 and 0 <= y <= 200 and 0 < radius < 6 and 3 < height < 10
+        assert species in {"broadleaf", "palm", "shrub"} and (height >= 3.5 or species == "shrub")
     flat = export_scene(world, tmp_path / "f", CENTER, 200.0, 1.0, texture=0.0, tree_density=0.0)
     assert flat["trees"] == []
     textured = np.load(tmp_path / "t" / "ground.npy")

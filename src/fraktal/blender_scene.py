@@ -168,9 +168,8 @@ def paint_labels(scene: dict, scene_dir: Path) -> None:
         paint(obj, np.full(len(owner), CLASS_BUILDING), owner + 1)
     if "trees" in bpy.data.objects:
         obj = bpy.data.objects["trees"]
-        n = len(obj.data.polygons)
-        per_tree = n // max(1, len(scene["trees"]))
-        paint(obj, np.full(n, CLASS_TREE), np.arange(n) // per_tree + 1)
+        owner = np.asarray(TREE_OWNER, dtype="int64")
+        paint(obj, np.full(len(owner), CLASS_TREE), owner + 1)
 
 
 def use_label_look(sc) -> None:
@@ -213,26 +212,79 @@ def use_label_look(sc) -> None:
 FOLIAGE = [(0.15, 0.31, 0.13), (0.19, 0.36, 0.14), (0.12, 0.26, 0.12)]
 
 
-def build_trees(scene: dict) -> int:
-    """One mesh of crown ellipsoids (a low icosphere each), tall ones on a short hidden trunk."""
-    trees = scene.get("trees", [])
-    if not trees:
-        return 0
+TREE_OWNER: list[int] = []  # the tree (index into scene["trees"]) each tree-mesh face belongs to
+
+
+def _icosphere():
     template = bmesh.new()
     bmesh.ops.create_icosphere(template, subdivisions=2, radius=1.0)
     verts = [v.co.copy() for v in template.verts]
     index = {v: i for i, v in enumerate(template.verts)}
     faces = [[index[v] for v in f.verts] for f in template.faces]
     template.free()
+    return verts, faces
+
+
+def _prism(bm, owner: int, x: float, y: float, radius: float, z0: float, z1: float, mat: int):
+    ring = [
+        (x + radius * math.cos(t), y + radius * math.sin(t))
+        for t in np.linspace(0, 2 * math.pi, 6, endpoint=False)
+    ]
+    for i in range(6):
+        a, b = ring[i], ring[(i + 1) % 6]
+        face = bm.faces.new([bm.verts.new((*a, z0)), bm.verts.new((*b, z0)),
+                             bm.verts.new((*b, z1)), bm.verts.new((*a, z1))])  # fmt: skip
+        face.material_index = mat
+        TREE_OWNER.append(owner)
+
+
+def build_trees(scene: dict) -> int:
+    """One mesh of trees: round broadleaf crowns on a trunk, palms (trunk and fronds), shrubs."""
+    trees = scene.get("trees", [])
+    TREE_OWNER.clear()
+    if not trees:
+        return 0
+    verts, faces = _icosphere()
     mats = [material(f"leaf{i}", c, 0.8, 20 + i) for i, c in enumerate(FOLIAGE)]
+    mats.append(material("bark", (0.24, 0.17, 0.11), 0.9, 40))
+    mats.append(material("frond", (0.2, 0.4, 0.14), 0.7, 41))
+    bark, frond = len(FOLIAGE), len(FOLIAGE) + 1
     bm = bmesh.new()
-    for k, (x, y, radius, height) in enumerate(trees):
-        half = max(radius * 0.9, height * 0.3)  # crown half-height; the crown sits above 0.4 h
-        zc = max(half, height - half)
-        ring = [bm.verts.new((x + v.x * radius, y + v.y * radius, zc + v.z * half)) for v in verts]
+
+    def blob(k, x, y, zc, rx, rz, mat):
+        ring = [bm.verts.new((x + v.x * rx, y + v.y * rx, zc + v.z * rz)) for v in verts]
         for f in faces:
-            face = bm.faces.new([ring[i] for i in f])
-            face.material_index = k % len(mats)
+            bm.faces.new([ring[i] for i in f]).material_index = mat
+            TREE_OWNER.append(k)
+
+    for k, tree in enumerate(trees):
+        x, y, radius, height = tree[:4]
+        species = tree[4] if len(tree) > 4 else "broadleaf"
+        if species == "palm":
+            top = height * 0.9
+            _prism(bm, k, x, y, max(0.14, radius * 0.06), 0.0, top, bark)
+            length = max(radius, 1.8)
+            for j in range(8):
+                a = 2 * math.pi * (j + 0.3 * (k % 3)) / 8
+                dx, dy = math.cos(a), math.sin(a)
+                px, py = -dy * length * 0.22, dx * length * 0.22
+                pts = [
+                    (x, y, top),
+                    (x + dx * length * 0.5 + px, y + dy * length * 0.5 + py, top + 0.3),
+                    (x + dx * length, y + dy * length, top - 0.5),
+                    (x + dx * length * 0.5 - px, y + dy * length * 0.5 - py, top + 0.3),
+                ]  # fmt: skip
+                bm.faces.new([bm.verts.new(p) for p in pts]).material_index = frond
+                TREE_OWNER.append(k)
+        elif species == "shrub":
+            rz = max(0.4, min(height, radius * 1.4) * 0.5)
+            blob(k, x, y, rz * 0.8, radius * 1.15, rz, k % len(FOLIAGE))
+        else:
+            half = max(radius * 0.9, height * 0.3)  # crown half-height; the crown sits above 0.4 h
+            zc = max(half, height - half)
+            if zc - half > 0.4:
+                _prism(bm, k, x, y, max(0.12, radius * 0.07), 0.0, zc - half * 0.5, bark)
+            blob(k, x, y, zc, radius, half, k % len(FOLIAGE))
     bm.normal_update()
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     mesh = bpy.data.meshes.new("trees")
