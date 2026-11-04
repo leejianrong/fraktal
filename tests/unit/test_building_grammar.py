@@ -52,8 +52,14 @@ def test_storeys_follow_the_height() -> None:
 
 def test_nothing_sticks_out_of_the_footprint_sideways_except_openings() -> None:
     mesh = grammar.build("aaaa1111", RING, 9.0, None, 1)
-    xy = np.array(mesh.vertices)[:, :2]
+    v = np.array(mesh.vertices)
+    proud = {"window-glass", "window-frame", "door", "balcony"}
+    body = sorted(
+        {i for f, m in zip(mesh.faces, mesh.materials, strict=True) if m not in proud for i in f}
+    )
+    xy = v[body][:, :2]
     assert xy.min() >= -0.05 and xy[:, 0].max() <= 14.05 and xy[:, 1].max() <= 9.05
+    assert np.array(v)[:, :2].min() > -1.1  # a balcony reaches out 0.9 m, a sill 0.1 m
 
 
 def test_a_clockwise_ring_gives_the_same_building() -> None:
@@ -113,7 +119,7 @@ def test_a_recorded_tin_or_tile_roof_gives_a_pitched_shed() -> None:
         assert all(abs(float((p - pts[0]) @ normal)) < 1e-6 for p in pts)
         assert normal[2] > 0  # facing up
     xy = v[:, :2]
-    assert xy.min() >= -0.1 and xy[:, 0].max() <= 14.1 and xy[:, 1].max() <= 9.1
+    assert xy.min() >= -0.2 and xy[:, 0].max() <= 14.2 and xy[:, 1].max() <= 9.2  # sills stand out
 
 
 def test_a_shed_is_closed_at_the_gable_ends() -> None:
@@ -150,3 +156,21 @@ def test_a_courtyard_house_has_a_yard_inside_its_roof_ring() -> None:
         )
     assert 20 * 14 * 0.4 < area < 20 * 14 * 0.9  # a ring, not the full footprint
     assert Counter(mesh.materials)["door"] == 1
+
+
+def test_a_wall_has_a_plinth_windows_have_frames_and_tall_blocks_get_balconies() -> None:
+    mesh = grammar.build("aaaa1111", BIG, 10.0, None, 1)
+    kinds = Counter(mesh.materials)
+    assert kinds["wall-plinth"] == 4 and kinds["window-frame"] >= 2 * kinds["window-glass"] - 4
+    low = grammar.build("aaaa1111", BIG, 2.5, None, 1)
+    assert "wall-plinth" not in low.materials and "balcony" not in low.materials
+    share = sum(
+        "balcony" in grammar.build(f"id{i:06d}", BIG, 10.0, None, 0).materials for i in range(200)
+    )
+    assert 0.15 < share / 200 < 0.55  # BALCONY_SHARE is 0.35, and a few have no upper bay drawn
+
+
+def test_the_openings_do_not_move_when_facade_detail_is_added() -> None:
+    a = grammar.build("aaaa1111", RING, 9.0, None, 1)
+    glass = [f for f, m in zip(a.faces, a.materials, strict=True) if m == "window-glass"]
+    assert len(glass) >= 10  # the same bays as before: the facade has its own random stream

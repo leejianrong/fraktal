@@ -1,0 +1,12 @@
+{
+  "name": "balcony",
+  "role": "wall",
+  "image": "textures/concrete034-color.jpg",
+  "scale_m": 2.5,
+  "tint": [
+    0.82,
+    0.82,
+    0.8
+  ],
+  "roughness": 0.9
+}

@@ -1,0 +1,10 @@
+{
+  "name": "window-frame",
+  "role": "opening",
+  "color": [
+    0.72,
+    0.72,
+    0.7
+  ],
+  "roughness": 0.5
+}

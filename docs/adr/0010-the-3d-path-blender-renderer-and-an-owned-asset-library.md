@@ -448,3 +448,23 @@ on a 0.5 m nadir tile 29 of 31 cars and 42 of 65 poles show in the labels (the r
 behind a roof or thinner than a pixel). Limits: cars are boxes (no wheels, no lights), parked cars
 and cars in lanes are not distinguished, they cluster on arterials because the 2.5D density is per
 hectare of road, and there are no signs, junction furniture, fences or walls.
+
+### After FRK-64: facade detail
+
+Block-typology buildings now have: a darker **plinth** (the lowest 0.9 m of each wall, its own
+material, only on walls taller than 2.9 m); **window frames** (a slightly larger light quad just
+behind the glass, so each window has a border) and a **sill** under each window; and **balconies** on
+35% of buildings of three storeys or more, 30% of their upper-floor bays each (a 1.8 by 0.9 m slab
+at floor level with a solid rail on three sides). Three owned material definitions were added
+(`window-frame`, `wall-plinth`, `balcony`, with manifest rows; the plinth and balcony reuse the CC0
+concrete maps). Balconies and the rest draw from their own sub-stream, `facade:<id>`, so every window
+and door stays where it was.
+
+![facade detail seen from above and to the side](../img/facade-detail.png)
+
+Cost: three faces per window instead of one. On a 300 m dense_urban tile the mesh went from 13.7k to
+41.2k faces and the Cycles render from 4.6 s to 5.4 s at 16 samples (one run each, 4 local threads;
+not re-measured at 2 km or on a pod). Limits: windows are
+still flat quads with a border, not recessed (a wall is one quad with no hole to recess into); there are
+no shopfronts, shutters, AC units, stains or lit windows; the plinth is invisible from nadir; sheds
+and courtyard houses do not get the detail yet.
