@@ -197,3 +197,5 @@ Turn generation into something a customer can buy, and prove it scales.
 
 - COCO exporter produces valid polygon annotations for multi-polygon buildings.
 - Manifest schema validates and rejects missing generator version.
+
+- FRK-54: dense_urban and informal_settlement fill more of each parcel (about 22% and 11% building cover over a 2 km tile). See docs/research/tropical-test-set.md.
