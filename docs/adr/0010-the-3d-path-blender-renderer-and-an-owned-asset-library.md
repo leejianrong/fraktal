@@ -257,3 +257,24 @@ is a sixteenth of the tile, about $0.0003 at 64 samples. The run's own bill was 
 One measurement on one pod type, so it is a figure to plan with, not a benchmark. It also confirms
 that the stalls seen earlier were intermittent, not a property of this image or flavor. All three
 Stage 0 conditions now have an answer; FRK-48 (the renderer file contract) is next on the 3D path.
+
+### After FRK-48: the renderer file contract
+
+`fraktal render3d WORLD --out DIR --center LON LAT [--size-m --gsd-m --sun-* --seed --samples
+--threads --bpy-python --timeout-s]` is the one entry point. The contract is in the
+`fraktal.render3d` docstring: a world directory, a tile, a sun and a seed in; `scene/` (the exported
+scene), `image.png`, a georeferenced `tile.tif` and `render.json` out. Blender runs as a subprocess
+(`fraktal.blender_scene`, under a Python with `bpy`, given by `--bpy-python` or
+`$FRAKTAL_BPY_PYTHON`): its progress arrives as `fraktal-log` lines, it is killed at the timeout, and
+a failure reports its last 40 lines.
+
+Determinism is seeded scene equality, as decided above: `render.json` carries `scene_sha256`, a hash
+of `scene.json` and `ground.npy`, which is identical for the same world, tile, sun and seed and
+different for another seed (unit-tested without Blender, using a stand-in script).
+
+On a 16 vCPU pod the CLI rendered a 300 m, 0.5 m tile twice with seed 7: both hashes were
+`a05483291707060a`, 52 buildings and 179 trees, Blender 5.0.1, 1.8 s of Cycles at 16 samples. The
+pod job is `MODE=render3d scripts/runpod/stage0_run.sh COMMIT OUT`. RunPod had no stock for the first
+launch (all three attempts failed in seconds), so the driver now waits 60 s between failed launches.
+The real-Blender test is `tests/integration/test_render3d_blender.py`, which runs when
+`FRAKTAL_BPY_PYTHON` is set (CI does not have `bpy`).
