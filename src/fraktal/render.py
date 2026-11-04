@@ -32,6 +32,7 @@ from fraktal.objects import roof_pattern, row_objects, scatter
 from fraktal.palette import Palette
 from fraktal.sensor import add_noise, apply_psf, blank_wedge
 from fraktal.terrain import TerrainError
+from fraktal.terrain_gen import octave_noise
 
 DEFAULT_HEIGHT_M = 6.0
 ROAD_LOCAL = 201  # surface codes for painted roads; never written to the land-cover labels
@@ -92,6 +93,10 @@ TEXTURE_CLASS_AMP: dict[int, float] = {80: 0.3, 70: 0.3}
 ROOF_TEXTURE_AMP = 0.4
 BRIGHT_ROOF_GAIN = 1.6  # metal and whitewashed roofs that saturate in real imagery
 HAZE_RGB = (200.0, 205.0, 215.0)  # colour of scattered skylight that haze adds
+CLOUD_RGB = (238.0, 240.0, 244.0)
+CLOUD_HEIGHT_M = 900.0  # cloud base: sets how far a shadow lands from its cloud
+CLOUD_SHADOW = 0.5  # how much a cloud shadow darkens open ground
+CLOUD_GSD_M = 8.0  # clouds are drawn this coarse and smoothed up to the image resolution
 
 # Per-channel gain that matches the V1 synthetic chips' channel means to the real Khartoum chips
 # (R 133 -> 88, G 126 -> 118, B 109 -> 34): the real chips have a strong green cast (FRK-12).
@@ -116,6 +121,7 @@ class RenderConfig:
     ambient: float = AMBIENT  # light left inside a shadow; lower is a deeper shadow
     contrast: float = 1.0  # stretch about the channel means; above 1 clips the extremes
     bright_roofs: float = 0.0  # share of buildings with very bright (often clipped) roofs
+    cloud_cover: float = 0.0  # share of the image under cloud; 0 is a clear sky
     blank_prob: float = 0.0  # chance a tile has a no-data region, like a scene footprint edge
     blank_max_fraction: float = 0.3  # largest share of a tile the no-data region can cover
     objects: float = 0.0  # density of trees and vehicles; 0 is none, 1 is the default density
@@ -317,6 +323,62 @@ def texture_field(seed: int, shape: tuple[int, int], gsd_m: float) -> Any:
         lattice = substream(seed, f"texture:{n}").uniform(-1, 1, size=lattice_shape(shape, cell_px))
         field += weight * value_noise(lattice, cell_px, shape)
     return field / sum(w for _, w in TEXTURE_OCTAVES)
+
+
+def _resample(a: Any, shape: tuple[int, int]) -> Any:
+    """Bilinear resize of a 2D array to ``shape`` (separable, no extra dependencies)."""
+    rows = np.linspace(0, a.shape[0] - 1, shape[0])
+    cols = np.linspace(0, a.shape[1] - 1, shape[1])
+    by_col = np.stack([np.interp(cols, np.arange(a.shape[1]), r) for r in a])
+    return np.stack(
+        [np.interp(rows, np.arange(a.shape[0]), by_col[:, j]) for j in range(by_col.shape[1])],
+        axis=1,
+    ).astype("float32")
+
+
+def cloud_layers(
+    side_px: int,
+    gsd_m: float,
+    seed: int,
+    cover: float,
+    sun_azimuth_deg: float,
+    sun_elevation_deg: float,
+) -> tuple[Any, Any]:
+    """Cloud opacity and cloud-shadow strength, both (side, side) in 0-1.
+
+    The cloud field is one fractal noise map cut at the ``cover`` quantile, so the share of
+    pixels with opacity above one half is the cover. The shadow is the same field moved away
+    from the sun by ``CLOUD_HEIGHT_M / tan(elevation)``, so it falls where the sun would put it.
+    """
+    if not 0.0 <= cover <= 1.0:
+        raise ValueError("cloud cover must be between 0 and 1")
+    coarse_gsd = max(gsd_m, CLOUD_GSD_M)
+    n = max(2, int(math.ceil(side_px * gsd_m / coarse_gsd)))
+    shift_m = CLOUD_HEIGHT_M / math.tan(math.radians(sun_elevation_deg))
+    away = math.radians(sun_azimuth_deg + 180.0)
+    d_col = int(round(math.sin(away) * shift_m / coarse_gsd))
+    d_row = int(round(-math.cos(away) * shift_m / coarse_gsd))
+    pad = max(abs(d_col), abs(d_row)) + 1
+    field = octave_noise((n + 2 * pad, n + 2 * pad), coarse_gsd, seed, "clouds", 800.0, 40.0, 0.55)
+    cut = float(np.quantile(field[pad : pad + n, pad : pad + n], 1.0 - cover))
+    alpha = np.clip(0.5 + (field - cut) / 0.12, 0.0, 1.0).astype("float32")
+    if cover <= 0.0:
+        alpha[:] = 0.0
+    elif cover >= 1.0:
+        alpha[:] = 1.0
+    clouds = alpha[pad : pad + n, pad : pad + n]
+    # a cloud at (r, c) throws its shadow on (r + d_row, c + d_col)
+    shadow = alpha[pad - d_row : pad - d_row + n, pad - d_col : pad - d_col + n]
+    full = (side_px, side_px)
+    return _resample(clouds, full), _resample(shadow, full)
+
+
+def apply_clouds(rgb: Any, clouds: Any, shadow: Any) -> Any:
+    """Darken ground under cloud shadow, then blend white cloud on top. ``rgb`` is (3, H, W)."""
+    out = rgb.astype("float32") * (1.0 - CLOUD_SHADOW * shadow * (1.0 - clouds))[None]
+    cloud = np.array(CLOUD_RGB, dtype="float32")[:, None, None]
+    out = out * (1.0 - 0.94 * clouds)[None] + cloud * (0.94 * clouds)[None]
+    return np.clip(out, 0, 255).astype("uint8")
 
 
 def class_gains(seed: int, variation: float) -> Any:
@@ -527,6 +589,17 @@ def render_region(
     else:
         rgb = shade(surface, mask, shadow, **common)
 
+    if config.cloud_cover > 0:
+        clouds, cloud_shadow = cloud_layers(
+            side,
+            config.gsd_m,
+            config.seed,
+            config.cloud_cover,
+            config.sun_azimuth_deg,
+            config.sun_elevation_deg,
+        )
+        rgb = apply_clouds(rgb, clouds, cloud_shadow)
+
     rgb = apply_psf(rgb, config.psf_sigma_px)
 
     tile_dir = out_dir / "tiles"
@@ -599,6 +672,7 @@ def render_region(
         "ambient": config.ambient,
         "contrast": config.contrast,
         "bright_roofs": config.bright_roofs,
+        "cloud_cover": config.cloud_cover,
         "blank_prob": config.blank_prob,
         "objects": config.objects,
         "roof_detail": config.roof_detail,
