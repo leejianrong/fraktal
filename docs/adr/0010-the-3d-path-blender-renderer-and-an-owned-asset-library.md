@@ -490,7 +490,7 @@ kernel with each draw's settings. Lower is closer to the real chips.
 | | contrast gap | 0.075 | 0.325 | **0.071** |
 | | strong-edge gap | 0.546 | 0.357 | **0.236** |
 
-Read plainly: with the sensor, the 3D path is at least as close as the 2.5D one on 8 of the 10
+Read plainly: with the sensor, the 3D path is at least as close as the 2.5D one on 9 of the 10
 pairs, and clearly closer for informal settlement (edge energy 0.129 to 0.012, strong edges 0.55 to
 0.24). It is worse on dense_urban contrast (0.20 against 0.04) and equal on its noise, and the raw
 Blender image is far from real on noise and contrast without the sensor, as expected. Dense_urban's
