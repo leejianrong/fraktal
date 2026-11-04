@@ -317,7 +317,10 @@ edges.
   the better tool.
 - `v10_tropical` cloud and haze hide large parts of many chips (several are near-white), which
   also depresses the gauge's edge numbers.
-- 9 of 30 chips are dropped by label validation in the Khartoum set; this was not investigated.
-- At a 2 m pixel size `dense_urban` loses its tile in label validation (a few boundary pixels
-  differ between the two rasterisers). The default 0.5 m is unaffected.
+- Chips dropped from the Khartoum set (9 of 30) are the benchmark-leakage guards, not label
+  errors: past runs record only "outside labelled training tiles" and "overlaps a held-out test
+  tile". That is intended.
+- Fixed in FRK-55: `dense_urban` lost tiles in label validation because snapped footprints put
+  pixel centres exactly on an edge, which the rasteriser paints and the independent check did not.
+  The check now accepts a label between the strict and the edge-touching mask.
 - Scenes outside the built areas are still empty ground.

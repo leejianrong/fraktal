@@ -501,8 +501,10 @@ def _validate_tile(
             seen.add((src.crs.to_string(), tuple(src.transform)[:6], src.height, src.width))
     if len(seen) != 1:
         return "image and masks differ in CRS, transform or size"
-    expected = independent_building_mask(geometries, transform, shape)
-    differs = expected != mask
+    inner = independent_building_mask(geometries, transform, shape)
+    outer = independent_building_mask(geometries, transform, shape, touching=True)
+    # a pixel whose centre is on an edge may go either way; anything else must agree exactly
+    differs = ((inner > 0) & (mask == 0)) | ((outer == 0) & (mask > 0))
     if ignore is not None:
         if mask[ignore].any():
             return "a no-data region carries building labels"
