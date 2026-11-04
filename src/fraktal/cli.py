@@ -33,6 +33,7 @@ from fraktal import (
     realism,
     render,
     render3d,
+    render3d_batch,
     report,
     skeleton,
     split,
@@ -420,6 +421,57 @@ def _render3d(args: argparse.Namespace) -> Result:
     return Result(meta, text)
 
 
+def _render3d_batch(args: argparse.Namespace) -> Result:
+    try:
+        specs = render3d_batch.plan(
+            args.world, args.count, args.seed, args.size_m, args.gsd_m, args.min_buildings
+        )
+        record = render3d_batch.run(
+            args.world,
+            args.out,
+            specs,
+            samples=args.samples,
+            threads=args.threads,
+            keep_scene=args.keep_scene,
+            bpy_python=args.bpy_python or os.environ.get("FRAKTAL_BPY_PYTHON"),
+            timeout_s=args.timeout_s,
+            assets_dir=args.assets,
+        )
+    except (OSError, ValueError) as err:
+        raise CliError(ExitCode.FAILURE, "render3d_batch_failed", str(err)) from err
+    counts = record["counts"]
+    text = (
+        f"{counts['rendered']} rendered, {counts['skipped']} skipped, {counts['failed']} failed "
+        f"in {record['wall_seconds']} s ({args.out}/batch.json)"
+    )
+    if counts["failed"]:
+        failed = [t["dir"] for t in record["tiles"] if t["status"] == "failed"]
+        raise CliError(
+            ExitCode.FAILURE, "render3d_batch_failed", f"{text}; failed: {', '.join(failed)}"
+        )
+    return Result(record, text)
+
+
+def _render3d_batch_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("world", type=Path, help="a world directory (from `fraktal generate`)")
+    parser.add_argument("--out", type=Path, required=True, help="output directory (resumable)")
+    parser.add_argument("--count", type=int, required=True, help="how many tiles")
+    parser.add_argument(
+        "--seed", type=int, default=0, help="seeds the tile centres, suns and scenes"
+    )
+    parser.add_argument("--size-m", type=float, default=500.0)
+    parser.add_argument("--gsd-m", type=float, default=0.5)
+    parser.add_argument("--samples", type=int, default=16)
+    parser.add_argument("--threads", type=int, default=0, help="0 means all cores")
+    parser.add_argument("--min-buildings", type=int, default=1, help="skip empty tile windows")
+    parser.add_argument("--bpy-python", help="a Python with bpy (default $FRAKTAL_BPY_PYTHON)")
+    parser.add_argument("--timeout-s", type=float, default=1800.0, help="per tile")
+    parser.add_argument("--assets", type=Path, help="assets directory (default $FRAKTAL_ASSETS)")
+    parser.add_argument(
+        "--keep-scene", action="store_true", help="keep each tile's scene and TIFFs"
+    )
+
+
 def _render3d_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("world", type=Path, help="a world directory (from `fraktal generate`)")
     parser.add_argument("--out", type=Path, required=True, help="output directory")
@@ -747,6 +799,7 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "inspect": _inspect_args,
     "assets": _assets_args,
     "render3d": _render3d_args,
+    "render3d-batch": _render3d_batch_args,
 }
 
 COMMANDS: dict[str, tuple[str, Handler]] = {
@@ -765,6 +818,7 @@ COMMANDS: dict[str, tuple[str, Handler]] = {
     "inspect": ("Look up a feature by ID, or summarise a world", _inspect),
     "assets": ("Check the asset manifest and its licences", _assets),
     "render3d": ("Render a world tile with Blender (3D path)", _render3d),
+    "render3d-batch": ("Render many tiles of a world, resumable", _render3d_batch),
 }
 
 

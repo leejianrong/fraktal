@@ -532,3 +532,33 @@ little worse on four of five measures, mostly contrast: brighter, more varied ro
 beyond the real chips. Per ADR-0009 the strip is the better guide here, but the contrast gap is
 a reason to look at the sensor's contrast draw for the 3D path, not a result to hide. About 15% of
 roofs are still silver and read cool blue-grey. The numbers are one seed and one tile.
+
+### After FRK-68: batch rendering, 50 tiles on one pod
+
+`fraktal render3d-batch WORLD --out DIR --count N --seed S [--size-m --gsd-m --samples --min-buildings]`
+renders many tiles in one process (`fraktal.render3d_batch`). `plan` draws each tile's centre, sun
+(azimuth 100 to 260 degrees, elevation 35 to 70, an assumed equatorial sun) and scene seed from
+named sub-streams, so the same world, count and seed give the same tiles, and skips windows with no
+building. `run` writes `tile_NNNN/` and rewrites `batch.json` after every tile, so a stopped run can
+be started again: a tile whose `render.json` has the same `spec_sha256` is skipped, a half-written
+one is redone, and a tile that fails is recorded (with its error) while the rest carry on; the exit
+code is 4 if any failed. To keep a dataset small each tile keeps `image.png`, `labels.png` and
+`render.json` (scene hash, pose, georeference) and drops the scene and the TIFFs unless `--keep-scene`.
+`MODE=batch scripts/runpod/stage0_run.sh` runs it on a pod with the same boot check, heartbeat and
+teardown as before; per-tile `render3d_batch_tile` lines reach the pod log.
+
+![six of the 50 tiles](../img/batch-3d.png)
+
+**The run** (pre-merge commit 20d7324, `dense_urban` world of 3 km, 50 tiles of 500 m at 0.5 m, 16 samples, one
+16 vCPU CPU pod at $0.48/h): 50 rendered, 0 failed, 50 distinct scene hashes, 717 s in the batch,
+14.3 s a tile on average (8.3 to 18.8 s); the whole pod, boot to teardown, was about 15.6 minutes and
+the artifact (all 100 images, 105 MB) came back over the relay in about 30 s. From the hourly rate
+that is roughly $0.13 for the pod and $0.0025 a tile, about $0.002 for the rendering alone; I did not
+read the RunPod bill, so treat the cost as an estimate. The account showed no `fraktal-stage0` pod
+afterwards. At this rate 1,000 tiles is about 4 hours and $2.
+
+Limits: every tile is nadir with one sensor-free render (the sensor kernel and tropical draws are
+applied afterwards, not in the batch); the world is one biome; the pod ran with the load average
+near four times its cores (Blender uses all threads), so the per-tile time may drop with a thread
+cap; relaying 105 MB worked, but a 1,000-tile run needs a bucket upload instead; the sun range and
+the 40 centre tries are assumptions.

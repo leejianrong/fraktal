@@ -10,7 +10,9 @@ T0=$(date +%s)
 : "${COMMIT:?set COMMIT to the sha to run}"
 SIZE_M="${SIZE_M:-1000}"
 SAMPLES="${SAMPLES:-16 64}"
-MODE="${MODE:-stage0}"  # stage0: timing loop; render3d: the CLI end to end plus a scene equality check
+MODE="${MODE:-stage0}"  # stage0: timing loop; render3d: the CLI end to end plus a scene equality check; batch: render3d-batch
+COUNT="${COUNT:-50}"; TILE_M="${TILE_M:-500}"; BATCH_BIOME="${BATCH_BIOME:-dense_urban}"  # MODE=batch
+PUBLISH_ALL="${PUBLISH_ALL:-0}"  # MODE=batch: 1 sends every tile, 0 only four samples and batch.json
 RUN=/workspace/run
 mkdir -p "$RUN" && cd "$RUN"
 exec > >(tee -a "$RUN/job.log") 2>&1
@@ -72,6 +74,36 @@ python -m venv /workspace/bpyenv
 /workspace/bpyenv/bin/pip install -q bpy numpy
 /workspace/bpyenv/bin/python -c "import bpy; print('bpy', bpy.app.version_string)"
 mkdir -p review
+if [ "$MODE" = batch ]; then
+  export FRAKTAL_BPY_PYTHON=/workspace/bpyenv/bin/python
+  export FRAKTAL_ASSETS="$RUN/src/assets"
+  stage generate
+  BATCH_BIOME="$BATCH_BIOME" python - <<'PY'
+import os
+from pathlib import Path
+from fraktal import biomes
+from fraktal.procedural import generate_world
+generate_world(Path("review/world"), (32.55, 15.64), 3, biomes.resolve(os.environ["BATCH_BIOME"], {"size_m": 3000.0}))
+PY
+  stage batch
+  T1=$(date +%s)
+  fraktal render3d-batch review/world --out review/batch --count "$COUNT" --size-m "$TILE_M" --gsd-m 0.5 \
+    --samples "${SAMPLES%% *}" --threads "$(nproc)" --seed 11 \
+    2> >(tee review/batch.err | grep --line-buffered render3d_batch_tile) > review/batch.out \
+    || echo "ERROR render3d-batch exited non-zero"
+  echo "RP_BATCH_SECONDS $(( $(date +%s) - T1 ))"
+  python - <<'PY'
+import json
+d = json.load(open("review/batch/batch.json"))
+print("RP_BATCH_SUMMARY", json.dumps({k: d[k] for k in ("counts", "wall_seconds", "mean_seconds_per_rendered_tile", "samples")}))
+PY
+  rm -rf review/world
+  if [ "$PUBLISH_ALL" != 1 ]; then
+    ls -d review/batch/tile_* | tail -n +5 | xargs rm -rf
+  fi
+  du -sh review | sed 's/^/RP_ARTIFACT_SIZE /'
+  exit 0
+fi
 if [ "$MODE" = render3d ]; then
   stage generate
   export FRAKTAL_BPY_PYTHON=/workspace/bpyenv/bin/python
