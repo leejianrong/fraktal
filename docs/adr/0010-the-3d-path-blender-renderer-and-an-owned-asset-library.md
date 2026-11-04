@@ -429,3 +429,22 @@ water is dark blue and looks the same as before from this angle (the sheen shows
 sun); a plantation is only one field in a corner of this window, and its palms are the same lumpy
 fronds as any palm; mangrove trees are the ordinary broadleaf shape. Relief from the DEM is the
 obvious next step for the 3D ground, and is not scheduled.
+
+### After FRK-65: vehicles and street props
+
+The 3D scene now has vehicles and poles. `scene.json` carries `vehicles` (x, y, heading, body colour)
+and `poles` (x, y, height). Cars are the 2.5D renderer's cars on the painted roads, same seed and
+density rules, same heading (the road's direction at that pixel, with a little noise); each is a
+4.5 by 1.9 m body with a glass cabin, in one of five body colours. Poles stand every 40 m along any
+road at least 6 m wide, alternating sides 1.2 m outside the carriageway, 8 m tall with a lamp head;
+footpaths get none. `--vehicle-density` is not a CLI flag yet; `export_scene(vehicle_density=0)` turns
+cars off. Labels gained classes `vehicle` (4) and `pole` (5) with their own instances, and
+`render.json` lists the counts.
+
+![low-rise tile with cars on the arterials and poles along the streets](../img/vehicles-props.png)
+
+Checked: car headings sit within about 11 degrees of the road's direction at the median (a unit test);
+on a 0.5 m nadir tile 29 of 31 cars and 42 of 65 poles show in the labels (the rest are hidden
+behind a roof or thinner than a pixel). Limits: cars are boxes (no wheels, no lights), parked cars
+and cars in lanes are not distinguished, they cluster on arterials because the 2.5D density is per
+hectare of road, and there are no signs, junction furniture, fences or walls.

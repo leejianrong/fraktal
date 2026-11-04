@@ -96,3 +96,41 @@ def test_paddy_fields_change_the_ground_colour(tmp_path: Path) -> None:
     colours = np.load(tmp_path / "p" / "ground.npy").reshape(-1, 3)
     greens = colours[(colours[:, 1] > 0.55) & (colours[:, 0] < 0.5)]  # bright young rice
     assert len(greens) > 1000
+
+
+def test_cars_stand_on_roads_headed_along_them_and_poles_line_wide_streets(tmp_path: Path) -> None:
+    world = tmp_path / "khartoum"
+    generate_world(world, CENTER, 3, biomes.resolve("khartoum"))
+    scene = export_scene(world, tmp_path / "v", CENTER, 400.0, 1.0)
+    assert len(scene["vehicles"]) > 5 and len(scene["poles"]) > 5
+    for x, y, heading, colour in scene["vehicles"]:
+        assert 0 <= x <= 400 and 0 <= y <= 400 and -7 < heading < 7 and colour in range(5)
+    for x, y, height in scene["poles"]:
+        assert 0 <= x <= 400 and 0 <= y <= 400 and height == 8.0
+    again = export_scene(world, tmp_path / "v2", CENTER, 400.0, 1.0)
+    assert (again["vehicles"], again["poles"]) == (scene["vehicles"], scene["poles"])
+    none = export_scene(world, tmp_path / "v3", CENTER, 400.0, 1.0, vehicle_density=0.0)
+    assert none["vehicles"] == [] and none["poles"] == scene["poles"]
+
+
+def test_a_car_heading_follows_the_road_direction(tmp_path: Path) -> None:
+    from shapely.geometry import Point
+
+    from fraktal.procedural import read_roads
+
+    world = tmp_path / "khartoum"
+    generate_world(world, CENTER, 3, biomes.resolve("khartoum"))
+    scene = export_scene(world, tmp_path / "h", CENTER, 400.0, 1.0)
+    roads = read_roads(world).to_crs(scene["crs"])
+    west, south = scene["origin_sw"]
+    lines = [(r.geometry, r.width_m) for r in roads.itertuples()]
+    off = []
+    for x, y, heading, _ in scene["vehicles"]:
+        p = Point(x + west, y + south)
+        line, _ = min(lines, key=lambda lw: lw[0].distance(p))
+        d = line.project(p)
+        a, b = line.interpolate(max(d - 2, 0)), line.interpolate(d + 2)
+        along = np.arctan2(b.y - a.y, b.x - a.x)
+        diff = abs((heading - along + np.pi / 2) % np.pi - np.pi / 2)  # a car may face either way
+        off.append(diff)
+    assert float(np.median(off)) < 0.2  # radians, about 11 degrees

@@ -154,7 +154,7 @@ def build_buildings(scene: dict, scene_dir: Path, assets: Path) -> int:
     return len(scene["buildings"])
 
 
-CLASS_GROUND, CLASS_BUILDING, CLASS_TREE = 1, 2, 3
+CLASS_GROUND, CLASS_BUILDING, CLASS_TREE, CLASS_VEHICLE, CLASS_POLE = 1, 2, 3, 4, 5
 
 
 def paint_labels(scene: dict, scene_dir: Path) -> None:
@@ -180,6 +180,13 @@ def paint_labels(scene: dict, scene_dir: Path) -> None:
         obj = bpy.data.objects["trees"]
         owner = np.asarray(TREE_OWNER, dtype="int64")
         paint(obj, np.full(len(owner), CLASS_TREE), owner + 1)
+    for name, klass, faces in (
+        ("vehicles", CLASS_VEHICLE, VEHICLE_OWNER),
+        ("poles", CLASS_POLE, POLE_OWNER),
+    ):
+        if name in bpy.data.objects:
+            owner = np.asarray(faces, dtype="int64")
+            paint(bpy.data.objects[name], np.full(len(owner), klass), owner + 1)
 
 
 def use_label_look(sc) -> None:
@@ -197,7 +204,7 @@ def use_label_look(sc) -> None:
     out = nodes.new("ShaderNodeOutputMaterial")
     links.new(colour.outputs["Color"], emit.inputs["Color"])
     links.new(emit.outputs["Emission"], out.inputs["Surface"])
-    for name in ("ground", "buildings", "trees"):
+    for name in ("ground", "buildings", "trees", "vehicles", "poles"):
         if name in bpy.data.objects:
             mesh = bpy.data.objects[name].data
             mesh.materials.clear()
@@ -307,6 +314,78 @@ def build_trees(scene: dict) -> int:
     return len(trees)
 
 
+VEHICLE_OWNER: list[int] = []  # the vehicle each face of the vehicle mesh belongs to
+POLE_OWNER: list[int] = []
+CAR_BODY = [(235, 235, 235), (40, 40, 45), (150, 30, 30), (170, 175, 180), (30, 60, 120)]
+
+
+def _box(bm, owners: list[int], k: int, cx, cy, ux, uy, half_l, half_w, z0, z1, mat: int) -> None:
+    """A box centred at (cx, cy), its long axis along the unit vector (ux, uy)."""
+    vx, vy = -uy, ux
+    corners = [(-1, -1), (1, -1), (1, 1), (-1, 1)]
+    xy = [
+        (cx + ux * a * half_l + vx * b * half_w, cy + uy * a * half_l + vy * b * half_w)
+        for a, b in corners
+    ]
+    bottom = [bm.verts.new((x, y, z0)) for x, y in xy]
+    top = [bm.verts.new((x, y, z1)) for x, y in xy]
+    sides = [(bottom[i], bottom[(i + 1) % 4], top[(i + 1) % 4], top[i]) for i in range(4)]
+    for quad in (*sides, tuple(top), tuple(reversed(bottom))):
+        bm.faces.new(quad).material_index = mat
+        owners.append(k)
+
+
+def build_vehicles(scene: dict) -> int:
+    """One mesh of boxy cars: a body and a glass cabin, headed along the road."""
+    cars = scene.get("vehicles", [])
+    VEHICLE_OWNER.clear()
+    if not cars:
+        return 0
+    mats = [
+        material(f"car{i}", tuple(c / 255 for c in rgb), 0.35, 60 + i)
+        for i, rgb in enumerate(CAR_BODY)
+    ]
+    mats.append(material("car-glass", (0.05, 0.07, 0.1), 0.1, 70))
+    glass = len(mats) - 1
+    bm = bmesh.new()
+    for k, (x, y, heading, colour) in enumerate(cars):
+        ux, uy = math.cos(heading), math.sin(heading)
+        _box(bm, VEHICLE_OWNER, k, x, y, ux, uy, 2.25, 0.95, 0.25, 1.0, int(colour))
+        _box(bm, VEHICLE_OWNER, k, x - ux * 0.2, y - uy * 0.2, ux, uy, 1.2, 0.85, 1.0, 1.5, glass)
+    bm.normal_update()
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh = bpy.data.meshes.new("vehicles")
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new("vehicles", mesh)
+    bpy.context.collection.objects.link(obj)
+    for m in mats:
+        mesh.materials.append(m)
+    return len(cars)
+
+
+def build_poles(scene: dict) -> int:
+    """One mesh of slim roadside poles with a lamp head."""
+    poles = scene.get("poles", [])
+    POLE_OWNER.clear()
+    if not poles:
+        return 0
+    mats = [material("pole", (0.33, 0.33, 0.35), 0.6, 80)]
+    bm = bmesh.new()
+    for k, (x, y, height) in enumerate(poles):
+        _box(bm, POLE_OWNER, k, x, y, 1.0, 0.0, 0.1, 0.1, 0.0, height, 0)
+        _box(bm, POLE_OWNER, k, x, y, 1.0, 0.0, 0.45, 0.12, height, height + 0.18, 0)
+    bm.normal_update()
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh = bpy.data.meshes.new("poles")
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new("poles", mesh)
+    bpy.context.collection.objects.link(obj)
+    mesh.materials.append(mats[0])
+    return len(poles)
+
+
 def build_light(scene: dict) -> None:
     az, el = scene["sun"]["azimuth_deg"], scene["sun"]["elevation_deg"]
     sun = bpy.data.lights.new("sun", "SUN")
@@ -387,6 +466,7 @@ def main() -> int:
     build_ground(scene, ground, np.load(rough_file) if rough_file.exists() else None)
     n = build_buildings(scene, a.scene_dir, a.assets)
     nt = build_trees(scene)
+    nv, npoles = build_vehicles(scene), build_poles(scene)
     build_light(scene)
     camera_file = a.scene_dir / "camera.json"
     frames = json.loads(camera_file.read_text())["frames"] if camera_file.exists() else []
@@ -408,7 +488,7 @@ def main() -> int:
     cycles.render.image_settings.file_format = "PNG"
     cycles.render.image_settings.color_mode = "RGB"
     t1 = time.time()
-    say(f"scene_built buildings={n} trees={nt} seconds={t1 - t0:.1f}")
+    say(f"scene_built buildings={n} trees={nt} vehicles={nv} poles={npoles} seconds={t1 - t0:.1f}")
     if frames:  # OUT is a directory of frame_0000.png, frame_0001.png, ...
         a.out.mkdir(parents=True, exist_ok=True)
         for pose in frames:
