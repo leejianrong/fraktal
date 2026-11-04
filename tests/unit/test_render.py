@@ -319,7 +319,7 @@ def test_texture_leaves_labels_untouched_and_is_deterministic(
 
 
 def test_haze_transmittance_is_monotonic_in_optical_depth() -> None:
-    from fraktal.render import transmittance
+    from fraktal.kernels.sensor import transmittance
 
     values = [transmittance(tau, 45.0) for tau in (0.0, 0.05, 0.1, 0.3, 1.0)]
     assert values[0] == 1.0

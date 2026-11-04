@@ -156,3 +156,28 @@ Conditions on the go:
 
 Not tested: Blender GPU, denoising, asset textures, oblique cameras and labels from object
 indices. Those stay with FRK-48, FRK-49 and FRK-51.
+
+### After FRK-50: one sensor kernel for both renderers
+
+Haze, tone, contrast, blur and noise now live in `fraktal.kernels.sensor` (arrays in, arrays out,
+golden tests). The 2.5D renderer calls `grade` on its float radiance, and its output is
+byte-identical to before (checked with every effect on). The Blender path applies `sensor_chain`
+and `add_noise` to its finished 8-bit render with the same settings as the 2.5D variant.
+
+![real chip, 2.5D, Blender, Blender with the sensor kernel](../img/stage0-strip-sensor.png)
+
+Same tile, same Khartoum chips, gauge distances (0 is perfect):
+
+| render | colour | edge energy | noise | contrast | strong edge |
+|---|---|---|---|---|---|
+| 2.5D | 0.077 | 0.23 | 0.01 | 0.77 | 0.72 |
+| Blender | 0.126 | 0.14 | 0.23 | 0.29 | 0.74 |
+| Blender + sensor kernel | 0.086 | 0.10 | 0.10 | 0.11 | 0.26 |
+
+The shared sensor closes most of Blender's gaps: against Khartoum it now beats the 2.5D render on
+edge energy, contrast and strong edges, and is close on colour and noise. Against the Monrovia
+chips it gets worse (colour 0.15 to 0.24, strong edge 0.57 to 0.82), because the sensor settings are
+the Khartoum-fitted `v8_objects` variant, whose tone is a green-yellow cast that Monrovia does not
+have. That is the sensor config being wrong for the place, not the kernel being wrong; a tropical
+profile belongs in the randomised ranges, as for the 2.5D path. Condition 1 of the Stage 0 go is met;
+ground texture and trees (condition 2) are next.
