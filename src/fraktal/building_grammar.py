@@ -28,11 +28,18 @@ from fraktal.ids import substream
 
 WALLS = ("wall-plaster-pale", "wall-plaster-sand", "wall-plaster-ochre", "wall-concrete")
 ROOFS = {"tin": "roof-tin", "tile": "roof-tile"}
+TIN_ROOFS = (
+    "roof-tin",
+    "roof-tin-red",
+    "roof-tin-rust",
+    "roof-tin-dark",
+)  # silver, painted, rusty, dark
+TIN_WEIGHTS = (0.15, 0.35, 0.30, 0.20)
 FLAT_ROOFS = ("roof-flat-concrete", "roof-flat-pale", "roof-flat-terracotta", "roof-flat-bitumen")
 OPENINGS = ("window-glass", "door")
 CLUTTER = ("tank",)
 DETAIL = ("wall-plinth", "window-frame", "balcony")
-MATERIALS = (*WALLS, *FLAT_ROOFS, *ROOFS.values(), *OPENINGS, *CLUTTER, *DETAIL)
+MATERIALS = (*WALLS, *FLAT_ROOFS, *ROOFS.values(), *OPENINGS, *CLUTTER, *DETAIL, *TIN_ROOFS[1:])
 STOREY_M = 3.0
 COURTYARD_MIN_AREA_M2 = 140.0
 COURTYARD_MAX_HEIGHT_M = 7.5
@@ -193,7 +200,7 @@ def _gable(
     half_width = float(np.abs(dist).max())
     if half_width < 1.0:
         return None
-    rise = float(np.clip(half_width * 0.35, 0.8, 2.2))
+    rise = float(np.clip(half_width * 0.22, 0.5, 1.5))  # a shallow pitch, about 12 degrees
 
     def lift(d: float) -> float:
         return height + rise * (1.0 - min(abs(d), half_width) / half_width)
@@ -280,6 +287,11 @@ def build(
     wall = WALLS[int(rng.integers(0, len(WALLS)))]
     flat = roof_material not in ROOFS
     roof = FLAT_ROOFS[int(rng.integers(0, len(FLAT_ROOFS)))] if flat else ROOFS[str(roof_material)]
+    if (
+        roof_material == "tin"
+    ):  # real tin roofs are silver, painted, rusty or dark, not all one grey
+        pick = float(substream(seed, f"roofcolour:{building_id}").uniform())
+        roof = TIN_ROOFS[int(np.searchsorted(np.cumsum(TIN_WEIGHTS), pick, side="right"))]
     height = max(2.5, float(height_m))
     floors = max(1, round(height / STOREY_M))
     storey = height / floors
