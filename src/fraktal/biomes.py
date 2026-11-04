@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from fraktal.procedural import DEFAULT_BIOME, ProceduralConfig
+from fraktal.roads import RoadConfig
+from fraktal.settlement import BuildingConfig, ParcelConfig
 
 
 class BiomeError(ValueError):
@@ -32,6 +34,36 @@ BIOMES: dict[str, Biome] = {
         DEFAULT_BIOME,
         "Dry, low-rise Sahelian city: dusty ground, sparse trees (the SpaceNet Khartoum look).",
         ProceduralConfig(biome=DEFAULT_BIOME),
+    ),
+    "dense_urban": Biome(
+        "dense_urban",
+        "Tropical city core: close street grid, tight parcels, tall mixed-height buildings.",
+        ProceduralConfig(
+            biome="dense_urban",
+            relief_m=15.0,
+            aridity=0.35,
+            roads=RoadConfig(
+                arterial_width_m=16.0,
+                local_width_m=7.0,
+                min_centre_separation_m=300.0,
+                centres_per_km2=2.5,
+                local_spacing_m=58.0,
+                local_length_m=(90.0, 320.0),
+                local_probability=1.0,
+            ),
+            parcels=ParcelConfig(frontage_m=(9.0, 15.0), depth_m=(22.0, 26.5), min_area_m2=120.0),
+            buildings=BuildingConfig(
+                built_probability_core=0.99,
+                built_probability_edge=0.9,
+                core_radius_m=900.0,
+                front_setback_m=1.5,
+                side_setback_m=0.8,
+                height_core_m=(12.0, 45.0),
+                height_edge_m=(6.0, 18.0),
+                width_share=(0.8, 0.95),
+                depth_share=(0.7, 0.92),
+            ),
+        ),
     ),
 }
 

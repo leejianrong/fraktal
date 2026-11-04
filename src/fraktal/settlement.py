@@ -45,6 +45,8 @@ class BuildingConfig:
     side_setback_m: float = 1.5
     height_core_m: tuple[float, float] = (7.0, 22.0)
     height_edge_m: tuple[float, float] = (3.0, 8.0)
+    width_share: tuple[float, float] = (0.55, 0.85)  # of the usable parcel frontage
+    depth_share: tuple[float, float] = (0.45, 0.8)  # of the usable parcel depth
 
 
 def _cell_is_water(landcover: Any, inverse: Affine, x: float, y: float) -> bool:
@@ -168,8 +170,8 @@ def build_buildings(
         )
         roll, depth_share, width_share = (
             rng.uniform(),
-            rng.uniform(0.45, 0.8),
-            rng.uniform(0.55, 0.85),
+            rng.uniform(*config.depth_share),
+            rng.uniform(*config.width_share),
         )
         lo, hi = config.height_core_m if urban > 0.5 else config.height_edge_m
         height, roof = float(rng.uniform(lo, hi)), ROOF_TYPES[int(rng.integers(0, len(ROOF_TYPES)))]
