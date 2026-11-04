@@ -21,7 +21,7 @@ from rasterio.enums import Resampling
 from rasterio.transform import from_origin
 
 from fraktal import settlement, world
-from fraktal.fields import FieldConfig, access_tracks, build_fields
+from fraktal.fields import FieldConfig, access_tracks, build_fields, level_paddies
 from fraktal.landcover_gen import generate_landcover
 from fraktal.log import emit
 from fraktal.render import _warp, utm_epsg
@@ -113,9 +113,10 @@ def generate_world(
         parcels, settlement.arterial_centres(roads), seed, config.buildings
     )
     fields = build_fields(
-        land, transform, crs, seed, config.fields, [roads_wide(roads), parcels, buildings]
+        land, transform, crs, seed, config.fields, [roads_wide(roads), parcels, buildings], dem=dem
     )
     if fields is not None:
+        dem = level_paddies(dem, transform, fields)
         roads = with_tracks(roads, access_tracks(fields, config.fields.track_width_m), config)
     emit(
         "generate_stage",

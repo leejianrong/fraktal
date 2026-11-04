@@ -112,6 +112,18 @@ BIOMES: dict[str, Biome] = {
             fields=FieldConfig(palm_count=9),
         ),
     ),
+    "paddy_terraces": Biome(
+        "paddy_terraces",
+        "Rice country: bunded paddy blocks on the flats, stepped terraces on the hillsides.",
+        ProceduralConfig(
+            biome="paddy_terraces",
+            relief_m=60.0,
+            aridity=0.15,
+            roads=RoadConfig(centres_per_km2=1.0, local_probability=0.4),
+            buildings=BuildingConfig(built_probability_core=0.8, built_probability_edge=0.3),
+            fields=FieldConfig(paddy_zones=5, paddy_zone_radius_m=550.0, terrace_count=5),
+        ),
+    ),
 }
 
 
