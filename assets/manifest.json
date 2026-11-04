@@ -214,6 +214,39 @@
       "url": "https://github.com/leejianrong/fraktal",
       "sha256": "b076bfe7bb456815063ca6dba4009dfc24c106d87dad457456f3139fa9dedc2e",
       "verified": true
+    },
+    {
+      "id": "mat-window-frame",
+      "file": "materials/window-frame.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "21f68ba726c4915d1ea1db2b2f8a7ff720347738afc9888803214f6781880a08",
+      "verified": true
+    },
+    {
+      "id": "mat-wall-plinth",
+      "file": "materials/wall-plinth.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "d42113836eae88d4ba36dbe36229d79d02aeb060a3403a9a5bc6f4bcef705da2",
+      "verified": true
+    },
+    {
+      "id": "mat-balcony",
+      "file": "materials/balcony.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "7ffcd39cae0671101c667fb81beb7f3e1c400f379e995fcd66fbe702ab7e290a",
+      "verified": true
     }
   ]
 }

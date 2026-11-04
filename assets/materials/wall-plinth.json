@@ -1,0 +1,12 @@
+{
+  "name": "wall-plinth",
+  "role": "wall",
+  "image": "textures/concrete031-color.jpg",
+  "scale_m": 2.0,
+  "tint": [
+    0.62,
+    0.6,
+    0.58
+  ],
+  "roughness": 0.95
+}

@@ -31,7 +31,8 @@ ROOFS = {"tin": "roof-tin", "tile": "roof-tile"}
 FLAT_ROOFS = ("roof-flat-concrete", "roof-flat-pale", "roof-flat-terracotta", "roof-flat-bitumen")
 OPENINGS = ("window-glass", "door")
 CLUTTER = ("tank",)
-MATERIALS = (*WALLS, *FLAT_ROOFS, *ROOFS.values(), *OPENINGS, *CLUTTER)
+DETAIL = ("wall-plinth", "window-frame", "balcony")
+MATERIALS = (*WALLS, *FLAT_ROOFS, *ROOFS.values(), *OPENINGS, *CLUTTER, *DETAIL)
 STOREY_M = 3.0
 COURTYARD_MIN_AREA_M2 = 140.0
 COURTYARD_MAX_HEIGHT_M = 7.5
@@ -41,6 +42,10 @@ PARAPET_THICKNESS_M = 0.18
 WINDOW_M = (1.1, 1.3)  # width, height
 SILL_M = 0.9
 MIN_EDGE_FOR_WINDOWS_M = 3.0
+PLINTH_M = 0.9  # a darker band along the foot of a wall
+FRAME_M = 0.08  # the window frame shows this much around the glass
+BALCONY_SHARE = 0.35  # of buildings with three storeys or more
+BALCONY_BAY_SHARE = 0.3  # of the upper-floor bays of such a building
 POP_OUT_M = 0.03  # windows and doors sit this far proud of the wall so they are not coplanar
 
 
@@ -101,7 +106,24 @@ def _box(cx: float, cy: float, w: float, d: float, z0: float, z1: float, mesh: M
     mesh.add([(x, y, z1) for x, y in c], material)
 
 
-def _openings(mesh: Mesh, pts: Any, rng: Any, floors: int, storey: float, door: bool) -> None:
+def _balcony(mesh: Mesh, centre: Any, direction: Any, outward: Any, z: float) -> None:
+    """A slab 1.8 m wide and 0.9 m deep at floor level, with a solid rail round three sides."""
+    half, depth = 0.9, 0.9
+    p0, p1 = centre - direction * half, centre + direction * half
+    q0, q1 = p0 + outward * depth, p1 + outward * depth
+    top, bottom, rail = z + 0.1, z - 0.1, z + 1.0
+    mesh.add([(q0[0], q0[1], top), (q1[0], q1[1], top), (p1[0], p1[1], top), (p0[0], p0[1], top)],
+             "balcony")  # fmt: skip
+    mesh.add([(p0[0], p0[1], bottom), (p1[0], p1[1], bottom), (q1[0], q1[1], bottom),
+              (q0[0], q0[1], bottom)], "balcony")  # fmt: skip
+    mesh.add(_quad(q0, q1, bottom, top), "balcony")
+    for a, b in ((p0, q0), (q0, q1), (q1, p1)):  # the rail: front and both sides
+        mesh.add(_quad(a, b, top, rail), "balcony")
+
+
+def _openings(
+    mesh: Mesh, pts: Any, rng: Any, floors: int, storey: float, door: bool, balconies: Any = None
+) -> None:
     """A window grid on every edge long enough and, if ``door``, a door on the longest edge.
 
     ``pts`` is a ring whose right-hand side is outside: a counter-clockwise outline, or a
@@ -138,7 +160,19 @@ def _openings(mesh: Mesh, pts: Any, rng: Any, floors: int, storey: float, door: 
                 half = WINDOW_M[0] / 2
                 a = pts[i] + direction * (along - half) + outward * POP_OUT_M
                 b = pts[i] + direction * (along + half) + outward * POP_OUT_M
-                mesh.add(_quad(a, b, z0, z0 + WINDOW_M[1]), "window-glass")
+                rim = direction * FRAME_M
+                mesh.add(  # the frame, a little larger than the glass and just behind it
+                    _quad(a - rim - outward * 0.01, b + rim - outward * 0.01,
+                          z0 - FRAME_M, z0 + WINDOW_M[1] + FRAME_M), "window-frame")  # fmt: skip
+                a2, b2 = a + outward * 0.04, b + outward * 0.04
+                mesh.add(_quad(a2, b2, z0, z0 + WINDOW_M[1]), "window-glass")
+                sill_a, sill_b = (
+                    a - direction * 0.1 + outward * 0.1,
+                    b + direction * 0.1 + outward * 0.1,
+                )
+                mesh.add(_quad(sill_a, sill_b, z0 - 0.1, z0 - 0.02), "window-frame")
+                if balconies is not None and f >= 1 and balconies.uniform() < BALCONY_BAY_SHARE:
+                    _balcony(mesh, pts[i] + direction * along, direction, outward, f * storey)
 
 
 def _gable(
@@ -260,8 +294,12 @@ def build(
             return yard
     mesh = Mesh()
 
-    for i in range(n):  # walls
-        mesh.add(_quad(pts[i], pts[(i + 1) % n], 0.0, height), wall)
+    for i in range(n):  # walls, with a darker plinth along the foot
+        if height > PLINTH_M + 2.0:
+            mesh.add(_quad(pts[i], pts[(i + 1) % n], 0.0, PLINTH_M), "wall-plinth")
+            mesh.add(_quad(pts[i], pts[(i + 1) % n], PLINTH_M, height), wall)
+        else:
+            mesh.add(_quad(pts[i], pts[(i + 1) % n], 0.0, height), wall)
 
     top = height
     inner = None
@@ -279,7 +317,9 @@ def build(
     surface = inner if inner is not None else pts
     mesh.add([(x, y, top) for x, y in surface], roof)
 
-    _openings(mesh, pts, rng, floors, storey, door=True)
+    facade = substream(seed, f"facade:{building_id}")  # its own stream: the openings stay put
+    balconies = facade if floors >= 3 and facade.uniform() < BALCONY_SHARE else None
+    _openings(mesh, pts, rng, floors, storey, door=True, balconies=balconies)
 
     if flat and poly.area >= 60.0:  # roof clutter, kept clear of the parapet
         room = poly.buffer(-1.8)
