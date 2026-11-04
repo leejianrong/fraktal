@@ -83,3 +83,23 @@ has `eval_only: true`, an empty train split and an `EVAL_ONLY.txt`. A live fetch
 `mon/207cc7` gave five aligned 500 px chips of dense informal settlement in about 30 seconds.
 The other scene folders were not listed (the bucket listing was too slow to page); `dar/a017f9`
 also exists. Maxar has no loader because it has no labels.
+
+## First comparison against real tropical imagery (2026-11-04)
+
+`fraktal compare` logic on the 5 Open Cities chips (Monrovia `mon/207cc7`, 0.5 m, evaluation only)
+against 3 to 5 chips per tropical biome (`v10_tropical`, 1 m render, 600 m region). The sample is
+tiny and one scene, so read the pattern, not the digits.
+
+| biome | colour W1 | edge energy | noise | contrast | strong edge |
+|---|---|---|---|---|---|
+| dense_urban | 0.098 | 0.40 | 0.50 | 0.19 | 0.72 |
+| informal_settlement | 0.101 | 0.43 | 0.46 | 0.32 | 0.81 |
+| oil_palm_plantation | 0.056 | 0.44 | 0.47 | 0.24 | 0.81 |
+| paddy_terraces | 0.071 | 0.49 | 0.48 | 0.31 | 0.90 |
+| mangrove_coast | 0.103 | 0.45 | 0.47 | 0.32 | 0.82 |
+
+- Colour is close: 0.06 to 0.10, against 0.27 to 0.29 when the same biomes were scored against
+  arid Khartoum. The tropical palette is in the right place.
+- Edges, noise and strong edges are far off (0.4 to 0.9). The synthetic look is too smooth, not
+  the wrong colour. That points at texture and fine detail, and at scene density, not at palette.
+- Next: more scenes (more cities and a built-up Monrovia scene) before trusting any number.
