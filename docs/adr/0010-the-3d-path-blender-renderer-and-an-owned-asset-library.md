@@ -468,3 +468,44 @@ not re-measured at 2 km or on a pod). Limits: windows are
 still flat quads with a border, not recessed (a wall is one quad with no hole to recess into); there are
 no shopfronts, shutters, AC units, stains or lit windows; the plinth is invisible from nadir; sheds
 and courtyard houses do not get the detail yet.
+
+### After FRK-67: 3D against 2.5D against ten real scenes
+
+One run of `scripts/blender/stage0_compare.py` per biome: a 1 km tile at 0.5 m, 16 samples, rendered
+once in Blender and three times in the 2.5D renderer with the `v10_tropical` randomisation (so three
+sensor draws), cut into 500 px chips (16 per render), then scored with the gauge against the 90 chips
+of the ten Open Cities scenes from FRK-70. "3D + sensor" is the Blender image through the same sensor
+kernel with each draw's settings. Lower is closer to the real chips.
+
+| biome | measure | 2.5D | 3D raw | 3D + sensor |
+|---|---|---|---|---|
+| dense_urban | colour W1 | 0.086 | 0.194 | **0.074** |
+| | edge energy gap | 0.184 | 0.127 | 0.154 |
+| | noise gap | 0.141 | 0.465 | 0.141 |
+| | contrast gap | **0.039** | 0.108 | 0.201 |
+| | strong-edge gap | 0.640 | **0.011** | 0.593 |
+| informal_settlement | colour W1 | 0.108 | 0.080 | **0.051** |
+| | edge energy gap | 0.129 | 0.346 | **0.012** |
+| | noise gap | 0.120 | 0.504 | **0.111** |
+| | contrast gap | 0.075 | 0.325 | **0.071** |
+| | strong-edge gap | 0.546 | 0.357 | **0.236** |
+
+Read plainly: with the sensor, the 3D path is at least as close as the 2.5D one on 8 of the 10
+pairs, and clearly closer for informal settlement (edge energy 0.129 to 0.012, strong edges 0.55 to
+0.24). It is worse on dense_urban contrast (0.20 against 0.04) and equal on its noise, and the raw
+Blender image is far from real on noise and contrast without the sensor, as expected. Dense_urban's
+strong-edge gap is poor for both (about 0.6), so neither reproduces the sharp roof edges of the real
+chips there.
+
+![2.5D (left) and 3D with the sensor (right), dense_urban above, informal_settlement below](../img/compare-3d.png)
+
+**What this does not show.** One world seed, one tile per biome, three sensor draws, and the same
+3D render under all three. Open Cities is 4 to 8 cm drone imagery averaged to 0.5 m, so blur and
+noise cannot be judged against it, and 10 of the 60 scenes are in the set. The gauge is
+distribution distances, not realism: the strip above shows the 3D informal roofs as **pale blue**
+(the tin reflects the sky) where real roofs are red, brown and grey, and the colour distance does not
+flag it (it improved). That is filed as FRK-71. The real chips are not in the repository, so the
+image shows synthetic output only.
+
+Cost: Blender 24 to 27 s wall for a 2000 px tile against 17 to 22 s for three 2.5D renders (one
+laptop, 16 cores), so the 3D path is the same order of cost per tile at 16 samples.
