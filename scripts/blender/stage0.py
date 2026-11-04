@@ -84,7 +84,7 @@ def build_ground(scene: dict, ground: np.ndarray):
     mat.use_nodes = True
     tex = mat.node_tree.nodes.new("ShaderNodeTexImage")
     tex.image = img
-    tex.interpolation = "Closest"
+    tex.interpolation = "Linear"  # smooth class edges; the texture is already in the image
     bsdf = mat.node_tree.nodes["Principled BSDF"]
     bsdf.inputs["Roughness"].default_value = 0.95
     mat.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
@@ -126,6 +126,41 @@ def build_buildings(scene: dict) -> int:
     for m in mats:
         mesh.materials.append(m)
     return n
+
+
+FOLIAGE = [(0.15, 0.31, 0.13), (0.19, 0.36, 0.14), (0.12, 0.26, 0.12)]
+
+
+def build_trees(scene: dict) -> int:
+    """One mesh of crown ellipsoids (a low icosphere each), tall ones on a short hidden trunk."""
+    trees = scene.get("trees", [])
+    if not trees:
+        return 0
+    template = bmesh.new()
+    bmesh.ops.create_icosphere(template, subdivisions=2, radius=1.0)
+    verts = [v.co.copy() for v in template.verts]
+    index = {v: i for i, v in enumerate(template.verts)}
+    faces = [[index[v] for v in f.verts] for f in template.faces]
+    template.free()
+    mats = [material(f"leaf{i}", c, 0.8, 20 + i) for i, c in enumerate(FOLIAGE)]
+    bm = bmesh.new()
+    for k, (x, y, radius, height) in enumerate(trees):
+        half = max(radius * 0.9, height * 0.3)  # crown half-height; the crown sits above 0.4 h
+        zc = max(half, height - half)
+        ring = [bm.verts.new((x + v.x * radius, y + v.y * radius, zc + v.z * half)) for v in verts]
+        for f in faces:
+            face = bm.faces.new([ring[i] for i in f])
+            face.material_index = k % len(mats)
+    bm.normal_update()
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh = bpy.data.meshes.new("trees")
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new("trees", mesh)
+    bpy.context.collection.objects.link(obj)
+    for m in mats:
+        mesh.materials.append(m)
+    return len(trees)
 
 
 def build_light(scene: dict) -> None:
@@ -177,6 +212,7 @@ def main() -> int:
     bpy.ops.wm.read_factory_settings(use_empty=True)
     build_ground(scene, ground)
     n = build_buildings(scene)
+    nt = build_trees(scene)
     build_light(scene)
     build_camera(scene, px)
     cycles = bpy.context.scene
@@ -194,7 +230,7 @@ def main() -> int:
     cycles.render.image_settings.color_mode = "RGB"
     cycles.render.filepath = str(a.out.resolve())
     t1 = time.time()
-    say(f"scene_built buildings={n} seconds={t1 - t0:.1f}")
+    say(f"scene_built buildings={n} trees={nt} seconds={t1 - t0:.1f}")
     bpy.ops.render.render(write_still=True)
     t2 = time.time()
     say(f"rendered px={px} samples={a.samples} seconds={t2 - t1:.1f}")
@@ -206,6 +242,7 @@ def main() -> int:
                 "px": px,
                 "samples": a.samples,
                 "buildings": n,
+                "trees": nt,
             }
         )
     )

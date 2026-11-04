@@ -16,15 +16,18 @@ from typing import Any
 import numpy as np
 from rasterio.enums import Resampling
 
+from fraktal.objects import place
 from fraktal.procedural import read_buildings, read_roads
 from fraktal.render import (
     DEFAULT_HEIGHT_M,
     LANDCOVER_RGB,
+    TEXTURE_CLASS_AMP,
     RenderConfig,
     _building_rasters,
     _road_raster,
     _warp,
     region_grid,
+    texture_field,
 )
 
 SCHEMA = 1
@@ -37,8 +40,15 @@ def export_scene(
     size_m: float,
     gsd_m: float,
     sun: tuple[float, float] = (135.0, 50.0),
+    seed: int = 0,
+    texture: float = 0.7,
+    tree_density: float = 1.0,
 ) -> dict[str, Any]:
-    """Write the tile around ``center_lonlat`` and return the scene description."""
+    """Write the tile around ``center_lonlat`` and return the scene description.
+
+    The ground carries the 2.5D renderer's fractal texture (``texture`` is its strength, 0 for flat
+    colour) and ``trees`` are the 2.5D renderer's scattered trees, same seed and same places.
+    """
     px = max(1, round(size_m / gsd_m))
     config = RenderConfig(gsd_m=gsd_m, tile_px=px, size_m=size_m)
     epsg, transform, (_, side) = region_grid(center_lonlat, config)
@@ -56,6 +66,25 @@ def export_scene(
     ground = np.zeros((side, side, 3), dtype="float32")
     for code in np.unique(surface):
         ground[surface == code] = np.array(LANDCOVER_RGB.get(int(code), (120, 118, 116))) / 255.0
+    if texture > 0:
+        amp = np.ones(256, dtype="float32")
+        for code, value in TEXTURE_CLASS_AMP.items():
+            amp[code] = value
+        modulation = texture * texture_field(seed, (side, side), gsd_m) * amp[surface]
+        ground = np.clip(ground * (1.0 + modulation)[..., None], 0.0, 1.0).astype("float32")
+    trees = []
+    if tree_density > 0:
+        shapes, heights, _ = place(surface, mask, gsd_m, tree_density, seed)
+        for (row, col, radius, *_rest, is_car), height in zip(shapes, heights, strict=True):
+            if is_car == 0:  # trees come first and have no car flag
+                trees.append(
+                    [
+                        round((col + 0.5) * gsd_m, 2),
+                        round((side - row - 0.5) * gsd_m, 2),
+                        round(radius * gsd_m, 2),
+                        round(float(height), 2),
+                    ]
+                )
     buildings = []
     for row in local.itertuples():
         if row.geometry.is_empty or not row.geometry.intersects(
@@ -88,6 +117,7 @@ def export_scene(
         "crs": f"EPSG:{epsg}",
         "origin_sw": [west, south],
         "buildings": buildings,
+        "trees": trees,
     }
     (out_dir / "scene.json").write_text(json.dumps(scene) + "\n")
     return scene
