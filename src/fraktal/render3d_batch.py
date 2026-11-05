@@ -9,6 +9,10 @@ batch carries on; ``run`` returns the failures so the caller can set an exit cod
 To keep a dataset small, each finished tile keeps ``image.png``, ``labels.png`` and ``render.json``
 (which holds the scene hash, pose and georeference); the exported scene and the TIFFs are removed
 unless asked for. The scene is rebuilt from the world, the tile spec and the seed.
+
+With a sensor (FRK-72) each spec also carries a drawn grade, blur and noise (the tropical ranges
+from ``fraktal.randomise``), applied to ``image.png`` to give ``sensor.png``; the raw render stays.
+The draw is a named sub-stream per tile, so it is part of the plan and of the resume hash.
 """
 
 from __future__ import annotations
@@ -22,10 +26,11 @@ from typing import Any
 
 from pyproj import Transformer
 
-from fraktal import render3d
+from fraktal import randomise, render3d
 from fraktal.ids import substream
 from fraktal.log import emit
 from fraktal.procedural import read_buildings
+from fraktal.render import RenderConfig
 
 SCHEMA = 1
 SUN_AZIMUTH_DEG = (
@@ -35,6 +40,7 @@ SUN_AZIMUTH_DEG = (
 SUN_ELEVATION_DEG = (35.0, 70.0)
 CENTRE_TRIES = 40
 SLIM_REMOVE = ("scene", "tile.tif", "labels.tif")
+SENSOR_NAME = "sensor.png"
 
 
 class BatchError(ValueError):
@@ -48,8 +54,12 @@ def plan(
     size_m: float,
     gsd_m: float,
     min_buildings: int = 1,
+    sensor: bool = False,
 ) -> list[dict[str, Any]]:
-    """``count`` tile specs inside the world, each with at least ``min_buildings`` if it can."""
+    """``count`` tile specs inside the world, each with at least ``min_buildings`` if it can.
+
+    With ``sensor`` each spec gets a ``sensor`` block drawn from the tropical ranges.
+    """
     manifest = json.loads((world_dir / "world.json").read_text())
     west, south, east, north = manifest["bounds"]
     half = size_m / 2
@@ -77,20 +87,63 @@ def plan(
             if len(hits) >= min_buildings:
                 break
         lon, lat = to_lonlat.transform(x, y)
-        specs.append(
-            {
-                "index": i,
-                "center": [round(lon, 7), round(lat, 7)],
-                "size_m": size_m,
-                "gsd_m": gsd_m,
-                "sun": [
-                    round(float(rng.uniform(*SUN_AZIMUTH_DEG)), 2),
-                    round(float(rng.uniform(*SUN_ELEVATION_DEG)), 2),
-                ],
-                "seed": int(rng.integers(0, 2**31 - 1)),
-            }
+        sun = (
+            round(float(rng.uniform(*SUN_AZIMUTH_DEG)), 2),
+            round(float(rng.uniform(*SUN_ELEVATION_DEG)), 2),
         )
+        spec: dict[str, Any] = {
+            "index": i,
+            "center": [round(lon, 7), round(lat, 7)],
+            "size_m": size_m,
+            "gsd_m": gsd_m,
+            "sun": list(sun),
+            "seed": int(rng.integers(0, 2**31 - 1)),
+        }
+        if sensor:
+            spec["sensor"] = _draw_sensor(seed, i, size_m, gsd_m, sun[1])
+        specs.append(spec)
     return specs
+
+
+def _draw_sensor(
+    seed: int, index: int, size_m: float, gsd_m: float, sun_elevation: float
+) -> dict[str, Any]:
+    """Haze, tone, contrast, blur and noise for one tile, from the tropical ranges."""
+    base = RenderConfig(gsd_m=gsd_m, tile_px=round(size_m / gsd_m), size_m=size_m, seed=0)
+    drawn = randomise.sample_config(base, randomise.TROPICAL, seed, index)
+    return {
+        "haze": round(drawn.haze, 4),
+        "sun_elevation_deg": sun_elevation,
+        "tone": [round(float(t), 4) for t in drawn.tone],
+        "contrast": round(drawn.contrast, 4),
+        "psf_sigma_px": round(drawn.psf_sigma_px, 4),
+        "noise_sigma": round(drawn.noise_sigma, 4),
+        "noise_seed": drawn.seed,
+    }
+
+
+def apply_sensor(tile_dir: Path, sensor: dict[str, Any]) -> None:
+    """Write ``sensor.png`` next to ``image.png``: the same grade, blur and noise as 2.5D."""
+    import rasterio
+
+    from fraktal.kernels.sensor import sensor_chain
+    from fraktal.sensor import add_noise
+
+    with rasterio.open(tile_dir / "image.png") as src:
+        rgb = src.read()[:3].astype("uint8")
+    graded = sensor_chain(
+        rgb,
+        haze=(sensor["haze"], sensor["sun_elevation_deg"]),
+        tone=tuple(sensor["tone"]),
+        contrast=sensor["contrast"],
+        psf_sigma_px=sensor["psf_sigma_px"],
+    )
+    out = add_noise(graded, sensor["noise_sigma"], sensor["noise_seed"], "batch")
+    with rasterio.open(
+        tile_dir / SENSOR_NAME, "w", driver="PNG", width=out.shape[2], height=out.shape[1],
+        count=3, dtype="uint8",
+    ) as dst:  # fmt: skip
+        dst.write(out)
 
 
 def _window(x: float, y: float, half: float) -> Any:
@@ -111,6 +164,8 @@ def _done(tile_dir: Path, digest: str) -> dict[str, Any] | None:
     except (OSError, ValueError):
         return None
     ok = meta.get("spec_sha256") == digest and (tile_dir / "image.png").is_file()
+    if ok and meta.get("sensor"):
+        ok = (tile_dir / SENSOR_NAME).is_file()
     return meta if ok else None
 
 
@@ -166,6 +221,9 @@ def run(
                 )
             else:
                 meta["spec_sha256"] = digest
+                if spec.get("sensor"):
+                    apply_sensor(tile_dir, spec["sensor"])
+                    meta["sensor"] = {**spec["sensor"], "file": SENSOR_NAME}
                 (tile_dir / "render.json").write_text(json.dumps(meta, indent=2) + "\n")
                 if not keep_scene:
                     for name in SLIM_REMOVE:
@@ -200,4 +258,4 @@ def _write(out_dir: Path, record: dict[str, Any], started: float) -> None:
     tmp.replace(out_dir / "batch.json")
 
 
-__all__ = ["BatchError", "plan", "run", "spec_sha256"]
+__all__ = ["BatchError", "apply_sensor", "plan", "run", "spec_sha256"]
