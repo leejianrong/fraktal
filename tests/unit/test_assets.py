@@ -63,3 +63,19 @@ def test_a_missing_manifest_fails(tmp_path: Path) -> None:
 def test_the_cli_exits_non_zero_on_a_bad_row(tmp_path: Path) -> None:
     assert main(["assets", "--root", str(make(tmp_path / "ok"))]) == 0
     assert main(["assets", "--root", str(make(tmp_path / "bad", licence="CC-BY-4.0"))]) != 0
+
+
+GENERATOR = {
+    "model": "stabilityai/stable-diffusion-xl-base-1.0", "version": "1.0",
+    "licence": "CreativeML Open RAIL++-M", "prompt": "p", "seed": 1, "date": "2026-11-05",
+}  # fmt: skip
+
+
+def test_a_generated_asset_needs_a_full_generator_block(tmp_path: Path) -> None:
+    good = make(tmp_path / "g", licence="generated-permissive", generator=GENERATOR)
+    assert assets.check(good) == []
+    none = assets.check(make(tmp_path / "n", licence="generated-permissive"))
+    assert any("needs a generator block" in p for p in none), none
+    thin = {k: v for k, v in GENERATOR.items() if k not in ("prompt", "seed")}
+    partial = assets.check(make(tmp_path / "p", licence="Generated-Permissive", generator=thin))
+    assert any("missing prompt" in p for p in partial) and any("missing seed" in p for p in partial)

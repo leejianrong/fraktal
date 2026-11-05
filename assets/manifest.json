@@ -280,6 +280,134 @@
       "url": "https://github.com/leejianrong/fraktal",
       "sha256": "c259855bf4d772c8edd9e8d0b858b95f3d33c9e99e3b636d55f9ff17578f4086",
       "verified": true
+    },
+    {
+      "id": "tex-gen-paint-peeling",
+      "file": "textures/gen-paint-peeling.jpg",
+      "kind": "texture",
+      "source": "generated with SDXL base 1.0 on a RunPod pod (FRK-73)",
+      "licence": "generated-permissive",
+      "author": "Jian Lee (generated)",
+      "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md",
+      "sha256": "7e3c042429d6e0b29032a59ee99cd6261abb217c647a12460a728efd306ded31",
+      "verified": true,
+      "generator": {
+        "model": "stabilityai/stable-diffusion-xl-base-1.0",
+        "version": "1.0 (diffusers 0.35.1, fp16)",
+        "licence": "CreativeML Open RAIL++-M",
+        "prompt": "flaking painted wall, faded blue paint over bare plaster, top-down flat orthographic photograph, even lighting, seamless tileable texture, no objects",
+        "negative_prompt": "text, letters, logo, watermark, people, objects, border, frame, perspective, vignette",
+        "seed": 1,
+        "settings": "20 steps, 1024 px then 512 px, default sampler, circular padding for tiling",
+        "date": "2026-11-05"
+      }
+    },
+    {
+      "id": "tex-gen-plaster-cracked",
+      "file": "textures/gen-plaster-cracked.jpg",
+      "kind": "texture",
+      "source": "generated with SDXL base 1.0 on a RunPod pod (FRK-73)",
+      "licence": "generated-permissive",
+      "author": "Jian Lee (generated)",
+      "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md",
+      "sha256": "96519ac4fbc942e304b2b2b28a9dc67773b50565d4e3ae65486ea1a8568c3692",
+      "verified": true,
+      "generator": {
+        "model": "stabilityai/stable-diffusion-xl-base-1.0",
+        "version": "1.0 (diffusers 0.35.1, fp16)",
+        "licence": "CreativeML Open RAIL++-M",
+        "prompt": "weathered cement plaster wall, sun-bleached beige, hairline cracks, top-down flat orthographic photograph, even lighting, seamless tileable texture, no objects",
+        "negative_prompt": "text, letters, logo, watermark, people, objects, border, frame, perspective, vignette",
+        "seed": 1,
+        "settings": "20 steps, 1024 px then 512 px, default sampler, circular padding for tiling",
+        "date": "2026-11-05"
+      }
+    },
+    {
+      "id": "tex-gen-concrete-cracked",
+      "file": "textures/gen-concrete-cracked.jpg",
+      "kind": "texture",
+      "source": "generated with SDXL base 1.0 on a RunPod pod (FRK-73)",
+      "licence": "generated-permissive",
+      "author": "Jian Lee (generated)",
+      "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md",
+      "sha256": "0a4ffe43500bb0c93dc2a9166388ef706b39f67891d049f9f0d1bd4116eb0b29",
+      "verified": true,
+      "generator": {
+        "model": "stabilityai/stable-diffusion-xl-base-1.0",
+        "version": "1.0 (diffusers 0.35.1, fp16)",
+        "licence": "CreativeML Open RAIL++-M",
+        "prompt": "rough poured concrete surface, grey, pitted, stained, top-down flat orthographic photograph, even lighting, seamless tileable texture, no objects",
+        "negative_prompt": "text, letters, logo, watermark, people, objects, border, frame, perspective, vignette",
+        "seed": 1,
+        "settings": "20 steps, 1024 px then 512 px, default sampler, circular padding for tiling",
+        "date": "2026-11-05"
+      }
+    },
+    {
+      "id": "tex-gen-clay-tile",
+      "file": "textures/gen-clay-tile.jpg",
+      "kind": "texture",
+      "source": "generated with SDXL base 1.0 on a RunPod pod (FRK-73)",
+      "licence": "generated-permissive",
+      "author": "Jian Lee (generated)",
+      "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md",
+      "sha256": "2e354afa8c63da4d0d69a37f7fb7d437c62fdc9fba803e32c6cf99f889c3948b",
+      "verified": true,
+      "generator": {
+        "model": "stabilityai/stable-diffusion-xl-base-1.0",
+        "version": "1.0 (diffusers 0.35.1, fp16)",
+        "licence": "CreativeML Open RAIL++-M",
+        "prompt": "terracotta clay roof tiles in overlapping rows, weathered, moss patches, top-down flat orthographic photograph, even lighting, seamless tileable texture, no objects",
+        "negative_prompt": "text, letters, logo, watermark, people, objects, border, frame, perspective, vignette",
+        "seed": 0,
+        "settings": "20 steps, 1024 px then 512 px, default sampler, circular padding for tiling",
+        "date": "2026-11-05"
+      }
+    },
+    {
+      "id": "mat-wall-paint-peeling",
+      "file": "materials/wall-paint-peeling.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "51f987c6b5204bbda1f641b736e3203923f378d36b980db7f46e113ebcb90960",
+      "verified": true
+    },
+    {
+      "id": "mat-wall-plaster-cracked",
+      "file": "materials/wall-plaster-cracked.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "331c4461e6ff1af6ae80cf95802d607127968ad4c372e480ed218b7ebc67dbe7",
+      "verified": true
+    },
+    {
+      "id": "mat-wall-concrete-cracked",
+      "file": "materials/wall-concrete-cracked.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "fca030ad67bd559a6f31ebd6fdce6267c6d55713a9ad930e44a1fafe221c6c86",
+      "verified": true
+    },
+    {
+      "id": "mat-roof-tile-clay",
+      "file": "materials/roof-tile-clay.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "471b15f713183330d65dee53649e4365c4121c2741b3746088902f92455b8964",
+      "verified": true
     }
   ]
 }

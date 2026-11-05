@@ -1,0 +1,12 @@
+{
+  "name": "wall-plaster-cracked",
+  "role": "wall",
+  "image": "textures/gen-plaster-cracked.jpg",
+  "scale_m": 3.0,
+  "tint": [
+    1,
+    1,
+    1
+  ],
+  "roughness": 0.9
+}

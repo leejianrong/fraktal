@@ -601,3 +601,18 @@ Costs are estimates from the hourly rate. The pod relay worked at 105 MB, not at
 dataset run needs an object store. Cloudflare R2 fits: no egress fee, 10 GB free, then $0.015 per GB a
 month (25 GB is about $0.38 a month), and the S3 API works from a pod. It needs a bucket and a token
 scoped to it, which only the account owner can create (FRK-74).
+
+### After FRK-76: generated textures in the library
+
+Four SDXL textures from the FRK-73 trial are in `assets/textures/` under a new licence value,
+`generated-permissive`, which `fraktal assets` accepts only with a `generator` block (model, version,
+output licence, prompt, seed, date). They are peeling blue paint, cracked plaster, cracked concrete and
+clay roof tile, each a seamless 512 px colour map; there is no roughness or normal map for them.
+In the grammar, 25% of buildings take one of the three wall textures instead of the CC0 wall, and half
+of the tile roofs use the clay tile; both shares are assumptions, drawn from a separate sub-stream so
+the existing wall, roof and tin draws of a building do not change.
+
+![oblique orbit frame of dense_urban; the pale blue-grey walls are the peeling paint](../img/generated-walls.png)
+
+Limits: nadir imagery sees roofs, so the wall textures show up only in oblique views; the paint's blue
+reads as a pale blue-grey in this lighting. One render, one seed.

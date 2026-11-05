@@ -1,0 +1,12 @@
+{
+  "name": "wall-concrete-cracked",
+  "role": "wall",
+  "image": "textures/gen-concrete-cracked.jpg",
+  "scale_m": 3.0,
+  "tint": [
+    1,
+    1,
+    1
+  ],
+  "roughness": 0.9
+}
