@@ -118,17 +118,66 @@ if [ "$MODE" = fly ]; then
 import json
 import os
 from pathlib import Path
-from fraktal import biomes
+from fraktal import agents, biomes, procedural
 from fraktal.procedural import generate_world
 generate_world(Path("review/world"), (32.55, 15.64), 3, biomes.resolve(os.environ["BATCH_BIOME"].split()[0], {"size_m": 3000.0}))
-json.dump({"waypoints": [[200, 200], [400, 260], [560, 420], [480, 560]]}, open("review/path.json", "w"))
+center, route = (32.55, 15.64), [[200, 200], [400, 260], [560, 420], [480, 560]]
+if os.environ.get("TRAFFIC") == "1":  # fly along a real road in the road-dense part of the world
+    from shapely.geometry import box
+    from shapely.ops import substring
+    roads = procedural.read_roads(Path("review/world")).to_crs(4326)
+    weight = roads.length
+    center = (float((roads.geometry.centroid.x * weight).sum() / weight.sum()),
+              float((roads.geometry.centroid.y * weight).sum() / weight.sum()))
+    local, bounds, side = agents.tile_roads(Path("review/world"), center, 800.0)
+    inner = box(160, 160, 640, 640)
+    pieces = [p for g in local.geometry for p in getattr(g.intersection(inner), "geoms", [g.intersection(inner)]) if p.geom_type == "LineString"]
+    best = max(pieces, key=lambda p: p.length)
+    best = substring(best, 0, min(best.length, 420.0)).simplify(10.0)
+    route = [[x, y] for x, y in best.coords]
+    print("RP_ROUTE", json.dumps({"center": center, "drive_side": side, "length_m": round(best.length), "points": len(route)}))
+json.dump({"waypoints": route}, open("review/path.json", "w"))
+open("review/center.txt", "w").write("%f %f" % center)
 PY
   stage fly
-  fraktal render3d review/world --out review/fly --center 32.55 15.64 --size-m 800 --gsd-m 0.5 \
-    --path review/path.json --altitude-m 150 --off-nadir 40 --fov 60 --fps 12 --frame-px 512 \
-    --samples "${SAMPLES%% *}" --seed 7 --threads "$(nproc)" --video --depth > review/fly.out 2> review/fly.err \
+  EXTRA=""
+  [ "${TRAFFIC:-0}" = 1 ] && EXTRA="--traffic --cars-per-km 25 --altitude-m 90 --off-nadir 35 --fps 8 --speed 20"
+  [ "${TRAFFIC:-0}" = 1 ] || EXTRA="--altitude-m 150 --off-nadir 40 --fps 12 --depth"
+  fraktal render3d review/world --out review/fly --center $(cat review/center.txt) --size-m 800 --gsd-m 0.5 \
+    --path review/path.json --fov 60 --frame-px 512 $EXTRA \
+    --samples "${SAMPLES%% *}" --seed 7 --threads "$(nproc)" --video > review/fly.out 2> review/fly.err \
     || { echo "ERROR fly failed"; tail -n 20 review/fly.err; }
-  echo "RP_FLY $(python -c "import json;d=json.load(open('review/fly/render.json'));print(len(d['frames']), d['files'], d['seconds'])" 2>&1)"
+  echo "RP_FLY $(python -c "import json;d=json.load(open('review/fly/render.json'));print(len(d['frames']), d['files'], d['seconds'], d.get('traffic'))" 2>&1)"
+  if [ "${TRAFFIC:-0}" = 1 ]; then
+  python - <<'PY'
+import json
+import numpy as np
+import rasterio
+from fraktal import labels3d
+d = "review/fly"
+table = json.load(open(f"{d}/tracks.json"))
+first = table["first_instance"]
+seen = [t for t in table["tracks"] if t["detections"]]
+per_frame = np.zeros(table["frames"], int)
+bad = 0
+for t in seen:
+    for det in t["detections"]:
+        per_frame[det["frame"]] += 1
+for t in seen[:25]:  # recount each track's pixels in its label images
+    for det in t["detections"][::7]:
+        with rasterio.open(f"{d}/labels/frame_{det['frame']:04d}.png") as src:
+            sem, inst = labels3d.decode(src.read()[:3])
+        x0, y0, x1, y1 = det["bbox"]
+        mine = (sem == 4) & (inst == t["instance"])
+        ys, xs = np.nonzero(mine)
+        if int(mine.sum()) != det["pixels"] or (xs.min(), ys.min(), xs.max(), ys.max()) != (x0, y0, x1, y1):
+            bad += 1
+long_lived = max(seen, key=lambda t: t["detections"][-1]["frame"] - t["detections"][0]["frame"]) if seen else None
+print("RP_TRACK_CHECK", "cars", len(table["tracks"]), "seen", len(seen), "mean_visible_per_frame", round(float(per_frame.mean()), 1), "max_visible", int(per_frame.max()), "mismatches", bad,
+      "longest_track", long_lived and (long_lived["id"], long_lived["instance"], long_lived["detections"][0]["frame"], long_lived["detections"][-1]["frame"], len(long_lived["detections"])))
+PY
+  fi
+  if [ "${TRAFFIC:-0}" != 1 ]; then
   python - <<'PY'
 import json
 import numpy as np
@@ -145,10 +194,10 @@ for i in range(0, len(poses), 30):
     p = meta["frames"][i]
     expect = depth.project((p["target_x"], p["target_y"], 0.0), m, k)[2]
     centre = depth.to_metres(raw[252:261, 252:261])
-    hit = (raw > 0).mean()
-    print("RP_DEPTH_CHECK", i, "centre_median_m", round(float(np.median(centre)), 2), "expected_ground_m", round(expect, 2), "hit_share", round(float(hit), 3), "max_m", round(float(depth.to_metres(raw[raw > 0]).max()), 1))
+    print("RP_DEPTH_CHECK", i, "centre_median_m", round(float(np.median(centre)), 2), "expected_ground_m", round(expect, 2))
 PY
-  rm -rf review/world review/fly/scene
+  fi
+  rm -rf review/world review/fly/scene/ground* review/fly/scene/mesh_*
   ls -la review/fly | head; du -sh review | sed 's/^/RP_ARTIFACT_SIZE /'
   exit 0
 fi

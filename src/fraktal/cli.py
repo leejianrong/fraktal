@@ -412,6 +412,11 @@ def _render3d(args: argparse.Namespace) -> Result:
             waypoints=_waypoints(args.path) if args.path else None,
             make_video=args.video,
             with_depth=args.depth,
+            traffic=(
+                {"cars_per_km": args.cars_per_km, "drive_side": args.drive_side}
+                if args.traffic
+                else None
+            ),
             camera_options={
                 "altitude_m": args.altitude_m,
                 "off_nadir_deg": args.off_nadir,
@@ -553,6 +558,9 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--path", type=Path, help="fly through the waypoints in this JSON file")
     parser.add_argument("--video", action="store_true", help="also write video.mp4 (needs ffmpeg)")
     parser.add_argument("--depth", action="store_true", help="also write 16-bit depth images")
+    parser.add_argument("--traffic", action="store_true", help="moving cars, with tracks.json")
+    parser.add_argument("--cars-per-km", type=float, default=6.0, help="with --traffic")
+    parser.add_argument("--drive-side", choices=agents.DRIVE_SIDES, help="default: the world's")
     parser.add_argument("--altitude-m", type=float, default=300.0)
     parser.add_argument("--off-nadir", type=float, default=35.0, help="degrees from straight down")
     parser.add_argument("--fov", type=float, default=40.0, help="field of view in degrees")

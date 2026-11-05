@@ -38,9 +38,10 @@ import numpy as np
 import rasterio
 from affine import Affine
 
+from fraktal import agents, labels3d, video
 from fraktal import camera as cameras
 from fraktal import depth as depths
-from fraktal import labels3d, video
+from fraktal import tracks as tracks_mod
 from fraktal.blender_export import export_scene
 from fraktal.log import emit
 
@@ -62,6 +63,7 @@ def scene_sha256(scene_dir: Path) -> str:
         "ground.npy",
         "ground_rough.npy",
         "ground_height.npy",
+        "agents.json",
         "camera.json",
     )  # camera.json only for sequences
     for name in (*names, *(f"mesh_{k}.npy" for k in MESH_FILES)):
@@ -161,6 +163,7 @@ def render(
     waypoints: list[tuple[float, float]] | None = None,
     make_video: bool = False,
     with_depth: bool = False,
+    traffic: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Export the tile, render it in Blender, write the contract files, return ``render.json``."""
     python = bpy_python or sys.executable
@@ -172,7 +175,7 @@ def render(
     t0 = time.time()
     scene = export_scene(
         world_dir, out_dir / "scene", center_lonlat, size_m, gsd_m, sun, seed,
-        height_profile=height_profile,
+        height_profile=height_profile, vehicle_density=0.0 if traffic else 1.0,
     )  # fmt: skip
     poses = []
     if trajectory:  # a perspective sequence instead of the nadir tile (FRK-51)
@@ -182,6 +185,17 @@ def render(
         (out_dir / "scene" / "camera.json").write_text(
             json.dumps({"frames": [p.as_dict() for p in poses]}) + "\n"
         )
+    moving: agents.Tracks | None = None
+    if traffic is not None:  # moving cars replace the parked ones, at the same frame times
+        times = np.array([p.t_s for p in poses] or [0.0])
+        roads, bounds, side = agents.tile_roads(world_dir, center_lonlat, scene["size_m"], gsd_m)
+        config = agents.TrafficConfig(
+            cars_per_km=float(traffic.get("cars_per_km", 6.0)),
+            drive_side=str(traffic.get("drive_side") or side),
+        )
+        graph = agents.build_graph(roads, bounds, config)
+        moving = agents.simulate_cars(graph, times, seed, config)
+        (out_dir / "scene" / "agents.json").write_text(json.dumps(moving.as_dict()) + "\n")
     digest = scene_sha256(out_dir / "scene")
     t1 = time.time()
     emit(
@@ -221,6 +235,26 @@ def render(
             with rasterio.open(out_dir / "labels.tif", "w", **profile) as dst:
                 dst.write(code)
     extra: dict[str, Any] = {}
+    parked = len(scene["vehicles"])
+    if moving is not None:
+        extra["traffic"] = {
+            "cars": len(moving.ids),
+            "cars_per_km": float((traffic or {}).get("cars_per_km", 6.0)),
+            "drive_side": config.drive_side,
+            "first_instance": parked,
+            "files": {"tracks": "scene/agents.json"},
+        }
+        if labels:
+            files = (
+                sorted((out_dir / "labels").glob("frame_*.png"))
+                if poses
+                else [out_dir / "labels.png"]
+            )
+            table = tracks_mod.from_labels(files, moving, parked)
+            (out_dir / "tracks.json").write_text(json.dumps(table) + "\n")
+            extra["traffic"]["files"]["detections"] = "tracks.json"
+            seen = sum(1 for t in table["tracks"] if t["detections"])
+            emit("render3d_tracks", cars=len(moving.ids), seen=seen, frames=len(files))
     if with_depth:
         _write_depth(out_dir, bool(poses))
         extra["depth"] = depths.meta()
@@ -294,7 +328,7 @@ def render(
         meta["labels"] = labels3d.meta(
             [b["id"] for b in scene["buildings"]],
             len(scene["trees"]),
-            len(scene["vehicles"]),
+            parked + (len(moving.ids) if moving is not None else 0),
             len(scene["poles"]),
         )
         meta["files"]["labels"] = "labels/frame_NNNN.png" if poses else "labels.png, labels.tif"

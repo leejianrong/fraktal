@@ -250,6 +250,9 @@ def paint_labels(scene: dict, scene_dir: Path) -> None:
         obj = bpy.data.objects["trees"]
         owner = np.asarray(TREE_OWNER, dtype="int64")
         paint(obj, np.full(len(owner), CLASS_TREE), owner + 1)
+    if "traffic" in bpy.data.objects:  # moving cars: stable instances after the parked ones
+        owner = np.repeat(np.arange(TRAFFIC["n"]) + TRAFFIC["first_instance"], 12)
+        paint(bpy.data.objects["traffic"], np.full(len(owner), CLASS_VEHICLE), owner + 1)
     for name, klass, faces in (
         ("vehicles", CLASS_VEHICLE, VEHICLE_OWNER),
         ("poles", CLASS_POLE, POLE_OWNER),
@@ -274,7 +277,7 @@ def use_label_look(sc) -> None:
     out = nodes.new("ShaderNodeOutputMaterial")
     links.new(colour.outputs["Color"], emit.inputs["Color"])
     links.new(emit.outputs["Emission"], out.inputs["Surface"])
-    for name in ("ground", "buildings", "trees", "vehicles", "poles"):
+    for name in ("ground", "buildings", "trees", "vehicles", "poles", "traffic"):
         if name in bpy.data.objects:
             mesh = bpy.data.objects[name].data
             mesh.materials.clear()
@@ -330,7 +333,7 @@ def use_depth_look(sc, unit_m: float) -> None:
     out = nodes.new("ShaderNodeOutputMaterial")
     links.new(combine.outputs["Color"], emit.inputs["Color"])
     links.new(emit.outputs["Emission"], out.inputs["Surface"])
-    for name in ("ground", "buildings", "trees", "vehicles", "poles"):
+    for name in ("ground", "buildings", "trees", "vehicles", "poles", "traffic"):
         if name in bpy.data.objects:
             mesh = bpy.data.objects[name].data
             mesh.materials.clear()
@@ -503,6 +506,84 @@ def build_vehicles(scene: dict) -> int:
     return len(cars)
 
 
+TRAFFIC: dict = {}  # "n", "first_instance", "mesh" and the tracks while moving cars exist
+BOX_FACES = [(0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 6, 7), (3, 2, 1, 0)]
+CORNERS = np.array([(-1, -1), (1, -1), (1, 1), (-1, 1)], dtype="float64")
+
+
+def _car_vertices(x, y, heading, i: int) -> np.ndarray:
+    """(n, 16, 3): the body box then the cabin box of every car at track column ``i``."""
+    ux, uy = np.cos(heading), np.sin(heading)
+    out = np.empty((len(x), 16, 3))
+    for b, (dx, half_l, half_w, z0, z1) in enumerate(
+        ((0.0, 2.25, 0.95, 0.25, 1.0), (-0.2, 1.2, 0.85, 1.0, 1.5))
+    ):
+        cx, cy = x + ux * dx, y + uy * dx
+        along, across = CORNERS[:, 0] * half_l, CORNERS[:, 1] * half_w
+        px = cx[:, None] + ux[:, None] * along - uy[:, None] * across
+        py = cy[:, None] + uy[:, None] * along + ux[:, None] * across
+        for ring, z in ((0, z0), (4, z1)):
+            out[:, 8 * b + ring : 8 * b + ring + 4, 0] = px
+            out[:, 8 * b + ring : 8 * b + ring + 4, 1] = py
+            out[:, 8 * b + ring : 8 * b + ring + 4, 2] = z
+    return out
+
+
+def build_traffic(scene_dir: Path, first_instance: int) -> int:
+    """A mesh of moving cars with fixed topology; ``set_traffic`` moves them frame to frame."""
+    path = scene_dir / "agents.json"
+    if not path.exists():
+        return 0
+    data = json.loads(path.read_text())
+    n = len(data["ids"])
+    if n == 0:
+        return 0
+    TRAFFIC.update(
+        n=n, first_instance=first_instance, x=np.array(data["x"]), y=np.array(data["y"]),
+        heading=np.array(data["heading"]),
+    )  # fmt: skip
+    mats = [
+        material(f"tcar{i}", tuple(c / 255 for c in rgb), 0.35, 90 + i)
+        for i, rgb in enumerate(CAR_BODY)
+    ]
+    mats.append(material("tcar-glass", (0.05, 0.07, 0.1), 0.1, 100))
+    glass = len(mats) - 1
+    faces, face_mat = [], []
+    for k in range(n):
+        for b in range(2):
+            base = k * 16 + b * 8
+            for f in BOX_FACES:
+                faces.append([base + v for v in f])
+                face_mat.append(glass if b else (k * 3 + 1) % len(CAR_BODY))
+    mesh = bpy.data.meshes.new("traffic")
+    mesh.vertices.add(n * 16)
+    flat = np.array(faces, dtype="int32")
+    mesh.loops.add(flat.size)
+    mesh.loops.foreach_set("vertex_index", flat.ravel())
+    mesh.polygons.add(len(flat))
+    mesh.polygons.foreach_set("loop_start", np.arange(len(flat), dtype="int32") * 4)
+    mesh.polygons.foreach_set("loop_total", np.full(len(flat), 4, dtype="int32"))
+    mesh.polygons.foreach_set("material_index", np.array(face_mat, dtype="int32"))
+    mesh.update(calc_edges=True)
+    for m in mats:
+        mesh.materials.append(m)
+    obj = bpy.data.objects.new("traffic", mesh)
+    bpy.context.collection.objects.link(obj)
+    set_traffic(0)
+    return n
+
+
+def set_traffic(i: int) -> None:
+    """Put every moving car where its track says at frame ``i`` (and on the ground there)."""
+    if not TRAFFIC:
+        return
+    co = _car_vertices(TRAFFIC["x"][:, i], TRAFFIC["y"][:, i], TRAFFIC["heading"][:, i], i)
+    co[:, :, 2] += terrain_z(co[:, :, 0], co[:, :, 1])
+    mesh = bpy.data.objects["traffic"].data
+    mesh.vertices.foreach_set("co", co.astype("float32").ravel())
+    mesh.update()
+
+
 def build_poles(scene: dict) -> int:
     """One mesh of slim roadside poles with a lamp head."""
     poles = scene.get("poles", [])
@@ -614,6 +695,7 @@ def main() -> int:
     nv, npoles = build_vehicles(scene), build_poles(scene)
     for name in ("trees", "vehicles", "poles"):
         lift_to_terrain(bpy.data.objects.get(name))
+    moving = build_traffic(a.scene_dir, len(scene.get("vehicles", [])))
     build_light(scene)
     camera_file = a.scene_dir / "camera.json"
     frames = json.loads(camera_file.read_text())["frames"] if camera_file.exists() else []
@@ -635,11 +717,15 @@ def main() -> int:
     cycles.render.image_settings.file_format = "PNG"
     cycles.render.image_settings.color_mode = "RGB"
     t1 = time.time()
-    say(f"scene_built buildings={n} trees={nt} vehicles={nv} poles={npoles} seconds={t1 - t0:.1f}")
+    say(
+        f"scene_built buildings={n} trees={nt} vehicles={nv} moving={moving} poles={npoles} "
+        f"seconds={t1 - t0:.1f}"
+    )
     if frames:  # OUT is a directory of frame_0000.png, frame_0001.png, ...
         a.out.mkdir(parents=True, exist_ok=True)
         for pose in frames:
             pose_camera(cam_obj, pose)
+            set_traffic(pose["index"])
             cycles.render.filepath = str((a.out / f"frame_{pose['index']:04d}.png").resolve())
             bpy.ops.render.render(write_still=True)
             say(f"frame {pose['index'] + 1}/{len(frames)} t={time.time() - t1:.1f}s")
@@ -653,6 +739,7 @@ def main() -> int:
             a.labels.mkdir(parents=True, exist_ok=True)
             for pose in frames:
                 pose_camera(cam_obj, pose)
+                set_traffic(pose["index"])
                 name = f"frame_{pose['index']:04d}.png"
                 cycles.render.filepath = str((a.labels / name).resolve())
                 bpy.ops.render.render(write_still=True)
@@ -666,6 +753,7 @@ def main() -> int:
             a.depth.mkdir(parents=True, exist_ok=True)
             for pose in frames:
                 pose_camera(cam_obj, pose)
+                set_traffic(pose["index"])
                 cycles.render.filepath = str((a.depth / f"frame_{pose['index']:04d}.png").resolve())
                 bpy.ops.render.render(write_still=True)
         else:
