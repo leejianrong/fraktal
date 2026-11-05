@@ -72,7 +72,7 @@ padding set to circular in the UNet and VAE so the output wraps, five roles by f
 | Model load | 12.6 s (a warm cache on that host; a cold pull is longer) |
 | Per texture | 4.7 s at 1024 px; the whole run, 20 images, 107 s |
 | Cost | about $0.002 a texture; the pod, boot to teardown, was about 3 minutes, so roughly $0.03 to $0.05 (estimated from the rate, not the bill) |
-| Seam score (wrap step over typical step; 1.0 is invisible) | 0.56 to 1.18, median about 0.99; the paint tiled 3x3 shows no seam |
+| Seam score (wrap step over typical step; 1.0 is invisible) | 0.56 to 1.18, median about 0.97; the paint tiled 3x3 shows no seam |
 
 What the images show:
 
