@@ -69,7 +69,14 @@ git -C src checkout -q "$COMMIT"
 echo "commit $COMMIT nproc $(nproc)"
 # bpy is a headless wheel but still links X11 and GL libraries the image lacks
 timeout 300 apt-get update -qq > /dev/null
-timeout 600 apt-get install -y -qq libxrender1 libxi6 libxxf86vm1 libxfixes3 libgl1 libsm6 libxkbcommon0 libegl1 ffmpeg > /dev/null
+timeout 600 apt-get install -y -qq libxrender1 libxi6 libxxf86vm1 libxfixes3 libgl1 libsm6 libxkbcommon0 libegl1 > /dev/null
+if [ "$MODE" = fly ]; then  # video needs ffmpeg: the package, or the pip wheel that bundles a binary
+  timeout 240 apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null 2>&1 || {
+    echo "WARN apt ffmpeg failed, using imageio-ffmpeg"
+    pip install -q --root-user-action=ignore imageio-ffmpeg
+    ln -sf "$(python -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())')" /usr/local/bin/ffmpeg
+  }
+fi
 pip install -q --root-user-action=ignore ./src matplotlib
 # bpy pins its own numpy, which breaks pyarrow in the main environment: give it a venv
 python -m venv /workspace/bpyenv
