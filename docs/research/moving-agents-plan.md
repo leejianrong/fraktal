@@ -98,3 +98,21 @@ rig code can start first, since a camera glued to a moving pose is the same mach
 2. **Which first:** more realistic traffic (car-following, FRK-86) or pedestrians (FRK-87) after the
    first moving cars?
 3. **Motorbikes and tuk-tuks:** add them as a vehicle type in this epic, or keep that for a realism pass?
+
+## Status after FRK-81 (2026-11-05)
+
+Answers from Jian: drive side is a biome setting (and can be overridden); car following (FRK-86) comes
+before pedestrians (FRK-87); motorbikes and tuk-tuks wait for a realism pass.
+
+Built: `fraktal.agents` (junction graph, two lanes per road on the drive side, seeded routes, per-frame
+`Tracks`), `kernels/traffic.py` (speed caps, braking, stepping), `RoadConfig.drive_side` (left for the
+five tropical biomes, right for Khartoum; not part of the world id, so existing ids are unchanged),
+and `fraktal traffic WORLD --center LON LAT --out DIR`, which writes `agents.json` and a map. On a
+2 km tile of the dense_urban world (30.6 km of road, 184 cars, 40 s) the map below shows every car's
+path from its start dot: cars follow the roads, turn at junctions and U-turn at dead ends and tile edges.
+
+![Car paths on a dense_urban tile](../img/traffic-map.jpg)
+
+Known limits, as planned: cars ignore each other, bridges are left out, the generated local roads are
+mostly spurs off arterials so the network is sparse, and the tile centre of a world is not always where
+the roads are (a 500 m tile at the dense_urban centre held 0.3 km of road). Rendering these tracks is FRK-85.
