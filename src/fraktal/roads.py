@@ -44,6 +44,7 @@ class RoadConfig:
     smooth_tolerance_cells: float = 1.5  # simplify first; 0 keeps the raw path
     smooth_rounds: int = 3
     bridge_cost: float = 40.0  # per water cell for an arterial; about 1 on flat land
+    drive_side: str = "right"  # which side cars keep to: "left" or "right" (traffic, FRK-81)
 
 
 def _cost(slope: Any, water: Any, allow_water: bool, config: RoadConfig) -> Any:

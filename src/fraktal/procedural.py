@@ -159,6 +159,7 @@ def generate_world(
         "world_id": world.world_id(seed, _jsonable(config), GENERATOR_VERSION),
         "generator_version": GENERATOR_VERSION,
         "biome": config.biome,
+        "drive_side": config.roads.drive_side,
         "seed": seed,
         "crs": crs,
         "center_lonlat": [lon, lat],
@@ -200,6 +201,7 @@ def _jsonable(config: ProceduralConfig) -> dict[str, Any]:
     for section in ("fields", "coast"):  # whole sections added later: omitted at default
         if out[section] == default[section]:
             del out[section]
+    del out["roads"]["drive_side"]  # traffic only: it does not change the world, so not its id
     for section, key in LATER_FIELDS:  # settings added after worlds existed: omitted at default
         if out[section][key] == default[section][key]:
             del out[section][key]

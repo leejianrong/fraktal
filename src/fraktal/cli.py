@@ -17,9 +17,12 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from fraktal import (
     __version__,
     ablation,
+    agents,
     assets,
     benchmark,
     biomes,
@@ -470,6 +473,46 @@ def _render3d_batch(args: argparse.Namespace) -> Result:
     return Result(record, text)
 
 
+def _traffic(args: argparse.Namespace) -> Result:
+    try:
+        roads, bounds, world_side = agents.tile_roads(
+            args.world, (args.center[0], args.center[1]), args.size_m
+        )
+        config = agents.TrafficConfig(
+            cars_per_km=args.cars_per_km, drive_side=args.drive_side or world_side
+        )
+        graph = agents.build_graph(roads, bounds, config)
+        times = np.arange(0.0, args.duration_s + 1e-9, 1.0 / args.fps)
+        tracks = agents.simulate_cars(graph, times, args.seed, config)
+        args.out.mkdir(parents=True, exist_ok=True)
+        (args.out / "agents.json").write_text(json.dumps(tracks.as_dict()) + "\n")
+        agents.draw_tracks(graph, tracks, bounds[2], args.out / "traffic.png")
+    except (OSError, ValueError) as err:
+        raise CliError(ExitCode.FAILURE, "traffic_failed", str(err)) from err
+    data = {
+        "cars": len(tracks.ids),
+        "frames": len(times),
+        "road_km": round(graph.total_length_m() / 1000, 2),
+        "drive_side": config.drive_side,
+        "files": ["agents.json", "traffic.png"],
+    }
+    return Result(
+        data, f"{data['cars']} cars on {data['road_km']} km of road, written to {args.out}"
+    )
+
+
+def _traffic_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("world", type=Path, help="a world directory (from `fraktal generate`)")
+    parser.add_argument("--center", type=float, nargs=2, metavar=("LON", "LAT"), required=True)
+    parser.add_argument("--out", type=Path, required=True, help="output directory")
+    parser.add_argument("--size-m", type=float, default=500.0, help="tile side in metres")
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--duration-s", type=float, default=30.0)
+    parser.add_argument("--fps", type=float, default=10.0)
+    parser.add_argument("--cars-per-km", type=float, default=6.0)
+    parser.add_argument("--drive-side", choices=agents.DRIVE_SIDES, help="default: the world's")
+
+
 def _render3d_batch_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("world", type=Path, help="a world directory (from `fraktal generate`)")
     parser.add_argument("--out", type=Path, required=True, help="output directory (resumable)")
@@ -827,6 +870,7 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "assets": _assets_args,
     "render3d": _render3d_args,
     "render3d-batch": _render3d_batch_args,
+    "traffic": _traffic_args,
 }
 
 COMMANDS: dict[str, tuple[str, Handler]] = {
@@ -846,6 +890,7 @@ COMMANDS: dict[str, tuple[str, Handler]] = {
     "assets": ("Check the asset manifest and its licences", _assets),
     "render3d": ("Render a world tile with Blender (3D path)", _render3d),
     "render3d-batch": ("Render many tiles of a world, resumable", _render3d_batch),
+    "traffic": ("Simulate cars on a tile's roads and map their paths", _traffic),
 }
 
 
