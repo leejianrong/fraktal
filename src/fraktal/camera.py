@@ -163,7 +163,8 @@ def _path(
     for i in range(n):
         h = math.radians(float(heading[i]))
         target = (
-            float(smooth[i, 0]) + back * math.sin(h), float(smooth[i, 1]) + back * math.cos(h)
+            float(smooth[i, 0]) + back * math.sin(h),
+            float(smooth[i, 1]) + back * math.cos(h),
         )
         poses.append(
             _pose(i, i / fps, target, float(heading[i]), off_nadir_deg, altitude_m, fov_deg)
