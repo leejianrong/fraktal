@@ -146,3 +146,13 @@ was 195.65 m against 195.81 m predicted from the pose at frame 30, 60, 90 and 12
 where a roof stands at the centre. Blender time for the 180 frames was 491 s with depth, against 156 s without it on the earlier
 run, but those were different pod hosts (the install stage also took twice as long), so the depth
 pass cost is not measured. A same-host comparison is still to do.
+
+## After FRK-80
+
+Path flights now use a point-mass drone (`fraktal.kernels.flight`) instead of smoothing the
+polyline. It starts and ends at rest, speeds up and brakes within `--max-accel` (default 3 m/s²),
+slows for corners (a speed profile along the path, using 80% of the limit so tracking has room),
+and turns its heading no faster than `--max-yaw-rate` (default 60 deg/s). On an L of 200 m legs at
+20 m/s cruise it passes the corner at about 7 m/s, cuts it by under 10 m, and stops within 2 m of the
+last waypoint. It is a kinematic model, with no wind, battery or thrust; the poses are the same
+kind as before, so rendering did not change and no pod run was needed.

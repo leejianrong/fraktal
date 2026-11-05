@@ -415,6 +415,9 @@ def _render3d(args: argparse.Namespace) -> Result:
                 "fov_deg": args.fov,
                 "duration_s": args.duration_s,
                 "fps": args.fps,
+                "speed_mps": args.speed,
+                "max_accel": args.max_accel,
+                "max_yaw_rate_dps": args.max_yaw_rate,
             },
             frame_px=args.frame_px,
             assets_dir=args.assets,
@@ -512,6 +515,9 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--fov", type=float, default=40.0, help="field of view in degrees")
     parser.add_argument("--duration-s", type=float, default=2.0)
     parser.add_argument("--fps", type=float, default=12.0)
+    parser.add_argument("--speed", type=float, default=40.0, help="cruise speed, m/s")
+    parser.add_argument("--max-accel", type=float, default=3.0, help="path flights, m/s^2")
+    parser.add_argument("--max-yaw-rate", type=float, default=60.0, help="path flights, deg/s")
     parser.add_argument("--assets", type=Path, help="assets directory (default $FRAKTAL_ASSETS)")
     parser.add_argument("--frame-px", type=int, default=512, help="frame side for a sequence")
     parser.add_argument("--no-labels", action="store_true", help="skip the label images")
