@@ -116,3 +116,33 @@ path from its start dot: cars follow the roads, turn at junctions and U-turn at 
 Known limits, as planned: cars ignore each other, bridges are left out, the generated local roads are
 mostly spurs off arterials so the network is sparse, and the tile centre of a world is not always where
 the roads are (a 500 m tile at the dense_urban centre held 0.3 km of road). Rendering these tracks is FRK-85.
+
+## Status after FRK-85 (2026-11-05)
+
+`render3d --traffic [--cars-per-km N] [--drive-side left|right]` simulates cars at the frame times of
+the camera path, writes them to `scene/agents.json` (part of the scene hash), renders them as a
+fixed-topology mesh moved each frame in the beauty, label and depth passes, and writes `tracks.json`
+from the exact label images (box, visible pixels and simulated state for every frame a car is visible).
+Moving cars have instance `first_instance + k + 1`, with the parked cars first; with traffic on there
+are no parked cars yet (they would drive through the traffic), so a car at the kerb is still to do.
+
+Pod checks (16 vCPU, 16 samples, 512 px frames, 8 fps):
+
+| Biome | Frames | Cars | Cars seen | Mismatches | Render time |
+|---|---|---|---|---|---|
+| dense_urban (left-hand), 25 cars/km | 231 | 95 | 15 (up to 10 in a frame) | 0 | 523 s |
+| khartoum (right-hand), 25 cars/km | 102 | 64 | 2 | 0 | not recorded |
+
+"Mismatches" is the count of sampled detections whose pixel count or box differs from a fresh recount in
+the label image; zero in both runs. A single car kept the same instance across its whole track (car-0044,
+instance 45, frames 0 to 131 in the dense run). Below: crops around one car in four frames of the
+khartoum flight, a red car driving down a dirt road, with the full frame underneath.
+
+![A tracked car in four frames](../img/traffic-cars.jpg)
+
+In the dense town the streets are narrow canyons in deep shadow, so cars show as dark boxes in the beauty
+frames while the label image shows them exactly (blue, below). The cars are still boxes, they do not
+react to each other (FRK-86), and the render time of about 2.3 s a frame at 512 px is mostly Cycles, not the
+car update.
+
+![Dense urban frames and their labels](../img/traffic-dense-labels.jpg)
