@@ -10,7 +10,7 @@ L_SHAPE = np.array([[0.0, 0.0], [200.0, 0.0], [200.0, 200.0]])
 
 def _run(**kw: float) -> dict[str, np.ndarray]:
     args = {"cruise_mps": 20.0, "max_accel": 3.0, "max_yaw_rate_dps": 60.0, "fps": 10.0}
-    return fly(L_SHAPE, **{**args, **kw})  # type: ignore[arg-type]
+    return fly(L_SHAPE, **{**args, **kw})
 
 
 def test_golden_the_drone_flies_an_l_and_stops_at_the_end() -> None:
@@ -56,9 +56,9 @@ def test_bad_limits_are_refused(kw: dict[str, float]) -> None:
 def test_bad_waypoints_are_refused() -> None:
     args = {"cruise_mps": 5.0, "max_accel": 2.0, "max_yaw_rate_dps": 40.0, "fps": 5.0}
     with pytest.raises(ValueError, match="N >= 2"):
-        fly(np.zeros((1, 2)), **args)  # type: ignore[arg-type]
+        fly(np.zeros((1, 2)), **args)
     with pytest.raises(ValueError, match="same point"):
-        fly(np.zeros((3, 2)), **args)  # type: ignore[arg-type]
+        fly(np.zeros((3, 2)), **args)
 
 
 def test_a_straight_leg_reaches_the_distance_speed_and_accel_say() -> None:
