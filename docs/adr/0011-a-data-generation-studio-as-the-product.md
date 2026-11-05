@@ -134,3 +134,15 @@ manifest row; progress lines for long jobs; and per ADR-0009, build for coverage
 - **Engine spike written** ([realtime-engine-spike.md](../research/realtime-engine-spike.md)):
   Godot 4 (MIT, no royalty) is the candidate for a later prototype; Unreal terms could not be
   fetched from Epic and are secondary only. Nothing is decided: stay offline through phases 1 to 3.
+
+## After FRK-79
+
+`render3d --depth` writes `depth/frame_NNNN.png` (16-bit, z depth along the optical axis, 5 cm
+units, 0 = sky), and every camera sequence writes `poses.json` with the intrinsics and a 4x4
+`camera_to_world` per frame (OpenCV axes, tile frame east, north, up). Blender renders depth as an
+unlit shader that splits the distance over two 8-bit channels, the way labels work, so it is exact
+and needs no EXR reader. Check on a pod (dense_urban, 180 frames, 16 samples): the centre-pixel depth
+was 195.65 m against 195.81 m predicted from the pose at frame 30, 60, 90 and 120, and 191 m at frame 0
+where a roof stands at the centre. Depth adds one cheap pass per frame; the three passes took
+about 11 minutes of pod time for 180 frames against 2.6 minutes for beauty and labels alone, so most
+of the new time was the slow pod host rather than the depth pass (not separately timed).
