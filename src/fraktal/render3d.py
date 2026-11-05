@@ -61,6 +61,7 @@ def scene_sha256(scene_dir: Path) -> str:
         "scene.json",
         "ground.npy",
         "ground_rough.npy",
+        "ground_height.npy",
         "camera.json",
     )  # camera.json only for sequences
     for name in (*names, *(f"mesh_{k}.npy" for k in MESH_FILES)):

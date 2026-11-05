@@ -68,6 +68,63 @@ def write_png(path: str, rgb: np.ndarray) -> None:
     Path(path).write_bytes(png)
 
 
+TERRAIN: dict = {}  # "nodes" (n + 1, n + 1) heights, "cell" metres; empty on a flat tile
+
+
+def terrain_z(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Ground height (bilinear) at tile coordinates; zero when the tile is flat."""
+    if not TERRAIN:
+        return np.zeros(np.shape(x))
+    nodes, cell = TERRAIN["nodes"], TERRAIN["cell"]
+    n = nodes.shape[0] - 1
+    fx = np.clip(np.asarray(x, dtype="float64") / cell, 0.0, n - 1e-9)
+    fy = np.clip(np.asarray(y, dtype="float64") / cell, 0.0, n - 1e-9)
+    i, j = fx.astype(int), fy.astype(int)
+    wx, wy = fx - i, fy - j
+    return (
+        nodes[j, i] * (1 - wx) * (1 - wy) + nodes[j, i + 1] * wx * (1 - wy)
+        + nodes[j + 1, i] * (1 - wx) * wy + nodes[j + 1, i + 1] * wx * wy
+    )  # fmt: skip
+
+
+def lift_to_terrain(obj) -> None:
+    """Raise every vertex of ``obj`` by the ground height under it."""
+    if not TERRAIN or obj is None:
+        return
+    mesh = obj.data
+    co = np.empty(len(mesh.vertices) * 3, dtype="float32")
+    mesh.vertices.foreach_get("co", co)
+    co = co.reshape(-1, 3)
+    co[:, 2] += terrain_z(co[:, 0], co[:, 1])
+    mesh.vertices.foreach_set("co", co.ravel())
+    mesh.update()
+
+
+def displaced_plane(size: float, nodes: np.ndarray):
+    """The ground as a grid of quads, one vertex per height node, with 0..1 UVs for the texture."""
+    n = nodes.shape[0] - 1
+    xs = np.linspace(0.0, size, n + 1)
+    gx, gy = np.meshgrid(xs, xs)  # gy varies down the rows: row j is y = j * cell
+    co = np.stack([gx, gy, nodes], axis=-1).reshape(-1, 3).astype("float32")
+    j, i = np.meshgrid(np.arange(n), np.arange(n), indexing="ij")
+    a = (j * (n + 1) + i).ravel()
+    quads = np.stack([a, a + 1, a + n + 2, a + n + 1], axis=1).astype("int32")
+    mesh = bpy.data.meshes.new("ground")
+    mesh.vertices.add(len(co))
+    mesh.vertices.foreach_set("co", co.ravel())
+    mesh.loops.add(len(quads) * 4)
+    mesh.loops.foreach_set("vertex_index", quads.ravel())
+    mesh.polygons.add(len(quads))
+    mesh.polygons.foreach_set("loop_start", np.arange(len(quads), dtype="int32") * 4)
+    mesh.polygons.foreach_set("loop_total", np.full(len(quads), 4, dtype="int32"))
+    uv = mesh.uv_layers.new(name="UVMap")
+    uv.data.foreach_set("uv", (co[quads.ravel(), :2] / size).astype("float32").ravel())
+    mesh.update(calc_edges=True)
+    obj = bpy.data.objects.new("ground", mesh)
+    bpy.context.collection.objects.link(obj)
+    return obj
+
+
 def build_ground(scene: dict, ground: np.ndarray, rough: np.ndarray | None = None):
     size = scene["size_m"]
     h, w, _ = ground.shape
@@ -75,10 +132,13 @@ def build_ground(scene: dict, ground: np.ndarray, rough: np.ndarray | None = Non
     write_png(path, (np.clip(ground, 0.0, 1.0) * 255 + 0.5).astype("uint8"))
     img = bpy.data.images.load(path)
     img.colorspace_settings.name = "Non-Color"  # the colours are already display reflectance
-    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(size / 2, size / 2, 0.0))
-    plane = bpy.context.object
-    plane.name = "ground"
-    plane.scale = (size, size, 1.0)
+    if TERRAIN:
+        plane = displaced_plane(size, TERRAIN["nodes"])
+    else:
+        bpy.ops.mesh.primitive_plane_add(size=1.0, location=(size / 2, size / 2, 0.0))
+        plane = bpy.context.object
+        plane.name = "ground"
+        plane.scale = (size, size, 1.0)
     mat = bpy.data.materials.new("ground")
     mat.use_nodes = True
     tex = mat.node_tree.nodes.new("ShaderNodeTexImage")
@@ -138,6 +198,15 @@ def build_buildings(scene: dict, scene_dir: Path, assets: Path) -> int:
     co, sizes, face_verts, face_mat = (
         load("vertices"), load("face_sizes"), load("face_verts"), load("face_material")
     )  # fmt: skip
+    if TERRAIN:  # each building stands on the lowest ground under its footprint
+        owner_face = np.load(scene_dir / "mesh_face_building.npy").astype("int64")
+        owner = np.zeros(len(co), dtype="int64")
+        owner[face_verts] = np.repeat(owner_face, sizes)
+        ground = terrain_z(co[:, 0], co[:, 1])
+        base = np.full(owner.max() + 1, np.inf)
+        np.minimum.at(base, owner, ground)
+        co = co.copy()
+        co[:, 2] += base[owner]
     mesh = bpy.data.meshes.new("buildings")
     mesh.vertices.add(len(co))
     mesh.vertices.foreach_set("co", co.astype("float32").ravel())
@@ -535,10 +604,16 @@ def main() -> int:
     t0 = time.time()
     bpy.ops.wm.read_factory_settings(use_empty=True)
     rough_file = a.scene_dir / "ground_rough.npy"
+    terrain = scene.get("terrain")
+    if terrain:
+        TERRAIN["nodes"] = np.load(a.scene_dir / terrain["file"]).astype("float64")
+        TERRAIN["cell"] = terrain["cell_m"]
     build_ground(scene, ground, np.load(rough_file) if rough_file.exists() else None)
     n = build_buildings(scene, a.scene_dir, a.assets)
     nt = build_trees(scene)
     nv, npoles = build_vehicles(scene), build_poles(scene)
+    for name in ("trees", "vehicles", "poles"):
+        lift_to_terrain(bpy.data.objects.get(name))
     build_light(scene)
     camera_file = a.scene_dir / "camera.json"
     frames = json.loads(camera_file.read_text())["frames"] if camera_file.exists() else []
