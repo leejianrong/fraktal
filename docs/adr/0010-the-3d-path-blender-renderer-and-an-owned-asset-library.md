@@ -638,3 +638,22 @@ Limits: still a colour image on a flat ground, so no blades or relief; the mottl
 mapped vegetation, and I did not run the gauge on it (ground colour moved, so the FRK-67 numbers no
 longer apply). Trees remain lumpy balls, not branching trees. The world's 5 m land-cover source is
 unchanged, so the 2.5D path still shows its squares.
+
+## After FRK-75
+
+The 3D ground now has relief. The export warps the world's `dem.tif` onto the tile and writes
+`ground_height.npy`, heights in metres above the tile's lowest point on a 1 m grid (coarser above
+700 cells a side); `scene.json` gets a `terrain` block (cell, lowest elevation, relief). Blender builds
+the ground as a displaced grid with the same texture, and buildings (on the lowest ground under their
+footprint), trees, cars and poles are lifted onto it. A flat tile writes no height file and keeps the
+single-quad ground, so existing output and hashes do not change. The height grid is part of
+`scene_sha256`. Camera altitudes are above the tile's lowest point, not above the ground under it.
+
+Checked with a 180-frame drone flight over `paddy_terraces` on a pod: the depth at the image centre is
+182 to 190 m where the flat ground gave 195.8 m, so the terrain stands up toward the camera. The
+terraces are gentle: in a 500 m tile the height data shows plateaus with drops of about 1 m between
+them inside 18 m of relief, which is subtle in a render. The left panel below is a hillshade of the
+heights at 4x vertical exaggeration, the right a frame from the flight. Steeper, taller terraces would
+need a larger `relief_m` or a terrace height in the biome config, which is not done.
+
+![Hillshade of the tile heights and a flight frame](../img/relief-paddy.jpg)
