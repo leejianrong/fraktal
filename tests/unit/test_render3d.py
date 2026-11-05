@@ -149,3 +149,63 @@ def test_labels_can_be_skipped(world: Path, tmp_path: Path) -> None:
     out = tmp_path / "nolabels"
     meta = render3d.render(world, out, CENTER, 60.0, 1.0, script=fake(tmp_path), labels=False)
     assert "labels" not in meta and not (out / "labels.png").exists()
+
+
+TRAFFIC_BLENDER = textwrap.dedent(
+    """
+    import json, os, sys
+    import numpy as np
+    import rasterio
+    scene = sys.argv[1]
+    px = int(sys.argv[sys.argv.index("--px") + 1])
+    labels = sys.argv[sys.argv.index("--labels") + 1]
+    frames = json.load(open(scene + "/camera.json"))["frames"]
+    agents = json.load(open(scene + "/agents.json"))
+    first = len(json.load(open(scene + "/scene.json"))["vehicles"])
+    kw = dict(driver="PNG", count=3, dtype="uint8", height=px, width=px)
+    os.makedirs(sys.argv[2], exist_ok=True)
+    os.makedirs(labels, exist_ok=True)
+    for f in frames:
+        with rasterio.open("%s/frame_%04d.png" % (sys.argv[2], f["index"]), "w", **kw) as d:
+            d.write(np.full((3, px, px), 60, dtype="uint8"))
+        img = np.zeros((3, px, px), dtype="uint8")
+        img[0, 5:9, 5:9] = 4                   # class vehicle
+        img[2, 5:9, 5:9] = first + 1           # the first moving car, every frame
+        with rasterio.open("%s/frame_%04d.png" % (labels, f["index"]), "w", **kw) as d:
+            d.write(img)
+    print(json.dumps({"build_s": 0.1, "render_s": 0.2, "px": px, "frames": len(frames),
+                      "buildings": 1, "trees": 1, "bpy": "fake"}))
+    """
+)
+
+
+def test_a_render_with_traffic_writes_agents_and_tracks(world: Path, tmp_path: Path) -> None:
+    out = tmp_path / "t"
+    meta = render3d.render(
+        world, out, CENTER, 1000.0, 0.5, seed=4, trajectory="orbit", frame_px=64,
+        camera_options={"fps": 4.0, "duration_s": 1.0},
+        script=fake(tmp_path, TRAFFIC_BLENDER), traffic={"cars_per_km": 40.0},
+    )  # fmt: skip
+    agent_file = json.loads((out / "scene" / "agents.json").read_text())
+    n = len(agent_file["ids"])
+    assert n > 5 and len(agent_file["x"][0]) == len(meta["frames"]) == 4
+    scene = json.loads((out / "scene" / "scene.json").read_text())
+    assert scene["vehicles"] == []  # moving cars replace the parked ones
+    table = json.loads((out / "tracks.json").read_text())
+    assert [t["instance"] for t in table["tracks"]][:2] == [1, 2]
+    seen = [t for t in table["tracks"] if t["detections"]]
+    assert [t["id"] for t in seen] == ["car-0000"] and len(seen[0]["detections"]) == 4
+    assert seen[0]["detections"][0]["bbox"] == [5, 5, 8, 8]
+    assert meta["traffic"]["cars"] == n and meta["traffic"]["first_instance"] == 0
+    assert meta["labels"]["vehicles"] == n
+    again = render3d.render(
+        world, tmp_path / "t2", CENTER, 1000.0, 0.5, seed=4, trajectory="orbit", frame_px=64,
+        camera_options={"fps": 4.0, "duration_s": 1.0},
+        script=fake(tmp_path, TRAFFIC_BLENDER), traffic={"cars_per_km": 40.0},
+    )  # fmt: skip
+    assert again["scene_sha256"] == meta["scene_sha256"]  # the tracks are part of the scene hash
+    plain = render3d.render(
+        world, tmp_path / "p", CENTER, 1000.0, 0.5, seed=4, trajectory="orbit", frame_px=64,
+        camera_options={"fps": 4.0, "duration_s": 1.0}, script=fake(tmp_path),
+    )  # fmt: skip
+    assert plain["scene_sha256"] != meta["scene_sha256"] and "traffic" not in plain
