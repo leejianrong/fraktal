@@ -176,7 +176,8 @@ def test_a_hilly_tile_exports_a_height_grid_and_a_flat_tile_does_not(tmp_path: P
     world = _world(tmp_path, "paddy_terraces")
     scene = export_scene(world, tmp_path / "t", CENTER, 800.0, 1.0)
     nodes = np.load(tmp_path / "t" / scene["terrain"]["file"])
-    assert nodes.min() == 0.0 and nodes.max() == pytest.approx(scene["terrain"]["relief_m"], abs=0.01)
+    relief = scene["terrain"]["relief_m"]
+    assert nodes.min() == 0.0 and nodes.max() == pytest.approx(relief, abs=0.01)
     assert nodes.max() > 3.0  # terraces and hills stand clearly above the lowest ground
     assert nodes.shape[0] == round(800.0 / scene["terrain"]["cell_m"]) + 1
     again = export_scene(world, tmp_path / "t2", CENTER, 800.0, 1.0)
