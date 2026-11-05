@@ -227,6 +227,60 @@ def use_label_look(sc) -> None:
     sc.view_settings.gamma = 1.0
 
 
+def use_depth_look(sc, unit_m: float) -> None:
+    """Unlit rendering whose colour is the camera z depth in ``unit_m`` steps, split over R and G.
+
+    R is the high byte and G the low byte of ``round(depth / unit_m)``; the background stays black
+    (zero, no surface). Like the label look it is one unfiltered sample, so values are exact.
+    """
+    mat = bpy.data.materials.new("depth")
+    mat.use_nodes = True
+    nodes, links = mat.node_tree.nodes, mat.node_tree.links
+    nodes.clear()
+
+    def math_node(op: str, a, b=None):
+        n = nodes.new("ShaderNodeMath")
+        n.operation = op
+        for i, v in enumerate((a, b)):
+            if v is None:
+                continue
+            if isinstance(v, float):
+                n.inputs[i].default_value = v
+            else:
+                links.new(v, n.inputs[i])
+        return n.outputs[0]
+
+    z = nodes.new("ShaderNodeCameraData").outputs["View Z Depth"]
+    units = math_node("ROUND", math_node("DIVIDE", z, unit_m))
+    high = math_node("FLOOR", math_node("DIVIDE", units, 256.0))
+    low = math_node("SUBTRACT", units, math_node("MULTIPLY", high, 256.0))
+    combine = nodes.new("ShaderNodeCombineColor")
+    links.new(math_node("DIVIDE", high, 255.0), combine.inputs["Red"])
+    links.new(math_node("DIVIDE", low, 255.0), combine.inputs["Green"])
+    emit = nodes.new("ShaderNodeEmission")
+    out = nodes.new("ShaderNodeOutputMaterial")
+    links.new(combine.outputs["Color"], emit.inputs["Color"])
+    links.new(emit.outputs["Emission"], out.inputs["Surface"])
+    for name in ("ground", "buildings", "trees", "vehicles", "poles"):
+        if name in bpy.data.objects:
+            mesh = bpy.data.objects[name].data
+            mesh.materials.clear()
+            mesh.materials.append(mat)
+            mesh.polygons.foreach_set("material_index", np.zeros(len(mesh.polygons), dtype="int32"))
+            mesh.update()
+    sc.cycles.samples = 1
+    sc.cycles.use_denoising = False
+    sc.cycles.filter_width = 0.01
+    sc.render.film_transparent = False
+    sc.render.dither_intensity = 0.0
+    world = bpy.data.worlds.new("black-depth")
+    world.use_nodes = True
+    world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.0, 0.0, 0.0, 1.0)
+    sc.world = world
+    sc.view_settings.view_transform = "Raw"
+    sc.view_settings.look = "None"
+
+
 FOLIAGE = [
     (0.15, 0.31, 0.13), (0.19, 0.36, 0.14), (0.12, 0.26, 0.12),
     (0.22, 0.38, 0.12), (0.17, 0.30, 0.16), (0.26, 0.40, 0.15),
@@ -471,6 +525,8 @@ def main() -> int:
     p.add_argument("--samples", type=int, default=32)
     p.add_argument("--threads", type=int, default=0)
     p.add_argument("--labels", type=Path, default=None, help="also write label images here")
+    p.add_argument("--depth", type=Path, default=None, help="also write encoded depth images here")
+    p.add_argument("--depth-unit", type=float, default=0.05, help="metres per depth step")
     a = p.parse_args(sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else sys.argv[1:])
     scene = json.loads((a.scene_dir / "scene.json").read_text())
     ground = np.load(a.scene_dir / "ground.npy")
@@ -529,6 +585,18 @@ def main() -> int:
             cycles.render.filepath = str(a.labels.resolve())
             bpy.ops.render.render(write_still=True)
         say("labels_rendered")
+    if a.depth:
+        use_depth_look(cycles, a.depth_unit)
+        if frames:
+            a.depth.mkdir(parents=True, exist_ok=True)
+            for pose in frames:
+                pose_camera(cam_obj, pose)
+                cycles.render.filepath = str((a.depth / f"frame_{pose['index']:04d}.png").resolve())
+                bpy.ops.render.render(write_still=True)
+        else:
+            cycles.render.filepath = str(a.depth.resolve())
+            bpy.ops.render.render(write_still=True)
+        say("depth_rendered")
     t2 = time.time()
     say(f"rendered px={px} frames={max(1, len(frames))} samples={a.samples} seconds={t2 - t1:.1f}")
     print(

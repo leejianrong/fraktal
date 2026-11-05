@@ -126,9 +126,28 @@ PY
   stage fly
   fraktal render3d review/world --out review/fly --center 32.55 15.64 --size-m 800 --gsd-m 0.5 \
     --path review/path.json --altitude-m 150 --off-nadir 40 --fov 60 --fps 12 --frame-px 512 \
-    --samples "${SAMPLES%% *}" --seed 7 --threads "$(nproc)" --video > review/fly.out 2> review/fly.err \
+    --samples "${SAMPLES%% *}" --seed 7 --threads "$(nproc)" --video --depth > review/fly.out 2> review/fly.err \
     || { echo "ERROR fly failed"; tail -n 20 review/fly.err; }
   echo "RP_FLY $(python -c "import json;d=json.load(open('review/fly/render.json'));print(len(d['frames']), d['files'], d['seconds'])" 2>&1)"
+  python - <<'PY'
+import json
+import numpy as np
+import rasterio
+from fraktal import depth
+d = "review/fly"
+meta = json.load(open(f"{d}/render.json"))
+k = meta["intrinsics"]
+poses = json.load(open(f"{d}/poses.json"))["frames"]
+for i in range(0, len(poses), 30):
+    with rasterio.open(f"{d}/depth/frame_{i:04d}.png") as src:
+        raw = src.read(1)
+    m = np.array(poses[i]["camera_to_world"])
+    p = meta["frames"][i]
+    expect = depth.project((p["target_x"], p["target_y"], 0.0), m, k)[2]
+    centre = depth.to_metres(raw[252:261, 252:261])
+    hit = (raw > 0).mean()
+    print("RP_DEPTH_CHECK", i, "centre_median_m", round(float(np.median(centre)), 2), "expected_ground_m", round(expect, 2), "hit_share", round(float(hit), 3), "max_m", round(float(depth.to_metres(raw[raw > 0]).max()), 1))
+PY
   rm -rf review/world review/fly/scene
   ls -la review/fly | head; du -sh review | sed 's/^/RP_ARTIFACT_SIZE /'
   exit 0

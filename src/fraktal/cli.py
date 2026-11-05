@@ -408,6 +408,7 @@ def _render3d(args: argparse.Namespace) -> Result:
             trajectory="path" if args.path else args.trajectory,
             waypoints=_waypoints(args.path) if args.path else None,
             make_video=args.video,
+            with_depth=args.depth,
             camera_options={
                 "altitude_m": args.altitude_m,
                 "off_nadir_deg": args.off_nadir,
@@ -505,6 +506,7 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--trajectory", choices=cameras.KINDS, help="render a perspective sequence")
     parser.add_argument("--path", type=Path, help="fly through the waypoints in this JSON file")
     parser.add_argument("--video", action="store_true", help="also write video.mp4 (needs ffmpeg)")
+    parser.add_argument("--depth", action="store_true", help="also write 16-bit depth images")
     parser.add_argument("--altitude-m", type=float, default=300.0)
     parser.add_argument("--off-nadir", type=float, default=35.0, help="degrees from straight down")
     parser.add_argument("--fov", type=float, default=40.0, help="field of view in degrees")
