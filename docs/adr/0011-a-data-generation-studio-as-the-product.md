@@ -143,6 +143,6 @@ units, 0 = sky), and every camera sequence writes `poses.json` with the intrinsi
 unlit shader that splits the distance over two 8-bit channels, the way labels work, so it is exact
 and needs no EXR reader. Check on a pod (dense_urban, 180 frames, 16 samples): the centre-pixel depth
 was 195.65 m against 195.81 m predicted from the pose at frame 30, 60, 90 and 120, and 191 m at frame 0
-where a roof stands at the centre. Depth adds one cheap pass per frame; the three passes took
-about 11 minutes of pod time for 180 frames against 2.6 minutes for beauty and labels alone, so most
-of the new time was the slow pod host rather than the depth pass (not separately timed).
+where a roof stands at the centre. Blender time for the 180 frames was 491 s with depth, against 156 s without it on the earlier
+run, but those were different pod hosts (the install stage also took twice as long), so the depth
+pass cost is not measured. A same-host comparison is still to do.
