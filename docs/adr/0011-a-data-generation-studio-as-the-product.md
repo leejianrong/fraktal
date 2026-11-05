@@ -1,6 +1,6 @@
 # ADR-0011: A data generation studio is the product
 
-- Status: Proposed (Jian to accept; amends ADR-0007 if accepted, see "What this changes")
+- Status: Accepted (2026-11-05, Jian); amends ADR-0007
 - Date: 2026-11-05
 - Deciders: Jian
 
@@ -99,9 +99,9 @@ manifest row; progress lines for long jobs; and per ADR-0009, build for coverage
 
 ## What this changes
 
-- **ADR-0007:** if this is accepted, 0007 should be marked "Amended by 0011": the first revenue model
+- **ADR-0007:** marked "Amended by 0011". The first revenue model
   stays (projects and datasets) but the destination is the studio, and "no UI or API" in PLAN.md
-  becomes a later phase, not an exclusion. Not edited yet, pending the discussion.
+  becomes a later phase, not an exclusion.
 - **PLAN.md "Later bets" 0 and 1** (3D worlds, robotics and drone views) become the main line.
 - **Hosting:** public sample datasets on Hugging Face are fine (they are marketing for the studio).
 
