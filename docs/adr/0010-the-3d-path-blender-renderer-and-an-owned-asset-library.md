@@ -562,3 +562,42 @@ applied afterwards, not in the batch); the world is one biome; the pod ran with 
 near four times its cores (Blender uses all threads), so the per-tile time may drop with a thread
 cap; relaying 105 MB worked, but a 1,000-tile run needs a bucket upload instead; the sun range and
 the 40 centre tries are assumptions.
+
+### After FRK-72: sensor pass, six biomes, and the contrast gap
+
+**Contrast gap, looked at and left alone.** FRK-67 and FRK-71 left a question: is the 3D path's
+contrast wrong? Measured grey-level spread (std, digital numbers) on the saved FRK-67 tiles: the 90 real
+Open Cities chips average 39.0 (10th to 90th percentile 30 to 53). 3D with the sensor draw of scene 0
+gives 30 (dense_urban) and 34 (informal_settlement), the low end of the real spread, not outside it.
+Across all three draws, before blur and noise, it is 33.5 and 38.5 at the drawn gain and 43 and 50 at
+1.3 times it. So the 0.20 gap is one draw on one tile, and the tropical gain range (0.9 to 1.3) already
+reaches the real mean. No code change. If a larger sample reads low, widen the 3D gain to about 1.5.
+
+**Sensor in the batch.** `fraktal render3d-batch --sensor` draws each tile's haze, tone, gain, blur and
+noise from the tropical ranges (a named sub-stream per tile, so it is in the plan and the resume hash)
+and writes `sensor.png` next to the raw `image.png`; `render.json` records the draw. It is the same
+`sensor_chain` and noise kernel as the 2.5D path. The cloud cover, bright roofs and ambient draws of the
+tropical set are 2.5D parameters and are not applied. `MODE=batch BATCH_BIOME='a b c' SENSOR=1
+scripts/runpod/stage0_run.sh` runs several biomes on one pod, a world each.
+
+![sensor image above, class labels below, one tile per biome](../img/batch-biomes.jpg)
+
+**Smoke run** (commit c892584, one 16 vCPU CPU pod, 3 km worlds, 4 tiles of 500 m per biome, 16 samples):
+24 of 24 tiles rendered, none failed. Seconds per tile: dense_urban 7.6, informal_settlement 7.5, and
+about 3.1 for the four open biomes. The FRK-68 run on another host took 14.3 s a tile for dense_urban,
+so the speed depends on the host; plan with the slower figure. The paddy tile has one building and
+mostly flat colour blocks (the 3D ground has no relief), the oil-palm tile shows the plantation rows.
+
+**How big a multi-biome dataset is.** One tile of 500 m at 0.5 m (1000 by 1000 px) is about 2.0 MB for
+`sensor.png`, 2.0 MB for the raw `image.png` and 0.04 to 0.12 MB for `labels.png`, measured above. Keeping
+the sensor image and labels only is about 2.1 MB a tile; keeping the raw image as well is about 4.2 MB.
+
+| Tiles (six biomes) | Sensor and labels | With raw | One pod at 4.6 s/tile (mixed) | Pod cost at $0.48/h |
+|---|---|---|---|---|
+| 3,000 (500 each) | 6.3 GB | 12.5 GB | 3.8 h | about $2 (about $5 at 14 s a tile) |
+| 12,000 (2,000 each) | 25 GB | 50 GB | 15 h, or 3 pods in 5 h | about $7 (about $22 at 14 s a tile) |
+
+Costs are estimates from the hourly rate. The pod relay worked at 105 MB, not at these sizes, so a real
+dataset run needs an object store. Cloudflare R2 fits: no egress fee, 10 GB free, then $0.015 per GB a
+month (25 GB is about $0.38 a month), and the S3 API works from a pod. It needs a bucket and a token
+scoped to it, which only the account owner can create (FRK-74).
