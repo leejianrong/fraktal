@@ -38,7 +38,7 @@ import rasterio
 from affine import Affine
 
 from fraktal import camera as cameras
-from fraktal import labels3d
+from fraktal import labels3d, video
 from fraktal.blender_export import export_scene
 from fraktal.log import emit
 
@@ -132,6 +132,8 @@ def render(
     assets_dir: Path | None = None,
     labels: bool = True,
     height_profile: str = "auto",
+    waypoints: list[tuple[float, float]] | None = None,
+    make_video: bool = False,
 ) -> dict[str, Any]:
     """Export the tile, render it in Blender, write the contract files, return ``render.json``."""
     python = bpy_python or sys.executable
@@ -147,7 +149,9 @@ def render(
     )  # fmt: skip
     poses = []
     if trajectory:  # a perspective sequence instead of the nadir tile (FRK-51)
-        poses = cameras.trajectory(trajectory, scene["size_m"], seed, **(camera_options or {}))
+        poses = cameras.trajectory(
+            trajectory, scene["size_m"], seed, waypoints=waypoints, **(camera_options or {})
+        )
         (out_dir / "scene" / "camera.json").write_text(
             json.dumps({"frames": [p.as_dict() for p in poses]}) + "\n"
         )
@@ -186,6 +190,15 @@ def render(
                 code = src.read()[:3]
             with rasterio.open(out_dir / "labels.tif", "w", **profile) as dst:
                 dst.write(code)
+    videos: dict[str, str] = {}
+    if make_video and poses:
+        fps = (camera_options or {}).get("fps", 12.0)
+        video.encode_frames(out_dir / "frames", out_dir / "video.mp4", fps)
+        videos["video"] = "video.mp4"
+        if labels:
+            video.encode_labels(out_dir / "labels", out_dir / "video_labels.mp4", fps)
+            videos["video_labels"] = "video_labels.mp4 (colour preview; labels/*.png are exact)"
+        emit("render3d_video", files=sorted(videos), frames=len(poses), fps=fps)
     meta = {
         "schema": SCHEMA,
         "world": str(world_dir),
@@ -218,7 +231,7 @@ def render(
         meta["trajectory"] = trajectory
         meta["px"] = frame_px
         meta["frames"] = [p.as_dict() for p in poses]
-        meta["files"] = {"frames": "frames/frame_NNNN.png", "scene": "scene/"}
+        meta["files"] = {"frames": "frames/frame_NNNN.png", "scene": "scene/", **videos}
     if labels:
         meta["labels"] = labels3d.meta(
             [b["id"] for b in scene["buildings"]],

@@ -380,6 +380,17 @@ def _inspect_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--id", help="feature id (or a unique prefix of 6+ characters)")
 
 
+def _waypoints(path: Path) -> list[tuple[float, float]]:
+    """Waypoints in tile metres from a JSON file: a list of [x, y] or {"waypoints": [...]}."""
+    try:
+        data = json.loads(path.read_text())
+        points = data["waypoints"] if isinstance(data, dict) else data
+        return [(float(x), float(y)) for x, y in points]
+    except (OSError, ValueError, KeyError, TypeError) as err:
+        msg = f"cannot read waypoints from {path}: {err}"
+        raise CliError(ExitCode.FAILURE, "bad_path", msg) from err
+
+
 def _render3d(args: argparse.Namespace) -> Result:
     try:
         meta = render3d.render(
@@ -394,7 +405,9 @@ def _render3d(args: argparse.Namespace) -> Result:
             threads=args.threads,
             bpy_python=args.bpy_python or os.environ.get("FRAKTAL_BPY_PYTHON"),
             timeout_s=args.timeout_s,
-            trajectory=args.trajectory,
+            trajectory="path" if args.path else args.trajectory,
+            waypoints=_waypoints(args.path) if args.path else None,
+            make_video=args.video,
             camera_options={
                 "altitude_m": args.altitude_m,
                 "off_nadir_deg": args.off_nadir,
@@ -490,6 +503,8 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--bpy-python", help="a Python with bpy (default $FRAKTAL_BPY_PYTHON)")
     parser.add_argument("--timeout-s", type=float, default=1800.0)
     parser.add_argument("--trajectory", choices=cameras.KINDS, help="render a perspective sequence")
+    parser.add_argument("--path", type=Path, help="fly through the waypoints in this JSON file")
+    parser.add_argument("--video", action="store_true", help="also write video.mp4 (needs ffmpeg)")
     parser.add_argument("--altitude-m", type=float, default=300.0)
     parser.add_argument("--off-nadir", type=float, default=35.0, help="degrees from straight down")
     parser.add_argument("--fov", type=float, default=40.0, help="field of view in degrees")
