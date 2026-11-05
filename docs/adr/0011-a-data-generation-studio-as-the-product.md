@@ -121,3 +121,16 @@ manifest row; progress lines for long jobs; and per ADR-0009, build for coverage
    serves both, but the first demo and sample data differ.
 3. Is interactive driving a must for v1 of the studio, or is authored and simulated capture enough?
 4. Is there one real customer or design partner to build for? It changes the order more than anything here.
+
+## After FRK-78 and FRK-83
+
+- **Phase 1 started.** `fraktal render3d --path waypoints.json --video` flies a drone through
+  user-given waypoints (tile metres) at constant speed, with the heading following a smoothed path,
+  and writes `video.mp4`, a colour-class `video_labels.mp4` preview, and the exact `labels/frame_NNNN.png`.
+  Pod demo (`MODE=fly`, dense_urban, 180 frames at 512 px, 16 samples): 156 s of Blender time on
+  16 vCPUs, about 0.9 s a frame. The frames and labels line up; the demo path crossed open land,
+  so a nicer path over the town is still to pick. Depth, pose and intrinsics are FRK-79; real
+  flight dynamics replace the moving-average smoothing in FRK-80.
+- **Engine spike written** ([realtime-engine-spike.md](../research/realtime-engine-spike.md)):
+  Godot 4 (MIT, no royalty) is the candidate for a later prototype; Unreal terms could not be
+  fetched from Epic and are secondary only. Nothing is decided: stay offline through phases 1 to 3.
