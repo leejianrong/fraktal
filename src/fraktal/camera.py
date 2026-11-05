@@ -19,6 +19,7 @@ from typing import Any
 import numpy as np
 
 from fraktal.ids import substream
+from fraktal.kernels import flight
 
 KINDS = ("still", "orbit", "flight", "path")
 EDGE_MARGIN = 0.1  # the view centre stays this share of the tile side away from the tile edge
@@ -72,9 +73,12 @@ def trajectory(
     speed_mps: float = 40.0,
     sweep_deg: float = 90.0,
     waypoints: list[tuple[float, float]] | None = None,
+    max_accel: float = 3.0,
+    max_yaw_rate_dps: float = 60.0,
 ) -> list[Pose]:
     """Poses for ``still`` (one frame), ``orbit`` (circle the tile centre), ``flight`` (a line) or
-    ``path`` (fly through ``waypoints``, in tile metres, at ``speed_mps``; the duration follows).
+    ``path`` (fly through ``waypoints``, in tile metres, with bounded acceleration and yaw rate; the
+    duration follows).
 
     The start heading is drawn from the seed. A flight is a straight pass over the tile centre at
     ``speed_mps`` with a small slow wobble in heading and height. Raises ``ValueError`` when the
@@ -88,7 +92,10 @@ def trajectory(
     heading0 = float(rng.uniform(0.0, 360.0))
     phase = float(rng.uniform(0.0, 2 * math.pi))
     if kind == "path":
-        return _path(waypoints, size_m, altitude_m, off_nadir_deg, fov_deg, fps, speed_mps)
+        return _path(
+            waypoints, size_m, altitude_m, off_nadir_deg, fov_deg, fps, speed_mps, max_accel,
+            max_yaw_rate_dps,
+        )  # fmt: skip
     n = 1 if kind == "still" else max(2, round(duration_s * fps))
     centre = (size_m / 2, size_m / 2)
     poses: list[Pose] = []
@@ -133,41 +140,28 @@ def _path(
     fov_deg: float,
     fps: float,
     speed_mps: float,
+    max_accel: float,
+    max_yaw_rate_dps: float,
 ) -> list[Pose]:
-    """Fly a polyline at constant speed: the drone is over the path, looking ahead along it.
-
-    The polyline is resampled by distance, then smoothed over about a second so corners are
-    rounded and the heading changes gradually (the dynamics model of FRK-80 will replace this).
-    """
+    """Fly a polyline with a point-mass drone (``fraktal.kernels.flight``): it starts and ends at
+    rest, accelerates within ``max_accel``, rounds corners and turns at most ``max_yaw_rate_dps``.
+    The camera looks ahead along the heading."""
     if waypoints is None or len(waypoints) < 2:
         raise ValueError("a path needs at least two waypoints")
-    if speed_mps <= 0 or fps <= 0:
-        raise ValueError("speed and fps must be positive")
-    pts = np.asarray(waypoints, dtype=float)
-    seg = np.hypot(*np.diff(pts, axis=0).T)
-    if seg.sum() < 1e-6:
-        raise ValueError("the waypoints are all the same point")
-    along = np.concatenate([[0.0], np.cumsum(seg)])
-    n = max(2, round(along[-1] / speed_mps * fps) + 1)
-    s = np.linspace(0.0, along[-1], n)
-    xy = np.stack([np.interp(s, along, pts[:, 0]), np.interp(s, along, pts[:, 1])], axis=1)
-    w = max(1, round(fps)) | 1  # odd window, about one second
-    pad = np.pad(xy, ((w // 2, w // 2), (0, 0)), mode="edge")
-    kernel = np.ones(w) / w
-    smooth = np.stack([np.convolve(pad[:, k], kernel, mode="valid") for k in range(2)], axis=1)
-    smooth[0], smooth[-1] = xy[0], xy[-1]  # keep the ends where the author put them
-    d = np.gradient(smooth, axis=0)
-    heading = np.degrees(np.unwrap(np.arctan2(d[:, 0], d[:, 1])))
+    run = flight.fly(
+        np.asarray(waypoints, dtype=float), cruise_mps=speed_mps, max_accel=max_accel,
+        max_yaw_rate_dps=max_yaw_rate_dps, fps=fps,
+    )  # fmt: skip
     back = altitude_m * math.tan(math.radians(off_nadir_deg))
+    heading = np.degrees(np.unwrap(np.radians(run["yaw_deg"])))
     poses = []
-    for i in range(n):
+    for i, (x, y) in enumerate(run["xy"]):
         h = math.radians(float(heading[i]))
-        target = (
-            float(smooth[i, 0]) + back * math.sin(h),
-            float(smooth[i, 1]) + back * math.cos(h),
-        )
+        target = (float(x) + back * math.sin(h), float(y) + back * math.cos(h))
         poses.append(
-            _pose(i, i / fps, target, float(heading[i]), off_nadir_deg, altitude_m, fov_deg)
+            _pose(
+                i, float(run["t"][i]), target, float(heading[i]), off_nadir_deg, altitude_m, fov_deg
+            )  # fmt: skip
         )
     _check_inside(poses, size_m)
     return poses

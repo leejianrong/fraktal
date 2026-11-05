@@ -71,16 +71,17 @@ def test_an_unknown_kind_is_refused() -> None:
         camera.trajectory("spiral", 500.0, 0)
 
 
-def test_a_path_flies_the_waypoints_at_constant_speed_and_turns_smoothly() -> None:
+def test_a_path_starts_and_ends_on_the_waypoints_and_turns_gradually() -> None:
     poses = camera.trajectory("path", 500.0, 0, waypoints=ROUTE, speed_mps=20.0, fps=10.0,
                               off_nadir_deg=0.0)  # fmt: skip
-    length = math.hypot(50, 10) + math.hypot(30, 40)
-    assert len(poses) == round(length / 20.0 * 10.0) + 1
     assert (poses[0].x, poses[0].y) == pytest.approx((150.0, 150.0), abs=1e-3)
-    assert (poses[-1].x, poses[-1].y) == pytest.approx((230.0, 200.0), abs=1e-3)
-    assert poses[0].heading_deg == pytest.approx(math.degrees(math.atan2(50, 10)), abs=8.0)
+    assert (poses[-1].x, poses[-1].y) == pytest.approx((230.0, 200.0), abs=2.0)
+    assert poses[0].heading_deg == pytest.approx(math.degrees(math.atan2(50, 10)), abs=2.0)
     turns = [abs(b.heading_deg - a.heading_deg) for a, b in zip(poses, poses[1:], strict=False)]
-    assert max(t for t in turns if t < 180) < 6.0  # no snap at the corner
+    assert max(t for t in turns if t < 180) < 60.0 / 10.0 + 0.01  # at most the yaw rate per frame
+    assert camera.trajectory("path", 500.0, 0, waypoints=ROUTE) == camera.trajectory(
+        "path", 500.0, 0, waypoints=ROUTE
+    )
 
 
 def test_a_path_is_checked() -> None:
