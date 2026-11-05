@@ -142,7 +142,7 @@ khartoum flight, a red car driving down a dirt road, with the full frame underne
 
 In the dense town the streets are narrow canyons in deep shadow, so cars show as dark boxes in the beauty
 frames while the label image shows them exactly (blue, below). The cars are still boxes, they do not
-react to each other (FRK-86), and the render time of about 2.3 s a frame at 512 px is mostly Cycles, not the
-car update.
+react to each other (FRK-86). The dense run took about 2.3 s a frame at 512 px for the three passes; the
+cost of the per-frame car update was not timed separately.
 
 ![Dense urban frames and their labels](../img/traffic-dense-labels.jpg)
