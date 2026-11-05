@@ -424,8 +424,9 @@ def _render3d(args: argparse.Namespace) -> Result:
 def _render3d_batch(args: argparse.Namespace) -> Result:
     try:
         specs = render3d_batch.plan(
-            args.world, args.count, args.seed, args.size_m, args.gsd_m, args.min_buildings
-        )
+            args.world, args.count, args.seed, args.size_m, args.gsd_m, args.min_buildings,
+            sensor=args.sensor,
+        )  # fmt: skip
         record = render3d_batch.run(
             args.world,
             args.out,
@@ -469,6 +470,9 @@ def _render3d_batch_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--assets", type=Path, help="assets directory (default $FRAKTAL_ASSETS)")
     parser.add_argument(
         "--keep-scene", action="store_true", help="keep each tile's scene and TIFFs"
+    )
+    parser.add_argument(
+        "--sensor", action="store_true", help="also write sensor.png (tropical grade, blur, noise)"
     )
 
 

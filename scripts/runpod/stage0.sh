@@ -12,7 +12,8 @@ SIZE_M="${SIZE_M:-1000}"
 SAMPLES="${SAMPLES:-16 64}"
 MODE="${MODE:-stage0}"  # stage0: timing loop; render3d: the CLI end to end plus a scene equality check; batch: render3d-batch
 COUNT="${COUNT:-50}"; TILE_M="${TILE_M:-500}"; BATCH_BIOME="${BATCH_BIOME:-dense_urban}"  # MODE=batch
-PUBLISH_ALL="${PUBLISH_ALL:-0}"  # MODE=batch: 1 sends every tile, 0 only four samples and batch.json
+PUBLISH_ALL="${PUBLISH_ALL:-0}"  # MODE=batch: 1 sends every tile, 0 only two per biome and batch.json
+# MODE=batch: BATCH_BIOME may list several biomes; SENSOR=1 also writes sensor.png per tile
 RUN=/workspace/run
 mkdir -p "$RUN" && cd "$RUN"
 exec > >(tee -a "$RUN/job.log") 2>&1
@@ -77,30 +78,35 @@ mkdir -p review
 if [ "$MODE" = batch ]; then
   export FRAKTAL_BPY_PYTHON=/workspace/bpyenv/bin/python
   export FRAKTAL_ASSETS="$RUN/src/assets"
-  stage generate
-  BATCH_BIOME="$BATCH_BIOME" python - <<'PY'
+  SENSOR_FLAG=""; [ "${SENSOR:-0}" = 1 ] && SENSOR_FLAG="--sensor"
+  n=0
+  for biome in $BATCH_BIOME; do  # one or more biomes, space separated, a world each
+    n=$((n + 1))
+    stage "generate_$biome"
+    BATCH_BIOME="$biome" python - <<'PY'
 import os
 from pathlib import Path
 from fraktal import biomes
 from fraktal.procedural import generate_world
 generate_world(Path("review/world"), (32.55, 15.64), 3, biomes.resolve(os.environ["BATCH_BIOME"], {"size_m": 3000.0}))
 PY
-  stage batch
-  T1=$(date +%s)
-  fraktal render3d-batch review/world --out review/batch --count "$COUNT" --size-m "$TILE_M" --gsd-m 0.5 \
-    --samples "${SAMPLES%% *}" --threads "$(nproc)" --seed 11 \
-    2> >(tee review/batch.err | grep --line-buffered render3d_batch_tile) > review/batch.out \
-    || echo "ERROR render3d-batch exited non-zero"
-  echo "RP_BATCH_SECONDS $(( $(date +%s) - T1 ))"
-  python - <<'PY'
-import json
-d = json.load(open("review/batch/batch.json"))
-print("RP_BATCH_SUMMARY", json.dumps({k: d[k] for k in ("counts", "wall_seconds", "mean_seconds_per_rendered_tile", "samples")}))
+    stage "batch_$biome"
+    T1=$(date +%s)
+    fraktal render3d-batch review/world --out "review/batch_$biome" --count "$COUNT" --size-m "$TILE_M" --gsd-m 0.5 \
+      --samples "${SAMPLES%% *}" --threads "$(nproc)" --seed $((10 + n)) $SENSOR_FLAG \
+      2> >(tee "review/batch_$biome.err" | grep --line-buffered render3d_batch_tile) > "review/batch_$biome.out" \
+      || echo "ERROR render3d-batch $biome exited non-zero"
+    echo "RP_BATCH_SECONDS $biome $(( $(date +%s) - T1 ))"
+    python - "$biome" <<'PY'
+import json, sys
+d = json.load(open(f"review/batch_{sys.argv[1]}/batch.json"))
+print("RP_BATCH_SUMMARY", sys.argv[1], json.dumps({k: d[k] for k in ("counts", "wall_seconds", "mean_seconds_per_rendered_tile", "samples")}))
 PY
-  rm -rf review/world
-  if [ "$PUBLISH_ALL" != 1 ]; then
-    ls -d review/batch/tile_* | tail -n +5 | xargs rm -rf
-  fi
+    rm -rf review/world
+    if [ "$PUBLISH_ALL" != 1 ]; then
+      ls -d review/batch_$biome/tile_* | tail -n +3 | xargs rm -rf
+    fi
+  done
   du -sh review | sed 's/^/RP_ARTIFACT_SIZE /'
   exit 0
 fi

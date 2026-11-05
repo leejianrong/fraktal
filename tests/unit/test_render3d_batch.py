@@ -111,3 +111,27 @@ def test_the_cli_exit_code_reports_failures_and_success(
     assert code == 4  # blender could not start, so both tiles fail
     capsys.readouterr()
     assert json.loads((tmp_path / "c" / "batch.json").read_text())["counts"]["failed"] == 2
+
+
+def test_a_sensor_batch_draws_per_tile_and_writes_sensor_png(world: Path, tmp_path: Path) -> None:
+    import numpy as np
+    import rasterio
+
+    specs = render3d_batch.plan(world, 2, 3, 150.0, 1.0, sensor=True)
+    assert specs == render3d_batch.plan(world, 2, 3, 150.0, 1.0, sensor=True)
+    assert "sensor" not in render3d_batch.plan(world, 1, 3, 150.0, 1.0)[0]
+    a, b = (s["sensor"] for s in specs)
+    assert a != b and 0.12 <= a["haze"] <= 0.35 and 0.9 <= a["contrast"] <= 1.3
+    record = render3d_batch.run(world, tmp_path / "s", specs, script=fake(tmp_path))
+    assert record["counts"]["rendered"] == 2
+    tile = tmp_path / "s" / "tile_0000"
+    meta = json.loads((tile / "render.json").read_text())
+    assert meta["sensor"]["file"] == "sensor.png" and meta["sensor"]["haze"] == a["haze"]
+    with rasterio.open(tile / "sensor.png") as src, rasterio.open(tile / "image.png") as raw:
+        graded, plain = src.read(), raw.read()
+    assert graded.shape == plain.shape and not np.array_equal(graded, plain)
+    again = render3d_batch.run(world, tmp_path / "s", specs, script=fake(tmp_path))
+    assert again["counts"] == {"rendered": 0, "skipped": 2, "failed": 0}
+    (tile / "sensor.png").unlink()
+    redo = render3d_batch.run(world, tmp_path / "s", specs, script=fake(tmp_path))
+    assert redo["counts"]["rendered"] == 1
