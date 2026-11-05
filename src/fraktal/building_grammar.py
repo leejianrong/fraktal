@@ -27,7 +27,11 @@ from shapely.ops import split
 from fraktal.ids import substream
 
 WALLS = ("wall-plaster-pale", "wall-plaster-sand", "wall-plaster-ochre", "wall-concrete")
+GENERATED_WALLS = ("wall-paint-peeling", "wall-plaster-cracked", "wall-concrete-cracked")
+GENERATED_WALL_SHARE = 0.25  # of buildings; SDXL textures (FRK-76), an assumed share
 ROOFS = {"tin": "roof-tin", "tile": "roof-tile"}
+CLAY_TILE = "roof-tile-clay"
+CLAY_TILE_SHARE = 0.5  # of tile roofs, the rest use the CC0 tile map
 TIN_ROOFS = (
     "roof-tin",
     "roof-tin-red",
@@ -39,7 +43,17 @@ FLAT_ROOFS = ("roof-flat-concrete", "roof-flat-pale", "roof-flat-terracotta", "r
 OPENINGS = ("window-glass", "door")
 CLUTTER = ("tank",)
 DETAIL = ("wall-plinth", "window-frame", "balcony")
-MATERIALS = (*WALLS, *FLAT_ROOFS, *ROOFS.values(), *OPENINGS, *CLUTTER, *DETAIL, *TIN_ROOFS[1:])
+MATERIALS = (
+    *WALLS,
+    *GENERATED_WALLS,
+    CLAY_TILE,
+    *FLAT_ROOFS,
+    *ROOFS.values(),
+    *OPENINGS,
+    *CLUTTER,
+    *DETAIL,
+    *TIN_ROOFS[1:],
+)
 STOREY_M = 3.0
 COURTYARD_MIN_AREA_M2 = 140.0
 COURTYARD_MAX_HEIGHT_M = 7.5
@@ -292,6 +306,11 @@ def build(
     ):  # real tin roofs are silver, painted, rusty or dark, not all one grey
         pick = float(substream(seed, f"roofcolour:{building_id}").uniform())
         roof = TIN_ROOFS[int(np.searchsorted(np.cumsum(TIN_WEIGHTS), pick, side="right"))]
+    look = substream(seed, f"surface:{building_id}")  # a separate draw: the ones above keep theirs
+    if float(look.uniform()) < GENERATED_WALL_SHARE:
+        wall = GENERATED_WALLS[int(look.integers(0, len(GENERATED_WALLS)))]
+    if roof_material == "tile" and float(look.uniform()) < CLAY_TILE_SHARE:
+        roof = CLAY_TILE
     height = max(2.5, float(height_m))
     floors = max(1, round(height / STOREY_M))
     storey = height / floors

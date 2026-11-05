@@ -1,0 +1,12 @@
+{
+  "name": "wall-paint-peeling",
+  "role": "wall",
+  "image": "textures/gen-paint-peeling.jpg",
+  "scale_m": 3.0,
+  "tint": [
+    1,
+    1,
+    1
+  ],
+  "roughness": 0.85
+}

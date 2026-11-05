@@ -29,7 +29,8 @@ def test_a_flat_roof_block_has_walls_roof_parapet_windows_and_a_door() -> None:
 
 def test_the_roof_material_follows_the_recorded_material() -> None:
     assert set(grammar.TIN_ROOFS) & set(grammar.build("aaaa1111", RING, 4.0, "tin", 1).materials)
-    assert "roof-tile" in grammar.build("aaaa1111", RING, 4.0, "tile", 1).materials
+    tiles = {n for n in grammar.build("aaaa1111", RING, 4.0, "tile", 1).materials if "tile" in n}
+    assert tiles and tiles <= {"roof-tile", grammar.CLAY_TILE}
 
 
 def test_flat_roofs_vary_between_buildings() -> None:
@@ -193,3 +194,16 @@ def test_tin_roofs_come_in_several_colours_in_the_set_proportions() -> None:
     assert grammar.build("aaaa1111", RING, 4.0, "tin", 1) == grammar.build(
         "aaaa1111", RING, 4.0, "tin", 1
     )
+
+
+def test_some_walls_and_tile_roofs_use_the_generated_textures() -> None:
+    walls: list[str] = []
+    roofs: list[str] = []
+    for i in range(120):
+        mesh = grammar.build(f"b{i}", BIG, 6.0, "tile" if i % 2 else None, seed=3)
+        names = set(mesh.materials)
+        walls += [n for n in names if n.startswith("wall-") and n != "wall-plinth"]
+        roofs += [n for n in names if n.startswith("roof-tile")]
+    generated = [w for w in walls if w in grammar.GENERATED_WALLS]
+    assert 0.1 < len(generated) / len(walls) < 0.45, len(generated) / len(walls)
+    assert {"roof-tile", "roof-tile-clay"} <= set(roofs)

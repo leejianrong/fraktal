@@ -1,8 +1,10 @@
 """The asset manifest and its licence check (ADR-0010 decision 5, FRK-47).
 
 Every file under ``assets/`` needs one row in ``assets/manifest.json``. The default library holds
-only assets we own or that are CC0, because an attribution duty (CC-BY and the like) would flow on
-to dataset buyers. ``check`` returns the problems it finds, and CI fails when there are any.
+only assets we own, that are CC0, or that a model with permissive output terms generated for us
+(``generated-permissive``, which needs a ``generator`` block saying how to make it again). An
+attribution duty (CC-BY and the like) would flow on to dataset buyers, so those are out. ``check``
+returns the problems it finds, and CI fails when there are any.
 """
 
 from __future__ import annotations
@@ -13,7 +15,13 @@ from pathlib import Path
 from typing import Any
 
 MANIFEST = "manifest.json"
-ALLOWED_LICENCES = {"owned": "OWNED", "cc0-1.0": "CC0-1.0"}  # lower case spelling -> canonical
+ALLOWED_LICENCES = {
+    "owned": "OWNED",
+    "cc0-1.0": "CC0-1.0",
+    "generated-permissive": "generated-permissive",
+}  # lower case spelling -> canonical
+GENERATED = "generated-permissive"
+GENERATOR_KEYS = ("model", "version", "licence", "prompt", "seed", "date")
 REQUIRED = ("id", "file", "kind", "source", "licence", "author", "url", "sha256", "verified")
 IGNORED = {MANIFEST, "README.md"}
 
@@ -52,6 +60,14 @@ def check(root: Path) -> list[str]:
         licence = str(row.get("licence", "")).lower()
         if licence and licence not in ALLOWED_LICENCES:
             problems.append(f"{name}: licence {row['licence']!r} is not allowed (owned or CC0-1.0)")
+        if licence == GENERATED:
+            generator = row.get("generator")
+            if not isinstance(generator, dict):
+                problems.append(f"{name}: a generated asset needs a generator block")
+            else:
+                for key in GENERATOR_KEYS:
+                    if generator.get(key) in (None, ""):
+                        problems.append(f"{name}: generator is missing {key}")
         if row.get("verified") is not True:
             problems.append(f"{name}: licence not verified against the source's licence page")
         file = row.get("file")

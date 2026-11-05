@@ -1,0 +1,12 @@
+{
+  "name": "roof-tile-clay",
+  "role": "roof",
+  "image": "textures/gen-clay-tile.jpg",
+  "scale_m": 2.0,
+  "tint": [
+    1,
+    1,
+    1
+  ],
+  "roughness": 0.7
+}
