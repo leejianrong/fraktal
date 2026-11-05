@@ -51,8 +51,39 @@ ROUGH_WATER, ROUGH_MUD, ROUGH_LAND = 0.06, 0.35, 0.95
 VEGETATION = (10, 20, 30, 40, 90, 95)  # classes that get patchy hue and fine grain
 EDGE_WARP = ((1.5, 0.8), (0.5, 0.3))  # (noise cell, shift) in land-cover cells, bends class edges
 EDGE_SOFT = 0.3  # blur sigma between classes, in land-cover cells
+TERRAIN_CELL_M, TERRAIN_MAX_CELLS, TERRAIN_FLAT_M = 1.0, 700, 0.05  # ground mesh cell and limits
 HUE_CELL_M, HUE_STRENGTH = 25.0, 0.12  # patches of yellower or bluer green
 GRAIN_CELL_M, GRAIN_STRENGTH = 0.7, 0.10  # blades and clumps, finer than the 2.5D texture
+
+
+def terrain_nodes(dem: Any, gsd_m: float, size_m: float) -> tuple[Any, float, float]:
+    """Heights at the nodes of a square ground mesh, relative to the tile's lowest point.
+
+    ``dem`` is the tile's elevation raster, north up, ``gsd_m`` a pixel. Returns ``(nodes, cell_m,
+    low_m)``: an (n + 1, n + 1) float32 array with row 0 the southern edge and column 0 the western
+    edge (index ``[j, i]`` is at x = i * cell, y = j * cell), the mesh cell, and the lowest
+    elevation.
+    The mesh is about ``TERRAIN_CELL_M`` fine, coarser for a very large tile.
+    """
+    n = max(1, min(TERRAIN_MAX_CELLS, round(size_m / TERRAIN_CELL_M)))
+    cell = size_m / n
+    grid = np.asarray(dem, dtype="float64")[::-1]  # row 0 south
+    if not np.isfinite(grid).all():  # nodata outside the world: take the tile's own mean
+        grid = np.where(
+            np.isfinite(grid), grid, np.nanmean(grid) if np.isfinite(grid).any() else 0.0
+        )
+    rows, cols = grid.shape
+    axis = np.arange(n + 1) * cell
+    fy = np.clip(axis / gsd_m - 0.5, 0.0, rows - 1.0)
+    fx = np.clip(axis / gsd_m - 0.5, 0.0, cols - 1.0)
+    y0, x0 = np.floor(fy).astype(int), np.floor(fx).astype(int)
+    y1, x1 = np.minimum(y0 + 1, rows - 1), np.minimum(x0 + 1, cols - 1)
+    wy, wx = (fy - y0)[:, None], (fx - x0)[None, :]
+    top = grid[y0][:, x0] * (1 - wx) + grid[y0][:, x1] * wx
+    bottom = grid[y1][:, x0] * (1 - wx) + grid[y1][:, x1] * wx
+    nodes = top * (1 - wy) + bottom * wy
+    low = float(nodes.min())
+    return (nodes - low).astype("float32"), cell, low
 
 
 def _tile_heights(world_dir: Path, buildings: Any, profile: str, seed: int) -> dict[str, float]:
@@ -229,8 +260,10 @@ def export_scene(
         surface = np.where(road > 0, road, landcover).astype("uint8")
     fields = read_fields(world_dir)
     field_palms = None
+    dem_file = world_dir / "dem.tif"
+    dem = _warp(dem_file, transform, epsg, side, Resampling.bilinear) if dem_file.exists() else None
     if fields is not None and len(fields):
-        dem = _warp(world_dir / "dem.tif", transform, epsg, side, Resampling.bilinear)
+        assert dem is not None, "a world with fields needs dem.tif"
         local_fields = fields.to_crs(epsg)
         painted = _field_raster(local_fields, transform, side, dem)
         painted[mask > 0] = 0
@@ -329,6 +362,17 @@ def export_scene(
     )
     np.save(out_dir / "ground.npy", ground)
     np.save(out_dir / "ground_rough.npy", rough)
+    terrain = None
+    if dem is not None:
+        nodes, cell_m, low_m = terrain_nodes(dem, gsd_m, side * gsd_m)
+        if float(nodes.max()) > TERRAIN_FLAT_M:  # a flat tile keeps its single-quad ground
+            np.save(out_dir / "ground_height.npy", nodes)
+            terrain = {
+                "file": "ground_height.npy",
+                "cell_m": round(cell_m, 4),
+                "low_m": round(low_m, 2),
+                "relief_m": round(float(nodes.max()), 2),
+            }
     scene = {
         "schema": SCHEMA,
         "size_m": side * gsd_m,
@@ -343,6 +387,8 @@ def export_scene(
         "vehicles": vehicles,
         "poles": poles,
     }
+    if terrain:
+        scene["terrain"] = terrain
     (out_dir / "scene.json").write_text(json.dumps(scene) + "\n")
     return scene
 

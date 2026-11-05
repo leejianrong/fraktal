@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from fraktal import biomes
 from fraktal.blender_export import export_scene
@@ -153,3 +154,31 @@ def test_the_ground_helpers_bend_and_soften_class_edges() -> None:
     soft = be._blur(step, 3.0)
     assert 0.0 < soft[10, 15, 0] < 1.0 and soft[10, 2, 0] < 0.05 and soft[10, 27, 0] > 0.95
     assert np.allclose(be._blur(np.full((20, 20, 3), 0.4, "float32"), 3.0), 0.4, atol=1e-5)
+
+
+def test_terrain_nodes_follow_the_dem_with_north_up_turned_to_y_up() -> None:
+    from fraktal.blender_export import terrain_nodes
+
+    dem = np.zeros((100, 100))
+    dem[:50] = 10.0  # the northern half is 10 m higher (row 0 is north)
+    nodes, cell, low = terrain_nodes(dem + 300.0, 1.0, 100.0)
+    assert nodes.shape == (101, 101) and cell == 1.0 and low == pytest.approx(300.0)
+    assert nodes[100, 50] == pytest.approx(10.0) and nodes[0, 50] == pytest.approx(0.0)
+    assert nodes[:, 0].tolist() == pytest.approx(nodes[:, 100].tolist())
+    ramp = np.tile(np.arange(100.0), (100, 1))  # rises to the east
+    east, *_ = terrain_nodes(ramp, 1.0, 100.0)
+    assert east[50, 100] > east[50, 0] + 90.0
+    big, big_cell, _ = terrain_nodes(np.zeros((4000, 4000)), 0.5, 2000.0)  # capped, so coarser
+    assert big.shape == (701, 701) and big_cell > 2.0
+
+
+def test_a_hilly_tile_exports_a_height_grid_and_a_flat_tile_does_not(tmp_path: Path) -> None:
+    world = _world(tmp_path, "paddy_terraces")
+    scene = export_scene(world, tmp_path / "t", CENTER, 800.0, 1.0)
+    nodes = np.load(tmp_path / "t" / scene["terrain"]["file"])
+    assert nodes.min() == 0.0 and nodes.max() == pytest.approx(scene["terrain"]["relief_m"], abs=0.01)
+    assert nodes.max() > 3.0  # terraces and hills stand clearly above the lowest ground
+    assert nodes.shape[0] == round(800.0 / scene["terrain"]["cell_m"]) + 1
+    again = export_scene(world, tmp_path / "t2", CENTER, 800.0, 1.0)
+    assert np.array_equal(np.load(tmp_path / "t2" / "ground_height.npy"), nodes)
+    assert again["terrain"] == scene["terrain"]
