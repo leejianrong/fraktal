@@ -34,10 +34,12 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import rasterio
 from affine import Affine
 
 from fraktal import camera as cameras
+from fraktal import depth as depths
 from fraktal import labels3d, video
 from fraktal.blender_export import export_scene
 from fraktal.log import emit
@@ -65,6 +67,29 @@ def scene_sha256(scene_dir: Path) -> str:
         if (scene_dir / name).exists():
             digest.update((scene_dir / name).read_bytes())
     return digest.hexdigest()
+
+
+def _write_depth(out_dir: Path, sequence: bool) -> None:
+    """Turn Blender's two-channel depth images into 16-bit single-channel PNGs."""
+    raw = (
+        sorted((out_dir / "depth_raw").glob("frame_*.png"))
+        if sequence
+        else [out_dir / "depth_raw.png"]
+    )
+    target = out_dir / "depth"
+    if sequence:
+        target.mkdir(exist_ok=True)
+    for path in raw:
+        with rasterio.open(path) as src:
+            image = depths.from_encoded(src.read()[:3])
+        out = target / path.name if sequence else out_dir / "depth.png"
+        profile = {"driver": "PNG", "count": 1, "dtype": "uint16", "height": image.shape[0],
+                   "width": image.shape[1]}  # fmt: skip
+        with rasterio.open(out, "w", **profile) as dst:
+            dst.write(image, 1)
+        path.unlink()
+    if sequence:
+        (out_dir / "depth_raw").rmdir()
 
 
 def run_blender(
@@ -134,6 +159,7 @@ def render(
     height_profile: str = "auto",
     waypoints: list[tuple[float, float]] | None = None,
     make_video: bool = False,
+    with_depth: bool = False,
 ) -> dict[str, Any]:
     """Export the tile, render it in Blender, write the contract files, return ``render.json``."""
     python = bpy_python or sys.executable
@@ -170,6 +196,9 @@ def render(
         args += ["--px", str(frame_px)]
     if labels:
         args += ["--labels", str(out_dir / ("labels" if poses else "labels.png"))]
+    if with_depth:
+        args += ["--depth", str(out_dir / ("depth_raw" if poses else "depth_raw.png"))]
+        args += ["--depth-unit", str(depths.UNIT_M)]
     if threads:
         args += ["--threads", str(threads)]
     blender, wall = run_blender(python, script, args, timeout_s)
@@ -190,6 +219,24 @@ def render(
                 code = src.read()[:3]
             with rasterio.open(out_dir / "labels.tif", "w", **profile) as dst:
                 dst.write(code)
+    extra: dict[str, Any] = {}
+    if with_depth:
+        _write_depth(out_dir, bool(poses))
+        extra["depth"] = depths.meta()
+    if poses:  # where the camera was and how it sees, for every frame
+        k = depths.intrinsics(poses[0].fov_deg, frame_px)
+        table = {
+            "convention": "OpenCV camera (x right, y down, z forward); camera_to_world maps into "
+            "the tile frame (metres east, north, up)",
+            "intrinsics": k,
+            "frames": [
+                {"index": p.index, "t_s": round(p.t_s, 4),
+                 "camera_to_world": np.round(depths.camera_to_world(p.as_dict()), 5).tolist()}
+                for p in poses
+            ],
+        }  # fmt: skip
+        (out_dir / "poses.json").write_text(json.dumps(table) + "\n")
+        extra["intrinsics"] = k
     videos: dict[str, str] = {}
     if make_video and poses:
         fps = (camera_options or {}).get("fps", 12.0)
@@ -231,7 +278,17 @@ def render(
         meta["trajectory"] = trajectory
         meta["px"] = frame_px
         meta["frames"] = [p.as_dict() for p in poses]
-        meta["files"] = {"frames": "frames/frame_NNNN.png", "scene": "scene/", **videos}
+        meta["files"] = {
+            "frames": "frames/frame_NNNN.png",
+            "scene": "scene/",
+            "poses": "poses.json",
+            **videos,
+        }
+        if with_depth:
+            meta["files"]["depth"] = "depth/frame_NNNN.png"
+    meta.update(extra)
+    if with_depth and not poses:
+        meta["files"]["depth"] = "depth.png"
     if labels:
         meta["labels"] = labels3d.meta(
             [b["id"] for b in scene["buildings"]],
