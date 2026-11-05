@@ -16,11 +16,14 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import rasterio
 from rasterio.enums import Resampling
 
 from fraktal import building_grammar, trees3d
 from fraktal import heights as heights_mod
 from fraktal.coast import TIDAL_FLAT
+from fraktal.ids import substream
+from fraktal.kernels.noise import lattice_shape, value_noise
 from fraktal.landcover_gen import WATER
 from fraktal.objects import CAR_COLOURS, place
 from fraktal.procedural import read_buildings, read_fields, read_roads
@@ -45,6 +48,11 @@ from fraktal.render import (
 SCHEMA = 1
 WET_CODES = (WATER, PADDY_CODES["flooded"], FISHPOND_WATER)  # standing water: glossy
 ROUGH_WATER, ROUGH_MUD, ROUGH_LAND = 0.06, 0.35, 0.95
+VEGETATION = (10, 20, 30, 40, 90, 95)  # classes that get patchy hue and fine grain
+EDGE_WARP = ((1.5, 0.8), (0.5, 0.3))  # (noise cell, shift) in land-cover cells, bends class edges
+EDGE_SOFT = 0.3  # blur sigma between classes, in land-cover cells
+HUE_CELL_M, HUE_STRENGTH = 25.0, 0.12  # patches of yellower or bluer green
+GRAIN_CELL_M, GRAIN_STRENGTH = 0.7, 0.10  # blades and clumps, finer than the 2.5D texture
 
 
 def _tile_heights(world_dir: Path, buildings: Any, profile: str, seed: int) -> dict[str, float]:
@@ -125,6 +133,62 @@ def _poles(
     return out
 
 
+def _class_colours(classes: Any) -> Any:
+    """An (H, W, 3) float image of the display colour of each land-cover class."""
+    out = np.zeros((*classes.shape, 3), dtype="float32")
+    for code in np.unique(classes):
+        out[classes == code] = np.array(LANDCOVER_RGB.get(int(code), (120, 118, 116))) / 255.0
+    return out
+
+
+def _smooth(seed: int, name: str, side: int, cell_px: float) -> Any:
+    """Value noise in [-1, 1] over a side x side grid with features about ``cell_px`` wide."""
+    cell_px = max(cell_px, 1.0)
+    shape = (side, side)
+    lattice = substream(seed, name).uniform(-1, 1, size=lattice_shape(shape, cell_px))
+    return value_noise(lattice, cell_px, shape)
+
+
+def _bend_edges(land: Any, seed: int, cell_px: float) -> Any:
+    """The class map with its block edges pushed about by smooth noise, so they are not squares."""
+    side = land.shape[0]
+    rows = np.arange(side, dtype="float32")[:, None] + np.zeros((1, side), dtype="float32")
+    cols = rows.T.copy()
+    for n, (cell, shift) in enumerate(EDGE_WARP):
+        rows = rows + shift * cell_px * _smooth(seed, f"ground:warp:r{n}", side, cell * cell_px)
+        cols = cols + shift * cell_px * _smooth(seed, f"ground:warp:c{n}", side, cell * cell_px)
+    r = np.clip(np.rint(rows), 0, side - 1).astype(int)
+    c = np.clip(np.rint(cols), 0, side - 1).astype(int)
+    return land[r, c]
+
+
+def _moving_mean(img: Any, width: int, axis: int) -> Any:
+    """Moving average of ``width`` samples along ``axis``, edges repeated."""
+    pad = width // 2
+    pads = [(0, 0)] * img.ndim
+    pads[axis] = (pad, pad)
+    padded = np.pad(img, pads, mode="edge")
+    csum = np.cumsum(padded, axis=axis, dtype="float64")
+    zero = np.zeros_like(np.take(csum, [0], axis=axis))
+    csum = np.concatenate([zero, csum], axis=axis)
+    n = img.shape[axis]
+    hi = np.take(csum, np.arange(width, width + n), axis=axis)
+    lo = np.take(csum, np.arange(0, n), axis=axis)
+    return ((hi - lo) / width).astype("float32")
+
+
+def _blur(img: Any, sigma_px: float) -> Any:
+    """A close-to-Gaussian blur from three box passes per axis; no SciPy needed."""
+    width = int(round(math.sqrt(4 * sigma_px**2 + 1)))
+    width += 1 - width % 2
+    if width < 3:
+        return img
+    for axis in (0, 1):
+        for _ in range(3):
+            img = _moving_mean(img, width, axis)
+    return img
+
+
 def export_scene(
     world_dir: Path,
     out_dir: Path,
@@ -151,7 +215,12 @@ def export_scene(
     local = read_buildings(world_dir).to_crs(epsg)
     height_of = _tile_heights(world_dir, local, height_profile, seed)
     roads = read_roads(world_dir).to_crs(epsg)
-    landcover = _warp(world_dir / "landcover.tif", transform, epsg, side, Resampling.nearest)
+    land_file = world_dir / "landcover.tif"
+    landcover = _warp(land_file, transform, epsg, side, Resampling.nearest)
+    with rasterio.open(land_file) as src:
+        cell_px = max(abs(src.res[0]) / gsd_m, 1.0)  # the world's land-cover cell, in tile pixels
+    landcover = _bend_edges(landcover, seed, cell_px)
+    soft_land = landcover
     _, mask, _ = _building_rasters(local, transform, side)
     surface = landcover
     road = _road_raster(roads, transform, side) if len(roads) else None
@@ -172,9 +241,20 @@ def export_scene(
     rough = np.full((side, side), ROUGH_LAND, dtype="float32")
     rough[np.isin(surface, WET_CODES)] = ROUGH_WATER
     rough[surface == TIDAL_FLAT] = ROUGH_MUD
-    ground = np.zeros((side, side, 3), dtype="float32")
-    for code in np.unique(surface):
-        ground[surface == code] = np.array(LANDCOVER_RGB.get(int(code), (120, 118, 116))) / 255.0
+    ground = _class_colours(surface)
+    softened = _blur(_class_colours(soft_land), EDGE_SOFT * cell_px)
+    ground = np.where(
+        (surface == soft_land)[..., None], softened, ground
+    )  # roads and fields stay sharp
+    green = np.isin(surface, VEGETATION)[..., None]
+    hue = _smooth(seed, "ground:hue", side, HUE_CELL_M / gsd_m)[..., None]
+    ground = np.where(
+        green,
+        ground * (1.0 + HUE_STRENGTH * hue * np.array([1.0, 0.5, -1.0], dtype="float32")),
+        ground,
+    )
+    grain = _smooth(seed, "ground:grain", side, GRAIN_CELL_M / gsd_m)[..., None]
+    ground = np.where(green, ground * (1.0 + GRAIN_STRENGTH * grain), ground)
     if texture > 0:
         amp = np.ones(256, dtype="float32")
         for code, value in TEXTURE_CLASS_AMP.items():

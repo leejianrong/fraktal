@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import random
 import struct
 import sys
 import tempfile
@@ -226,7 +227,11 @@ def use_label_look(sc) -> None:
     sc.view_settings.gamma = 1.0
 
 
-FOLIAGE = [(0.15, 0.31, 0.13), (0.19, 0.36, 0.14), (0.12, 0.26, 0.12)]
+FOLIAGE = [
+    (0.15, 0.31, 0.13), (0.19, 0.36, 0.14), (0.12, 0.26, 0.12),
+    (0.22, 0.38, 0.12), (0.17, 0.30, 0.16), (0.26, 0.40, 0.15),
+]  # fmt: skip
+CROWN_LUMP = 0.22  # radial bumpiness of a crown, so it is not a smooth ball
 
 
 TREE_OWNER: list[int] = []  # the tree (index into scene["trees"]) each tree-mesh face belongs to
@@ -234,7 +239,7 @@ TREE_OWNER: list[int] = []  # the tree (index into scene["trees"]) each tree-mes
 
 def _icosphere():
     template = bmesh.new()
-    bmesh.ops.create_icosphere(template, subdivisions=2, radius=1.0)
+    bmesh.ops.create_icosphere(template, subdivisions=3, radius=1.0)
     verts = [v.co.copy() for v in template.verts]
     index = {v: i for i, v in enumerate(template.verts)}
     faces = [[index[v] for v in f.verts] for f in template.faces]
@@ -269,7 +274,18 @@ def build_trees(scene: dict) -> int:
     bm = bmesh.new()
 
     def blob(k, x, y, zc, rx, rz, mat):
-        ring = [bm.verts.new((x + v.x * rx, y + v.y * rx, zc + v.z * rz)) for v in verts]
+        rng = random.Random(k * 7919 + 13)  # the same lumps for the same tree, every run
+        phase = [rng.uniform(0, 2 * math.pi) for _ in range(6)]
+        ring = []
+        for v in verts:
+            bump = 1.0 + CROWN_LUMP * (
+                0.5 * math.sin(3.0 * v.x + phase[0]) * math.cos(3.0 * v.y + phase[1])
+                + 0.3 * math.sin(5.0 * v.z + phase[2] + 4.0 * v.x)
+                + 0.2 * math.sin(9.0 * v.x + 7.0 * v.y + phase[3])
+            )
+            ring.append(
+                bm.verts.new((x + v.x * rx * bump, y + v.y * rx * bump, zc + v.z * rz * bump))
+            )
         for f in faces:
             bm.faces.new([ring[i] for i in f]).material_index = mat
             TREE_OWNER.append(k)
@@ -295,13 +311,13 @@ def build_trees(scene: dict) -> int:
                 TREE_OWNER.append(k)
         elif species == "shrub":
             rz = max(0.4, min(height, radius * 1.4) * 0.5)
-            blob(k, x, y, rz * 0.8, radius * 1.15, rz, k % len(FOLIAGE))
+            blob(k, x, y, rz * 0.8, radius * 1.15, rz, (k * 5 + 1) % len(FOLIAGE))
         else:
             half = max(radius * 0.9, height * 0.3)  # crown half-height; the crown sits above 0.4 h
             zc = max(half, height - half)
             if zc - half > 0.4:
                 _prism(bm, k, x, y, max(0.12, radius * 0.07), 0.0, zc - half * 0.5, bark)
-            blob(k, x, y, zc, radius, half, k % len(FOLIAGE))
+            blob(k, x, y, zc, radius, half, (k * 5 + 1) % len(FOLIAGE))
     bm.normal_update()
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     mesh = bpy.data.meshes.new("trees")

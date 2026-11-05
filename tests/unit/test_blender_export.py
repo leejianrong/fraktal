@@ -134,3 +134,22 @@ def test_a_car_heading_follows_the_road_direction(tmp_path: Path) -> None:
         diff = abs((heading - along + np.pi / 2) % np.pi - np.pi / 2)  # a car may face either way
         off.append(diff)
     assert float(np.median(off)) < 0.2  # radians, about 11 degrees
+
+
+def test_the_ground_helpers_bend_and_soften_class_edges() -> None:
+    import numpy as np
+
+    from fraktal import blender_export as be
+
+    blocks = np.kron(np.array([[10, 30], [30, 40]], dtype="uint8"), np.ones((40, 40), "uint8"))
+    bent = be._bend_edges(blocks, 5, 40.0)
+    assert bent.shape == blocks.shape and set(np.unique(bent)) <= {10, 30, 40}
+    assert np.array_equal(bent, be._bend_edges(blocks, 5, 40.0))
+    assert not np.array_equal(bent, be._bend_edges(blocks, 6, 40.0))
+    assert (bent != blocks).mean() > 0.02  # the edges moved
+
+    step = np.zeros((30, 30, 3), "float32")
+    step[:, 15:] = 1.0
+    soft = be._blur(step, 3.0)
+    assert 0.0 < soft[10, 15, 0] < 1.0 and soft[10, 2, 0] < 0.05 and soft[10, 27, 0] > 0.95
+    assert np.allclose(be._blur(np.full((20, 20, 3), 0.4, "float32"), 3.0), 0.4, atol=1e-5)
