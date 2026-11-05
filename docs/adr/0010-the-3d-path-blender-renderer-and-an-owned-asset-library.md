@@ -616,3 +616,25 @@ the existing wall, roof and tin draws of a building do not change.
 
 Limits: nadir imagery sees roofs, so the wall textures show up only in oblique views; the paint's blue
 reads as a pale blue-grey in this lighting. One render, one seed.
+### After FRK-77: ground and tree look
+
+Feedback on the FRK-76 render: the grass was huge pixel squares and the trees were plain balls. Cause:
+the 3D ground took the world's 5 m land-cover cells with nearest-neighbour sampling, so every class edge
+was a 5 m square (the 2.5D texture only modulates brightness inside a class). Changes, 3D path only
+(`blender_export.py`, `blender_scene.py`):
+
+- The class map's edges are bent by two octaves of smooth noise (shifts up to 0.8 and 0.3 cells), then
+  the class colours are blurred (sigma 0.3 cell). Roads and field polygons are painted afterwards and
+  stay sharp.
+- Vegetation gets patches of yellower or bluer green (25 m features, 12%) and a 0.7 m grain (10%) on
+  top of the existing 2.5D texture.
+- Broadleaf and shrub crowns are finer icospheres with a per-tree radial lump (22%) and six greens
+  instead of three.
+
+![informal settlement, 300 m at 0.5 m, after](../img/ground-300m.png)
+![the same tile corner at 0.15 m](../img/ground-close.png)
+
+Limits: still a colour image on a flat ground, so no blades or relief; the mottling is noise, not
+mapped vegetation, and I did not run the gauge on it (ground colour moved, so the FRK-67 numbers no
+longer apply). Trees remain lumpy balls, not branching trees. The world's 5 m land-cover source is
+unchanged, so the 2.5D path still shows its squares.
