@@ -13,6 +13,7 @@ SAMPLES="${SAMPLES:-16 64}"
 MODE="${MODE:-stage0}"  # stage0: timing loop; render3d: the CLI end to end plus a scene equality check; batch: render3d-batch
 COUNT="${COUNT:-50}"; TILE_M="${TILE_M:-500}"; BATCH_BIOME="${BATCH_BIOME:-dense_urban}"  # MODE=batch
 PUBLISH_ALL="${PUBLISH_ALL:-0}"  # MODE=batch: 1 sends every tile, 0 only two per biome and batch.json
+# MODE=fly: a drone path over one world, written as video.mp4 and video_labels.mp4 (FRK-78)
 # MODE=batch: BATCH_BIOME may list several biomes; SENSOR=1 also writes sensor.png per tile
 RUN=/workspace/run
 mkdir -p "$RUN" && cd "$RUN"
@@ -68,7 +69,7 @@ git -C src checkout -q "$COMMIT"
 echo "commit $COMMIT nproc $(nproc)"
 # bpy is a headless wheel but still links X11 and GL libraries the image lacks
 timeout 300 apt-get update -qq > /dev/null
-timeout 600 apt-get install -y -qq libxrender1 libxi6 libxxf86vm1 libxfixes3 libgl1 libsm6 libxkbcommon0 libegl1 > /dev/null
+timeout 600 apt-get install -y -qq libxrender1 libxi6 libxxf86vm1 libxfixes3 libgl1 libsm6 libxkbcommon0 libegl1 ffmpeg > /dev/null
 pip install -q --root-user-action=ignore ./src matplotlib
 # bpy pins its own numpy, which breaks pyarrow in the main environment: give it a venv
 python -m venv /workspace/bpyenv
@@ -108,6 +109,28 @@ PY
     fi
   done
   du -sh review | sed 's/^/RP_ARTIFACT_SIZE /'
+  exit 0
+fi
+if [ "$MODE" = fly ]; then
+  export FRAKTAL_BPY_PYTHON=/workspace/bpyenv/bin/python
+  export FRAKTAL_ASSETS="$RUN/src/assets"
+  python - <<'PY'
+import json
+import os
+from pathlib import Path
+from fraktal import biomes
+from fraktal.procedural import generate_world
+generate_world(Path("review/world"), (32.55, 15.64), 3, biomes.resolve(os.environ["BATCH_BIOME"].split()[0], {"size_m": 3000.0}))
+json.dump({"waypoints": [[200, 200], [400, 260], [560, 420], [480, 560]]}, open("review/path.json", "w"))
+PY
+  stage fly
+  fraktal render3d review/world --out review/fly --center 32.55 15.64 --size-m 800 --gsd-m 0.5 \
+    --path review/path.json --altitude-m 150 --off-nadir 40 --fov 60 --fps 12 --frame-px 512 \
+    --samples "${SAMPLES%% *}" --seed 7 --threads "$(nproc)" --video > review/fly.out 2> review/fly.err \
+    || { echo "ERROR fly failed"; tail -n 20 review/fly.err; }
+  echo "RP_FLY $(python -c "import json;d=json.load(open('review/fly/render.json'));print(len(d['frames']), d['files'], d['seconds'])" 2>&1)"
+  rm -rf review/world review/fly/scene
+  ls -la review/fly | head; du -sh review | sed 's/^/RP_ARTIFACT_SIZE /'
   exit 0
 fi
 if [ "$MODE" = render3d ]; then

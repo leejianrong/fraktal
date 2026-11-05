@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Driver for the Stage 0 pod job (scripts/runpod/stage0.sh) with a boot check.
-# Usage: [MODE=render3d|batch] [COUNT=50 TILE_M=500 BATCH_BIOME='dense_urban paddy_terraces' SENSOR=1 PUBLISH_ALL=0 SAMPLES=16]
+# Usage: [MODE=render3d|batch|fly] [COUNT=50 TILE_M=500 BATCH_BIOME='dense_urban paddy_terraces' SENSOR=1 PUBLISH_ALL=0 SAMPLES=16]
 #        scripts/runpod/stage0_run.sh COMMIT OUT_DIR   (COMMIT must be pushed)
 #
 # A pod whose container never starts sits "initializing" and prints nothing, so the job's first

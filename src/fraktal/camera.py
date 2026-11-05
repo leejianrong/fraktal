@@ -16,9 +16,11 @@ import math
 from dataclasses import asdict, dataclass
 from typing import Any
 
+import numpy as np
+
 from fraktal.ids import substream
 
-KINDS = ("still", "orbit", "flight")
+KINDS = ("still", "orbit", "flight", "path")
 EDGE_MARGIN = 0.1  # the view centre stays this share of the tile side away from the tile edge
 
 
@@ -69,8 +71,10 @@ def trajectory(
     fps: float = 12.0,
     speed_mps: float = 40.0,
     sweep_deg: float = 90.0,
+    waypoints: list[tuple[float, float]] | None = None,
 ) -> list[Pose]:
-    """Poses for ``still`` (one frame), ``orbit`` (circle the tile centre) or ``flight`` (a line).
+    """Poses for ``still`` (one frame), ``orbit`` (circle the tile centre), ``flight`` (a line) or
+    ``path`` (fly through ``waypoints``, in tile metres, at ``speed_mps``; the duration follows).
 
     The start heading is drawn from the seed. A flight is a straight pass over the tile centre at
     ``speed_mps`` with a small slow wobble in heading and height. Raises ``ValueError`` when the
@@ -83,6 +87,8 @@ def trajectory(
     rng = substream(seed, f"camera:{kind}")
     heading0 = float(rng.uniform(0.0, 360.0))
     phase = float(rng.uniform(0.0, 2 * math.pi))
+    if kind == "path":
+        return _path(waypoints, size_m, altitude_m, off_nadir_deg, fov_deg, fps, speed_mps)
     n = 1 if kind == "still" else max(2, round(duration_s * fps))
     centre = (size_m / 2, size_m / 2)
     poses: list[Pose] = []
@@ -105,6 +111,11 @@ def trajectory(
                 fov_deg,
             )  # fmt: skip
         poses.append(pose)
+    _check_inside(poses, size_m)
+    return poses
+
+
+def _check_inside(poses: list[Pose], size_m: float) -> None:
     lo, hi = EDGE_MARGIN * size_m, (1 - EDGE_MARGIN) * size_m
     for p in poses:
         if not (lo <= p.target_x <= hi and lo <= p.target_y <= hi):
@@ -112,6 +123,52 @@ def trajectory(
                 f"frame {p.index} looks at ({p.target_x:.0f}, {p.target_y:.0f}), outside the tile "
                 f"margin [{lo:.0f}, {hi:.0f}]; use a larger tile or a shorter flight"
             )
+
+
+def _path(
+    waypoints: list[tuple[float, float]] | None,
+    size_m: float,
+    altitude_m: float,
+    off_nadir_deg: float,
+    fov_deg: float,
+    fps: float,
+    speed_mps: float,
+) -> list[Pose]:
+    """Fly a polyline at constant speed: the drone is over the path, looking ahead along it.
+
+    The polyline is resampled by distance, then smoothed over about a second so corners are
+    rounded and the heading changes gradually (the dynamics model of FRK-80 will replace this).
+    """
+    if waypoints is None or len(waypoints) < 2:
+        raise ValueError("a path needs at least two waypoints")
+    if speed_mps <= 0 or fps <= 0:
+        raise ValueError("speed and fps must be positive")
+    pts = np.asarray(waypoints, dtype=float)
+    seg = np.hypot(*np.diff(pts, axis=0).T)
+    if seg.sum() < 1e-6:
+        raise ValueError("the waypoints are all the same point")
+    along = np.concatenate([[0.0], np.cumsum(seg)])
+    n = max(2, round(along[-1] / speed_mps * fps) + 1)
+    s = np.linspace(0.0, along[-1], n)
+    xy = np.stack([np.interp(s, along, pts[:, 0]), np.interp(s, along, pts[:, 1])], axis=1)
+    w = max(1, round(fps)) | 1  # odd window, about one second
+    pad = np.pad(xy, ((w // 2, w // 2), (0, 0)), mode="edge")
+    kernel = np.ones(w) / w
+    smooth = np.stack([np.convolve(pad[:, k], kernel, mode="valid") for k in range(2)], axis=1)
+    smooth[0], smooth[-1] = xy[0], xy[-1]  # keep the ends where the author put them
+    d = np.gradient(smooth, axis=0)
+    heading = np.degrees(np.unwrap(np.arctan2(d[:, 0], d[:, 1])))
+    back = altitude_m * math.tan(math.radians(off_nadir_deg))
+    poses = []
+    for i in range(n):
+        h = math.radians(float(heading[i]))
+        target = (
+            float(smooth[i, 0]) + back * math.sin(h), float(smooth[i, 1]) + back * math.cos(h)
+        )
+        poses.append(
+            _pose(i, i / fps, target, float(heading[i]), off_nadir_deg, altitude_m, fov_deg)
+        )
+    _check_inside(poses, size_m)
     return poses
 
 

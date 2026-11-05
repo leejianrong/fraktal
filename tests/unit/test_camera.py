@@ -1,8 +1,11 @@
 import math
+from typing import Any
 
 import pytest
 
 from fraktal import camera
+
+ROUTE = [(150.0, 150.0), (200.0, 160.0), (230.0, 200.0)]
 
 
 def test_the_same_seed_gives_the_same_poses_and_another_seed_does_not() -> None:
@@ -21,7 +24,9 @@ def test_frame_count_and_timing_follow_duration_and_fps() -> None:
 
 def test_a_pose_looks_at_its_target_at_the_requested_angle() -> None:
     for kind in camera.KINDS:
-        for p in camera.trajectory(kind, 500.0, 5, altitude_m=300.0, off_nadir_deg=35.0):
+        for p in camera.trajectory(
+            kind, 500.0, 5, altitude_m=300.0, off_nadir_deg=35.0, waypoints=ROUTE
+        ):
             ground = math.hypot(p.target_x - p.x, p.target_y - p.y)
             assert math.degrees(math.atan2(ground, p.z)) == pytest.approx(35.0, abs=0.01)
             heading = math.degrees(math.atan2(p.target_x - p.x, p.target_y - p.y)) % 360.0
@@ -56,7 +61,7 @@ def test_a_flight_that_leaves_the_tile_is_refused() -> None:
 
 
 @pytest.mark.parametrize("bad", [{"off_nadir_deg": 85.0}, {"off_nadir_deg": -1.0}])
-def test_a_bad_angle_is_refused(bad: dict[str, float]) -> None:
+def test_a_bad_angle_is_refused(bad: dict[str, Any]) -> None:
     with pytest.raises(ValueError, match="off-nadir"):
         camera.trajectory("still", 500.0, 0, **bad)
 
@@ -64,3 +69,24 @@ def test_a_bad_angle_is_refused(bad: dict[str, float]) -> None:
 def test_an_unknown_kind_is_refused() -> None:
     with pytest.raises(ValueError, match="unknown trajectory"):
         camera.trajectory("spiral", 500.0, 0)
+
+
+def test_a_path_flies_the_waypoints_at_constant_speed_and_turns_smoothly() -> None:
+    poses = camera.trajectory("path", 500.0, 0, waypoints=ROUTE, speed_mps=20.0, fps=10.0,
+                              off_nadir_deg=0.0)  # fmt: skip
+    length = math.hypot(50, 10) + math.hypot(30, 40)
+    assert len(poses) == round(length / 20.0 * 10.0) + 1
+    assert (poses[0].x, poses[0].y) == pytest.approx((150.0, 150.0), abs=1e-3)
+    assert (poses[-1].x, poses[-1].y) == pytest.approx((230.0, 200.0), abs=1e-3)
+    assert poses[0].heading_deg == pytest.approx(math.degrees(math.atan2(50, 10)), abs=8.0)
+    turns = [abs(b.heading_deg - a.heading_deg) for a, b in zip(poses, poses[1:], strict=False)]
+    assert max(t for t in turns if t < 180) < 6.0  # no snap at the corner
+
+
+def test_a_path_is_checked() -> None:
+    with pytest.raises(ValueError, match="at least two"):
+        camera.trajectory("path", 500.0, 0, waypoints=[(1.0, 1.0)])
+    with pytest.raises(ValueError, match="at least two"):
+        camera.trajectory("path", 500.0, 0)
+    with pytest.raises(ValueError, match="outside the tile"):
+        camera.trajectory("path", 500.0, 0, waypoints=[(10.0, 10.0), (490.0, 490.0)])
