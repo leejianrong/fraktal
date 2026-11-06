@@ -64,6 +64,7 @@ def from_labels(
                     "y": round(float(tracks.y[k, frame]), 3),
                     "heading_deg": round(math.degrees(float(tracks.heading[k, frame])), 2),
                     "speed": round(float(tracks.speed[k, frame]), 3),
+                    **({"z": round(float(tracks.z[k, frame]), 3)} if tracks.z is not None else {}),
                 }
             )
     return {

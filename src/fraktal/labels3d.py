@@ -12,7 +12,16 @@ from typing import Any
 
 import numpy as np
 
-CLASSES = {"none": 0, "ground": 1, "building": 2, "tree": 3, "vehicle": 4, "pole": 5, "person": 6}
+CLASSES = {
+    "none": 0,
+    "ground": 1,
+    "building": 2,
+    "tree": 3,
+    "vehicle": 4,
+    "pole": 5,
+    "person": 6,
+    "drone": 7,
+}
 MAX_INSTANCES = 65534
 
 
@@ -44,7 +53,12 @@ def encode(semantic: Any, instance: Any) -> Any:
 
 
 def meta(
-    building_ids: list[str], trees: int, vehicles: int = 0, poles: int = 0, people: int = 0
+    building_ids: list[str],
+    trees: int,
+    vehicles: int = 0,
+    poles: int = 0,
+    people: int = 0,
+    drones: int = 0,
 ) -> dict[str, Any]:
     """The ``labels`` block of ``render.json``."""
     return {
@@ -55,6 +69,7 @@ def meta(
         "vehicles": vehicles,
         "poles": poles,
         "people": people,
+        "drones": drones,
     }
 
 

@@ -28,7 +28,7 @@ from shapely.geometry import LineString, Point, box
 from shapely.ops import substring
 
 from fraktal.ids import substream
-from fraktal.kernels import traffic
+from fraktal.kernels import flight, traffic
 
 DRIVE_SIDES = ("left", "right")
 GRID_M = 1.0  # routes are sampled every metre
@@ -111,9 +111,12 @@ class Tracks:
     heading: np.ndarray[Any, Any]
     speed: np.ndarray[Any, Any]
     kind: str = "car"
+    z: np.ndarray[Any, Any] | None = None  # (N, T) height above the ground, for flying agents
 
     def as_dict(self) -> dict[str, Any]:
+        extra = {"z": np.round(self.z, 3).tolist()} if self.z is not None else {}
         return {
+            **extra,
             "kind": self.kind,
             "ids": self.ids,
             "t": np.round(self.t, 4).tolist(),
@@ -440,6 +443,65 @@ def simulate_people(
     ids = [f"person-{k:04d}" for k in range(n)]
     wrapped = (heading_out + math.pi) % (2 * math.pi) - math.pi
     return Tracks(ids, t, x, y, wrapped, speed, kind="person")
+
+
+@dataclass(frozen=True)
+class DroneConfig:
+    count: int = 3
+    altitude_m: tuple[float, float] = (40.0, 120.0)  # above the ground, one level per drone
+    speed_mps: float = 12.0
+    max_accel: float = 3.0
+    max_yaw_rate_dps: float = 90.0
+    margin: float = 0.1  # waypoints stay this share of the tile side inside the tile
+
+
+def simulate_drones(
+    size_m: float, times: Any, seed: int, config: DroneConfig | None = None
+) -> Tracks:
+    """Drones flying seeded routes over the tile, at ``times``.
+
+    Each drone starts at a random point and flies through random waypoints with the same
+    point-mass model as the camera (``fraktal.kernels.flight``), at its own height. They do not
+    avoid each other or the camera (they fly at different heights, so a crossing is a near miss).
+    """
+    config = config or DroneConfig()
+    t = np.asarray(times, dtype="float64")
+    if t.ndim != 1 or len(t) < 1 or np.any(np.diff(t) < 0):
+        raise AgentError("times must be a non-empty ascending 1D array")
+    if config.count < 0 or config.speed_mps <= 0:
+        raise AgentError("drone count must not be negative and speed must be positive")
+    n = config.count
+    empty = np.zeros((0, len(t)))
+    if n == 0:
+        return Tracks([], t, empty, empty, empty, empty, kind="drone", z=empty)
+    rng = substream(seed, "drones")
+    lo, hi = config.margin * size_m, (1.0 - config.margin) * size_m
+    reach = config.speed_mps * float(t[-1] - t[0]) + 20.0
+    x, y, heading, speed, z = (np.empty((n, len(t))) for _ in range(5))
+    for k in range(n):
+        pts = [rng.uniform(lo, hi, 2)]
+        length = 0.0
+        while length < reach and len(pts) < 12:
+            nxt = rng.uniform(lo, hi, 2)
+            if float(np.hypot(*(nxt - pts[-1]))) < 30.0:
+                continue
+            length += float(np.hypot(*(nxt - pts[-1])))
+            pts.append(nxt)
+        if len(pts) < 2:  # the tile is too small for a leg of 30 m
+            raise AgentError("the tile is too small for drone routes")
+        run = flight.fly(
+            np.array(pts), cruise_mps=config.speed_mps * (0.8 + 0.4 * float(rng.uniform())),
+            max_accel=config.max_accel, max_yaw_rate_dps=config.max_yaw_rate_dps, fps=10.0,
+        )  # fmt: skip
+        clock = np.clip(t - t[0], 0.0, run["t"][-1])  # hovers at the end if the route is short
+        for out, col in ((x, run["xy"][:, 0]), (y, run["xy"][:, 1]), (speed, run["speed"])):
+            out[k] = np.interp(clock, run["t"], col)
+        yaw = np.unwrap(np.radians(run["yaw_deg"]))
+        heading[k] = np.pi / 2 - np.interp(clock, run["t"], yaw)
+        z[k] = float(rng.uniform(*config.altitude_m))
+    wrapped = (heading + math.pi) % (2 * math.pi) - math.pi
+    ids = [f"drone-{k:04d}" for k in range(n)]
+    return Tracks(ids, t, x, y, wrapped, speed, kind="drone", z=z)
 
 
 def simulate_cars(

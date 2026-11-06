@@ -65,6 +65,7 @@ def scene_sha256(scene_dir: Path) -> str:
         "ground_height.npy",
         "agents.json",
         "people.json",
+        "drones.json",
         "camera.json",
     )  # camera.json only for sequences
     for name in (*names, *(f"mesh_{k}.npy" for k in MESH_FILES)):
@@ -232,12 +233,13 @@ def render(
     poses: list[cameras.Pose] = []
     moving: agents.Tracks | None = None
     walkers: agents.Tracks | None = None
+    flyers: agents.Tracks | None = None
     config = agents.TrafficConfig()
     follow_meta: dict[str, Any] | None = None
 
     def simulate(times: Any) -> None:
         """Moving cars (and people) at ``times``, replacing the parked cars."""
-        nonlocal moving, walkers, config
+        nonlocal moving, walkers, flyers, config
         roads, bounds, side = agents.tile_roads(world_dir, center_lonlat, scene["size_m"], gsd_m)
         config = agents.TrafficConfig(
             cars_per_km=float((traffic or {}).get("cars_per_km", 6.0)),
@@ -254,6 +256,12 @@ def render(
                 agents.WalkerConfig(float(traffic["people_per_km"])),  # type: ignore[index]
             )
             (out_dir / "scene" / "people.json").write_text(json.dumps(walkers.as_dict()) + "\n")
+        if int((traffic or {}).get("drones", 0)) > 0:
+            flyers = agents.simulate_drones(
+                float(scene["size_m"]), times, seed,
+                agents.DroneConfig(count=int(traffic["drones"])),  # type: ignore[index]
+            )  # fmt: skip
+            (out_dir / "scene" / "drones.json").write_text(json.dumps(flyers.as_dict()) + "\n")
 
     if follow is not None:  # a camera riding on a car or a person
         if traffic is None:
@@ -324,6 +332,9 @@ def render(
         if walkers is not None:
             extra["traffic"]["people"] = len(walkers.ids)
             extra["traffic"]["files"]["people"] = "scene/people.json"
+        if flyers is not None:
+            extra["traffic"]["drones"] = len(flyers.ids)
+            extra["traffic"]["files"]["drones"] = "scene/drones.json"
         if labels:
             files = (
                 sorted((out_dir / "labels").glob("frame_*.png"))
@@ -333,6 +344,8 @@ def render(
             table = tracks_mod.from_labels(files, moving, parked)
             if walkers is not None:  # people are listed after the cars, with their own class
                 table["tracks"] += tracks_mod.from_labels(files, walkers, 0, "person")["tracks"]
+            if flyers is not None:
+                table["tracks"] += tracks_mod.from_labels(files, flyers, 0, "drone")["tracks"]
             (out_dir / "tracks.json").write_text(json.dumps(table) + "\n")
             extra["traffic"]["files"]["detections"] = "tracks.json"
             seen = sum(1 for t in table["tracks"] if t["detections"])
@@ -364,6 +377,8 @@ def render(
             groups = [(moving, "vehicle", parked)] if moving is not None else []
             if walkers is not None:
                 groups.append((walkers, "person", 0))
+            if flyers is not None:
+                groups.append((flyers, "drone", 0))
             n = flowgt.write_sequence(
                 out_dir, table, sorted((out_dir / "depth").glob("frame_*.png")),
                 sorted((out_dir / "labels").glob("frame_*.png")) if labels else None, groups,
@@ -431,6 +446,7 @@ def render(
             parked + (len(moving.ids) if moving is not None else 0),
             len(scene["poles"]),
             len(walkers.ids) if walkers is not None else 0,
+            len(flyers.ids) if flyers is not None else 0,
         )
         meta["files"]["labels"] = "labels/frame_NNNN.png" if poses else "labels.png, labels.tif"
     (out_dir / "render.json").write_text(json.dumps(meta, indent=2) + "\n")
