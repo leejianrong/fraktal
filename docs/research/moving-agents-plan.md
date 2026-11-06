@@ -188,3 +188,29 @@ frame); the blue block is a car.
 Limits: people and cars ignore each other (people walk across the junction link without waiting, and a
 car does not slow for them), there is no walk cycle or crowd behaviour, and the figure is boxes. At the
 usual flight height of 90 m a person is only a few pixels, so low flights are the useful ones.
+
+## Status after FRK-82 (2026-11-06)
+
+`render3d --traffic --follow car|person` rides a camera on one agent (`--follow-id car-0007` picks one,
+otherwise the one that covers the most ground inside the tile). The camera sits on the agent's track
+and looks along its heading: a car camera is 1.25 m up, 0.9 m ahead of the car's centre and pitched 3
+degrees down; a person's is at 1.65 m and level (`--mount-height`, `--pitch`, `--fov` change them; the
+default field of view is 90 degrees when following). It sits on the terrain, and the agent it rides on
+is moved out of sight so the camera is not inside its own car. Poses go to `poses.json` and the video,
+labels, depth and `tracks.json` work as for any flight. The tracks are simulated first and the camera
+follows them, so the same seed gives the same drive.
+
+Pod checks (16 vCPU, 16 samples, 512 px, 10 fps):
+
+| View | Biome | Frames | Render | Agents seen | Mismatches |
+|---|---|---|---|---|---|
+| Dashcam on car-0049 | dense_urban | 240 (24 s) | 584 s | 13 cars | 0 |
+| Eye level on person-0191 | khartoum | 200 (20 s) | 289 s | 17 people and 7 cars, up to 19 in a frame | 0 |
+
+![A dashcam drive: frames and labels](../img/dashcam.jpg)
+
+![Walking at eye level: frames and labels](../img/eyelevel.jpg)
+
+Limits: the ground mesh ends at the tile edge, so a long view shows the edge against a flat sky; the
+dense town is in deep shadow at street level; the walker and the car move at their simulated pace, so
+a pedestrian video changes slowly; and only one camera rides per render.
