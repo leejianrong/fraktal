@@ -167,3 +167,24 @@ The slow tail is the queues. Overlaps are not gone: the remaining ones are insid
 that turn cut across each other as close as 0.4 m, and cars that have waited five seconds push in. Two
 rough edges found on the way, both fixed: two turning cars each saw the other as "ahead" and waited for
 ever (the leader rule is now one-way), and cars that U-turned at the tile edge jammed (they now drive off).
+
+## Status after FRK-87 (2026-11-06)
+
+`render3d --traffic --people-per-km N` adds pedestrians. `agents.simulate_people` gives each person a
+verge side (1.2 m outside the road edge), a seeded route through the junctions, a pace of 1.4 m/s
+plus or minus 20%, and random stops (about two a minute, two to eight seconds each). People are a
+label class of their own (`person`, 6), drawn as a three-box figure (trousers, shirt, head) with a
+shirt colour per person, moved per frame like the cars, and listed in `tracks.json` after the cars
+with `kind: "person"`. A person's instance is their index plus one within the class.
+
+Pod check (khartoum, 80 people per km, 25 cars per km, flying at 45 m along a road at 8 m/s, 161 frames,
+512 px, 16 samples, 268 s of render): 204 people and 64 cars simulated, 12 people and 2 cars seen, up to 13
+agents visible in a frame, 0 mismatches between `tracks.json` and a recount from the label images. Below:
+one walker in four frames (a crop of the render, the same crop of the labels in orange, and the whole
+frame); the blue block is a car.
+
+![A pedestrian in four frames](../img/people-crops.jpg)
+
+Limits: people and cars ignore each other (people walk across the junction link without waiting, and a
+car does not slow for them), there is no walk cycle or crowd behaviour, and the figure is boxes. At the
+usual flight height of 90 m a person is only a few pixels, so low flights are the useful ones.
