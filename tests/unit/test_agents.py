@@ -80,7 +80,10 @@ def test_cars_stay_on_the_roads_and_move_plausibly() -> None:
     centre = CROSS.geometry.union_all()
     from shapely.geometry import Point
 
-    far = max(centre.distance(Point(x, y)) for x, y in zip(tr.x.ravel(), tr.y.ravel(), strict=True))
+    inside = (
+        (tr.x > 0) & (tr.x < 500) & (tr.y > 0) & (tr.y < 500)
+    )  # cars may drive off the tile edge
+    far = max(centre.distance(Point(x, y)) for x, y in zip(tr.x[inside], tr.y[inside], strict=True))
     assert far < 5.0  # within a lane and a bend of a road centre line
     step = np.hypot(np.diff(tr.x, axis=1), np.diff(tr.y, axis=1))
     assert step.max() < 12.5 * 1.2 * 0.5 + 0.5  # no teleports: at most speed times the 0.5 s step
@@ -153,4 +156,45 @@ def test_a_generated_world_gives_cars_on_its_roads_in_the_tile_frame(tmp_path: P
         g, np.arange(0.0, 10.0, 0.5), 3, agents.TrafficConfig(drive_side=side)
     )
     assert len(tr.ids) > 50
-    assert tr.x.min() >= -5 and tr.x.max() <= bounds[2] + 5 and tr.y.min() >= -5
+    inside = (tr.x > 0) & (tr.x < bounds[2]) & (tr.y > 0) & (tr.y < bounds[3])
+    assert inside.mean() > 0.8  # most of the time they are in the tile; at an edge they drive off
+
+
+def _pair_distances(tr: agents.Tracks) -> np.ndarray:
+    pts = np.stack([tr.x, tr.y], axis=-1)
+    d = np.hypot(*(pts[:, None] - pts[None]).transpose(3, 0, 1, 2))
+    d[np.arange(len(pts)), np.arange(len(pts))] = np.inf
+    return d  # type: ignore[no-any-return]
+
+
+def test_cars_keep_a_gap_and_a_busy_clip_overlaps_far_less_than_without_interaction() -> None:
+    g = agents.build_graph(CROSS, BOUNDS)
+    busy = np.arange(0.0, 60.0, 0.5)
+    with_it = agents.simulate_cars(g, busy, 2, agents.TrafficConfig(cars_per_km=40.0))
+    without = agents.simulate_cars(
+        g, busy, 2, agents.TrafficConfig(cars_per_km=40.0, interact=False)
+    )
+    near_with = int((_pair_distances(with_it) < 2.0).sum())
+    near_without = int((_pair_distances(without) < 2.0).sum())
+    assert near_without > 50 and near_with < 0.25 * near_without
+    # on the open arterial, cars heading the same way in the same lane keep a car length apart
+    a, b = with_it, with_it
+    same_lane = np.zeros(_pair_distances(a).shape, dtype=bool)
+    on_artery = np.abs(a.y - 250.0) < 4.5
+    for t in range(len(busy)):
+        dy = np.abs(a.y[:, t, None] - a.y[None, :, t])
+        dh = np.abs(np.cos(a.heading[:, t, None] - a.heading[None, :, t]) - 1.0)
+        same_lane[:, :, t] = (
+            (dy < 1.0) & (dh < 0.05) & on_artery[:, t, None] & on_artery[None, :, t]
+        )
+    gaps = _pair_distances(b)[same_lane]
+    assert len(gaps) == 0 or gaps.min() > 4.5
+
+
+def test_a_busy_junction_does_not_lock_up() -> None:
+    g = agents.build_graph(CROSS, BOUNDS)
+    tr = agents.simulate_cars(
+        g, np.arange(0.0, 90.0, 0.5), 2, agents.TrafficConfig(cars_per_km=40.0)
+    )
+    assert (tr.speed[:, -1] < 0.3).sum() <= 2  # a few may be waiting, but traffic still flows
+    assert tr.speed[:, -1].mean() > 3.0
