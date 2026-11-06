@@ -412,6 +412,7 @@ def _render3d(args: argparse.Namespace) -> Result:
             waypoints=_waypoints(args.path) if args.path else None,
             make_video=args.video,
             with_depth=args.depth,
+            with_flow=args.flow,
             follow=(
                 {
                     "kind": args.follow,
@@ -572,6 +573,9 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--path", type=Path, help="fly through the waypoints in this JSON file")
     parser.add_argument("--video", action="store_true", help="also write video.mp4 (needs ffmpeg)")
     parser.add_argument("--depth", action="store_true", help="also write 16-bit depth images")
+    parser.add_argument(
+        "--flow", action="store_true", help="optical flow per frame (implies --depth)"
+    )
     parser.add_argument("--traffic", action="store_true", help="moving cars, with tracks.json")
     parser.add_argument("--cars-per-km", type=float, default=6.0, help="with --traffic")
     parser.add_argument("--people-per-km", type=float, default=0.0, help="walkers, with --traffic")

@@ -150,6 +150,7 @@ PY
   EXTRA=""
   [ "${TRAFFIC:-0}" = 1 ] && EXTRA="--traffic --cars-per-km 25 --people-per-km ${PEOPLE_PER_KM:-0} --altitude-m ${ALT:-90} --off-nadir 35 --fps 8 --speed ${SPEED:-20}"
   [ "${TRAFFIC:-0}" = 1 ] || EXTRA="--altitude-m 150 --off-nadir 40 --fps 12 --depth"
+  [ "${FLOW:-0}" = 1 ] && EXTRA="$EXTRA --flow"
   [ -n "${FOLLOW:-}" ] && EXTRA="$EXTRA --follow $FOLLOW --fps 10 --duration-s ${DURATION:-24}"  # ride on a car or person
   fraktal render3d review/world --out review/fly --center $(cat review/center.txt) --size-m 800 --gsd-m 0.5 \
     --path review/path.json --fov 60 --frame-px 512 $EXTRA \
@@ -206,6 +207,31 @@ for i in range(0, len(poses), 30):
     expect = depth.project((p["target_x"], p["target_y"], 0.0), m, k)[2]
     centre = depth.to_metres(raw[252:261, 252:261])
     print("RP_DEPTH_CHECK", i, "centre_median_m", round(float(np.median(centre)), 2), "expected_ground_m", round(expect, 2))
+PY
+  fi
+  if [ "${FLOW:-0}" = 1 ]; then
+  python - <<'PY'
+import numpy as np
+import rasterio
+d = "review/fly"
+def img(i):
+    with rasterio.open(f"{d}/frames/frame_{i:04d}.png") as src:
+        return src.read()[:3].astype("float32").mean(axis=0)
+errs = []
+for i in range(0, 300, 12):
+    try:
+        a, b = img(i), img(i + 1)
+    except Exception:
+        break
+    f = np.load(f"{d}/flow/frame_{i:04d}.npy").astype("float32")
+    v, u = np.mgrid[0:a.shape[0], 0:a.shape[1]] + 0.5
+    ok = np.isfinite(f).all(axis=-1)
+    f = np.nan_to_num(f)
+    r = np.clip(np.rint(v - 0.5 + f[..., 1]), 0, a.shape[0] - 1).astype(int)
+    c = np.clip(np.rint(u - 0.5 + f[..., 0]), 0, a.shape[1] - 1).astype(int)
+    warped = b[r, c]
+    errs.append((i, round(float(np.abs(warped - a)[ok].mean()), 2), round(float(np.abs(b - a)[ok].mean()), 2), round(float(np.hypot(f[..., 0], f[..., 1])[ok].mean()), 2)))
+print("RP_FLOW_CHECK (frame, warp_err, raw_err, mean_flow_px)", errs)
 PY
   fi
   rm -rf review/world review/fly/scene/ground* review/fly/scene/mesh_*
