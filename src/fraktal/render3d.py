@@ -64,6 +64,7 @@ def scene_sha256(scene_dir: Path) -> str:
         "ground_rough.npy",
         "ground_height.npy",
         "agents.json",
+        "people.json",
         "camera.json",
     )  # camera.json only for sequences
     for name in (*names, *(f"mesh_{k}.npy" for k in MESH_FILES)):
@@ -186,6 +187,7 @@ def render(
             json.dumps({"frames": [p.as_dict() for p in poses]}) + "\n"
         )
     moving: agents.Tracks | None = None
+    walkers: agents.Tracks | None = None
     if traffic is not None:  # moving cars replace the parked ones, at the same frame times
         times = np.array([p.t_s for p in poses] or [0.0])
         roads, bounds, side = agents.tile_roads(world_dir, center_lonlat, scene["size_m"], gsd_m)
@@ -196,6 +198,11 @@ def render(
         graph = agents.build_graph(roads, bounds, config)
         moving = agents.simulate_cars(graph, times, seed, config)
         (out_dir / "scene" / "agents.json").write_text(json.dumps(moving.as_dict()) + "\n")
+        if float(traffic.get("people_per_km", 0.0)) > 0:
+            walkers = agents.simulate_people(
+                graph, times, seed, agents.WalkerConfig(float(traffic["people_per_km"]))
+            )
+            (out_dir / "scene" / "people.json").write_text(json.dumps(walkers.as_dict()) + "\n")
     digest = scene_sha256(out_dir / "scene")
     t1 = time.time()
     emit(
@@ -244,6 +251,9 @@ def render(
             "first_instance": parked,
             "files": {"tracks": "scene/agents.json"},
         }
+        if walkers is not None:
+            extra["traffic"]["people"] = len(walkers.ids)
+            extra["traffic"]["files"]["people"] = "scene/people.json"
         if labels:
             files = (
                 sorted((out_dir / "labels").glob("frame_*.png"))
@@ -251,10 +261,18 @@ def render(
                 else [out_dir / "labels.png"]
             )
             table = tracks_mod.from_labels(files, moving, parked)
+            if walkers is not None:  # people are listed after the cars, with their own class
+                table["tracks"] += tracks_mod.from_labels(files, walkers, 0, "person")["tracks"]
             (out_dir / "tracks.json").write_text(json.dumps(table) + "\n")
             extra["traffic"]["files"]["detections"] = "tracks.json"
             seen = sum(1 for t in table["tracks"] if t["detections"])
-            emit("render3d_tracks", cars=len(moving.ids), seen=seen, frames=len(files))
+            emit(
+                "render3d_tracks",
+                cars=len(moving.ids),
+                people=len(walkers.ids) if walkers else 0,
+                seen=seen,
+                frames=len(files),
+            )
     if with_depth:
         _write_depth(out_dir, bool(poses))
         extra["depth"] = depths.meta()
@@ -330,6 +348,7 @@ def render(
             len(scene["trees"]),
             parked + (len(moving.ids) if moving is not None else 0),
             len(scene["poles"]),
+            len(walkers.ids) if walkers is not None else 0,
         )
         meta["files"]["labels"] = "labels/frame_NNNN.png" if poses else "labels.png, labels.tif"
     (out_dir / "render.json").write_text(json.dumps(meta, indent=2) + "\n")

@@ -209,3 +209,30 @@ def test_a_render_with_traffic_writes_agents_and_tracks(world: Path, tmp_path: P
         camera_options={"fps": 4.0, "duration_s": 1.0}, script=fake(tmp_path),
     )  # fmt: skip
     assert plain["scene_sha256"] != meta["scene_sha256"] and "traffic" not in plain
+
+
+def test_people_are_written_beside_the_cars_and_listed_in_tracks(
+    world: Path, tmp_path: Path
+) -> None:
+    out = tmp_path / "pp"
+    meta = render3d.render(
+        world, out, CENTER, 1000.0, 0.5, seed=4, trajectory="orbit", frame_px=64,
+        camera_options={"fps": 4.0, "duration_s": 1.0}, script=fake(tmp_path, TRAFFIC_BLENDER),
+        traffic={"cars_per_km": 20.0, "people_per_km": 30.0},
+    )  # fmt: skip
+    walkers = json.loads((out / "scene" / "people.json").read_text())
+    assert walkers["kind"] == "person" and len(walkers["ids"]) > 5
+    assert meta["traffic"]["people"] == len(walkers["ids"])
+    assert meta["labels"]["people"] == len(walkers["ids"])
+    kinds = [t["kind"] for t in json.loads((out / "tracks.json").read_text())["tracks"]]
+    assert kinds.count("person") == len(walkers["ids"]) and kinds[0] == "car"
+    plain = render3d.render(
+        world, tmp_path / "np", CENTER, 1000.0, 0.5, seed=4, trajectory="orbit", frame_px=64,
+        camera_options={"fps": 4.0, "duration_s": 1.0}, script=fake(tmp_path, TRAFFIC_BLENDER),
+        traffic={"cars_per_km": 20.0},
+    )  # fmt: skip
+    assert (
+        not (tmp_path / "np" / "scene" / "people.json").exists()
+        and "people" not in plain["traffic"]
+    )
+    assert plain["scene_sha256"] != meta["scene_sha256"]  # the walkers are part of the scene

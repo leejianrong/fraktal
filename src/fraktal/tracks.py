@@ -26,13 +26,18 @@ def _read(path: Path) -> Any:
         return src.read()[:3]
 
 
-def from_labels(label_files: list[Path], tracks: Tracks, first_instance: int) -> dict[str, Any]:
-    """Per-car detections over ``label_files`` (one per track column, in order)."""
+def from_labels(
+    label_files: list[Path], tracks: Tracks, first_instance: int, klass: str = "vehicle"
+) -> dict[str, Any]:
+    """Per-agent detections over ``label_files`` (one per track column, in order).
+
+    ``klass`` is the label class of these agents: "vehicle" for cars, "person" for people.
+    """
     if len(label_files) != tracks.x.shape[1]:
         raise ValueError(f"{len(label_files)} label images for {tracks.x.shape[1]} track frames")
     n = len(tracks.ids)
     detections: list[list[dict[str, Any]]] = [[] for _ in range(n)]
-    vehicle = labels3d.CLASSES["vehicle"]
+    vehicle = labels3d.CLASSES[klass]
     for frame, path in enumerate(label_files):
         semantic, instance = labels3d.decode(_read(path))
         rows, cols = np.nonzero(semantic == vehicle)
