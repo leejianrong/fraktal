@@ -156,3 +156,14 @@ and turns its heading no faster than `--max-yaw-rate` (default 60 deg/s). On an 
 20 m/s cruise it passes the corner at about 7 m/s, cuts it by under 10 m, and stops within 2 m of the
 last waypoint. It is a kinematic model, with no wind, battery or thrust; the poses are the same
 kind as before, so rendering did not change and no pod run was needed.
+
+## After phase 2 (FRK-81 to FRK-87)
+
+Moving things are in: `render3d --traffic` simulates cars that follow lanes, follow each other and give
+way at crossings, and `--people-per-km` adds pedestrians on the verges. Both are labelled classes with
+stable per-frame instance IDs and a `tracks.json` built from the exact label images, and the drive side
+is a biome setting. A camera can fly over them or ride on one (`--follow car|person`), so an aerial flight,
+a dashcam drive and a walk are the same pipeline. Details, pod checks and limits are in
+[the agents plan](../research/moving-agents-plan.md). Still open from this ADR: moving drones as
+agents, motorbikes and tuk-tuks (a realism pass), sensors beyond depth and pose (phase 3), the engine
+prototype (phase 4, a spike note exists) and the studio shell (phase 5).
