@@ -535,6 +535,33 @@ def _traffic_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--drive-side", choices=agents.DRIVE_SIDES, help="default: the world's")
 
 
+def _demo(args: argparse.Namespace) -> Result:
+    from fraktal import demo
+
+    try:
+        info = demo.build(
+            args.world, args.out, tuple(args.center) if args.center else None,
+            size_m=args.size_m, seed=args.seed, duration_s=args.duration_s,
+            cars_per_km=args.cars_per_km, people_per_km=args.people_per_km, drones=args.drones,
+        )  # fmt: skip
+    except (OSError, ValueError) as err:
+        raise CliError(ExitCode.FAILURE, "demo_failed", str(err)) from err
+    return Result(info, f"wrote {info['out']} ({info['bytes'] // 1024} KiB); open it in a browser")
+
+
+def _demo_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("world", type=Path, help="a world directory (from `fraktal generate`)")
+    parser.add_argument("--out", type=Path, required=True, help="output directory")
+    parser.add_argument("--center", type=float, nargs=2, metavar=("LON", "LAT"),
+                        help="default: the world's centre")  # fmt: skip
+    parser.add_argument("--size-m", type=float, default=500.0)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--duration-s", type=float, default=60.0, help="length of the loop")
+    parser.add_argument("--cars-per-km", type=float, default=12.0)
+    parser.add_argument("--people-per-km", type=float, default=10.0)
+    parser.add_argument("--drones", type=int, default=3)
+
+
 def _render3d_batch_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("world", type=Path, help="a world directory (from `fraktal generate`)")
     parser.add_argument("--out", type=Path, required=True, help="output directory (resumable)")
@@ -917,6 +944,7 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "render3d": _render3d_args,
     "render3d-batch": _render3d_batch_args,
     "traffic": _traffic_args,
+    "demo": _demo_args,
 }
 
 COMMANDS: dict[str, tuple[str, Handler]] = {
@@ -937,6 +965,7 @@ COMMANDS: dict[str, tuple[str, Handler]] = {
     "render3d": ("Render a world tile with Blender (3D path)", _render3d),
     "render3d-batch": ("Render many tiles of a world, resumable", _render3d_batch),
     "traffic": ("Simulate cars on a tile's roads and map their paths", _traffic),
+    "demo": ("Write a one-file browser demo you can drive around in", _demo),
 }
 
 

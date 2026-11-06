@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fraktal world demo</title>
+<style>
+:root{--bg:#14161a;--fg:#e8e6e1;--mut:#9a9890;--acc:#f0a63a}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,sans-serif;overflow:hidden}
+canvas{display:block;width:100vw;height:100vh}
+#hud{position:fixed;left:12px;top:12px;background:rgba(20,22,26,.82);padding:10px 14px;border-radius:8px;max-width:330px}
+#hud b{color:var(--acc)} #hud .row{margin-top:4px;color:var(--mut)}
+#help{margin-top:8px;color:var(--mut);font-size:12px}
+button{background:#2a2d33;color:var(--fg);border:1px solid #3a3e46;border-radius:6px;padding:4px 10px;margin-right:4px;cursor:pointer}
+button.on{background:var(--acc);color:#14161a;border-color:var(--acc)}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div><button data-m="car">1 Car</button><button data-m="person">2 Person</button><button data-m="drone">3 Drone</button></div>
+  <div class="row" id="stat"></div>
+  <div class="row" id="hits"></div>
+  <div id="help">Move: WASD or arrows (car: W/S throttle and brake, A/D steer, Space handbrake). Drone: Q up, E down. Shift runs. +/- zoom, P pauses the other agents, R resets, H hides this help.</div>
+</div>
+<script id="data" type="application/json">__DATA__</script>
+<script>
+const D = JSON.parse(document.getElementById('data').textContent);
+const S = D.size, cv = document.getElementById('c'), g = cv.getContext('2d');
+let W=0,H=0; function fit(){W=cv.width=innerWidth;H=cv.height=innerHeight}; addEventListener('resize',fit); fit();
+// building masks at 1 px per metre: red channel = height*4
+const mask = document.createElement('canvas'); mask.width = mask.height = Math.ceil(S);
+const mg = mask.getContext('2d',{willReadFrequently:true}); mg.imageSmoothingEnabled=false;
+for (const b of D.buildings){ const v=Math.min(255,Math.round(b.h*4)); mg.fillStyle=`rgb(${v},0,0)`; mg.beginPath();
+  b.ring.forEach(([x,y],i)=>i?mg.lineTo(x,S-y):mg.moveTo(x,S-y)); mg.closePath(); mg.fill(); }
+const MD = mg.getImageData(0,0,mask.width,mask.height).data;
+function bh(x,y){ if(x<0||y<0||x>=S||y>=S) return 1e9; const i=((Math.floor(S-y))*mask.width+Math.floor(x))*4; return MD[i+3]? MD[i]/4 : 0; }
+// replay of the simulated agents
+const N = D.frames;
+function sample(a, k, t){ const f=((t*D.fps)%N+N)%N, i=Math.floor(f), j=(i+1)%N, u=f-i;
+  const x=a.x[k][i]*(1-u)+a.x[k][j]*u, y=a.y[k][i]*(1-u)+a.y[k][j]*u;
+  const s=Math.sin(a.h[k][i])*(1-u)+Math.sin(a.h[k][j])*u, c=Math.cos(a.h[k][i])*(1-u)+Math.cos(a.h[k][j])*u;
+  return [x,y,Math.atan2(s,c), a.z? a.z[k][i]:0]; }
+// player
+const start = D.start; let mode='car';
+const P = {x:start[0], y:start[1], h:start[2], v:0, z:40, steer:0};
+const keys = {}; addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true; if(e.key===' ')e.preventDefault(); hot(e.key)});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+let zoom = 3, paused=false, T=0, hits={car:0,person:0,wall:0};
+function hot(k){ k=k.toLowerCase(); if(k==='1')setMode('car'); if(k==='2')setMode('person'); if(k==='3')setMode('drone');
+  if(k==='p')paused=!paused; if(k==='r'){Object.assign(P,{x:start[0],y:start[1],h:start[2],v:0});hits={car:0,person:0,wall:0}}
+  if(k==='h')document.getElementById('help').style.display=document.getElementById('help').style.display==='none'?'':'none';
+  if(k==='+'||k==='=')zoom=Math.min(14,zoom*1.2); if(k==='-')zoom=Math.max(.5,zoom/1.2); }
+addEventListener('wheel',e=>{zoom=Math.max(.5,Math.min(14,zoom*(e.deltaY<0?1.1:1/1.1)))});
+function setMode(m){mode=m;P.v=0;document.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.m===m))}
+document.querySelectorAll('button').forEach(b=>b.onclick=()=>setMode(b.dataset.m)); setMode('car');
+const dn=(a,b)=>keys[a]||keys[b];
+function blocked(x,y,z){ return bh(x,y) > (mode==='drone'? z : 0); }
+function step(dt){
+  if (mode==='car'){
+    const th=(dn('w','arrowup')?1:0)-(dn('s','arrowdown')?1:0);
+    P.v += (th>0? 4 : th<0? (P.v>0.3? -8 : -3) : -Math.sign(P.v)*Math.min(Math.abs(P.v),0.6))*dt;
+    if(keys[' ']) P.v -= Math.sign(P.v)*Math.min(Math.abs(P.v), 9*dt);
+    P.v = Math.max(-4,Math.min(22,P.v));
+    const want=((dn('a','arrowleft')?1:0)-(dn('d','arrowright')?1:0))*0.55/(1+Math.abs(P.v)/10);
+    P.steer += (want-P.steer)*Math.min(1,8*dt);
+    const nh = P.h + P.v/2.7*Math.tan(P.steer)*dt;
+    const nx = P.x+Math.cos(nh)*P.v*dt, ny = P.y+Math.sin(nh)*P.v*dt;
+    const pts=[[2.2,0.9],[2.2,-0.9],[-2.2,0.9],[-2.2,-0.9],[0,0]].map(([a,b])=>[nx+Math.cos(nh)*a-Math.sin(nh)*b, ny+Math.sin(nh)*a+Math.cos(nh)*b]);
+    if (pts.some(p=>blocked(p[0],p[1],0))) { if(Math.abs(P.v)>2) hits.wall++; P.v*=-0.2; }
+    else { P.x=nx; P.y=ny; P.h=nh; }
+  } else {
+    const dx=(dn('d','arrowright')?1:0)-(dn('a','arrowleft')?1:0), dy=(dn('w','arrowup')?1:0)-(dn('s','arrowdown')?1:0);
+    const L=Math.hypot(dx,dy)||1, max = mode==='person'? (keys.shift?3.8:1.5) : 15, acc = mode==='person'? 8 : 5;
+    const tx=dx/L*max*(dx||dy?1:0), ty=dy/L*max*(dx||dy?1:0);
+    P.vx = (P.vx||0)+(tx-(P.vx||0))*Math.min(1,acc*dt); P.vy=(P.vy||0)+(ty-(P.vy||0))*Math.min(1,acc*dt);
+    const nx=P.x+P.vx*dt, ny=P.y+P.vy*dt;
+    if (mode==='drone') P.z=Math.max(2,Math.min(150,P.z+((keys.q?1:0)-(keys.e?1:0))*12*dt));
+    if (blocked(nx,P.y,P.z)) P.vx=0; else P.x=nx;
+    if (blocked(P.x,ny,P.z)) P.vy=0; else P.y=ny;
+    P.v=Math.hypot(P.vx,P.vy); if(P.v>0.2) P.h=Math.atan2(P.vy,P.vx);
+  }
+  P.x=Math.max(0,Math.min(S,P.x)); P.y=Math.max(0,Math.min(S,P.y));
+  if(!paused) T+=dt;
+  if(mode!=='drone'){ for(let k=0;k<D.cars.ids.length;k++){ const c=sample(D.cars,k,T); const d=Math.hypot(c[0]-P.x,c[1]-P.y);
+      if(d<(mode==='car'?3.4:1.6) && !(P._c&&P._c[k])){ (P._c=P._c||{})[k]=1; hits.car++ } else if(d>6&&P._c) delete P._c[k]; }
+    if(mode==='car') for(let k=0;k<D.people.ids.length;k++){ const c=sample(D.people,k,T); const d=Math.hypot(c[0]-P.x,c[1]-P.y);
+      if(d<1.8 && !(P._p&&P._p[k])){ (P._p=P._p||{})[k]=1; hits.person++ } else if(d>5&&P._p) delete P._p[k]; } }
+}
+function sx(x){return W/2+(x-P.x)*zoom} function sy(y){return H/2-(y-P.y)*zoom}
+function poly(r){g.beginPath(); r.forEach(([x,y],i)=>i?g.lineTo(sx(x),sy(y)):g.moveTo(sx(x),sy(y))); g.closePath()}
+function draw(){
+  g.fillStyle='#1d2420'; g.fillRect(0,0,W,H);
+  g.fillStyle='#232a25'; g.fillRect(sx(0),sy(S),S*zoom,S*zoom);
+  g.lineCap='round'; g.lineJoin='round';
+  for(const r of D.roads){ g.strokeStyle='#55585e'; g.lineWidth=r.w*zoom; g.beginPath(); r.pts.forEach(([x,y],i)=>i?g.lineTo(sx(x),sy(y)):g.moveTo(sx(x),sy(y))); g.stroke(); }
+  for(const t of D.trees){ g.fillStyle='rgba(50,120,60,.8)'; g.beginPath(); g.arc(sx(t[0]),sy(t[1]),Math.max(1,t[2]*zoom),0,7); g.fill(); }
+  for(const b of D.buildings){ const v=Math.min(1,b.h/30); g.fillStyle=`rgb(${150+80*v|0},${120+40*v|0},${105+30*v|0})`; poly(b.ring); g.fill(); g.strokeStyle='rgba(0,0,0,.35)'; g.lineWidth=1; g.stroke(); }
+  for(let k=0;k<D.cars.ids.length;k++){ const [x,y,h]=sample(D.cars,k,T); g.save(); g.translate(sx(x),sy(y)); g.rotate(-h); g.fillStyle=D.colours[k%D.colours.length]; g.fillRect(-2.25*zoom,-.95*zoom,4.5*zoom,1.9*zoom); g.restore(); }
+  g.fillStyle='#ffd27a'; for(let k=0;k<D.people.ids.length;k++){ const [x,y]=sample(D.people,k,T); g.beginPath(); g.arc(sx(x),sy(y),Math.max(1.5,.35*zoom),0,7); g.fill(); }
+  for(let k=0;k<D.drones.ids.length;k++){ const [x,y,h,z]=sample(D.drones,k,T); drone(x,y,z,'#b8c4d8',false); }
+  if(mode==='car'){ g.save(); g.translate(sx(P.x),sy(P.y)); g.rotate(-P.h); g.fillStyle='#e8453c'; g.fillRect(-2.25*zoom,-.95*zoom,4.5*zoom,1.9*zoom); g.fillStyle='#14161a'; g.fillRect(.4*zoom,-.8*zoom,1.1*zoom,1.6*zoom); g.restore(); }
+  else if(mode==='person'){ g.fillStyle='#e8453c'; g.beginPath(); g.arc(sx(P.x),sy(P.y),Math.max(3,.5*zoom),0,7); g.fill(); g.strokeStyle='#fff'; g.lineWidth=2; g.stroke(); }
+  else drone(P.x,P.y,P.z,'#e8453c',true);
+  document.getElementById('stat').textContent = `${mode}  ${(P.v*3.6).toFixed(0)} km/h` + (mode==='drone'?`  alt ${P.z.toFixed(0)} m`:'') + (paused?'  (others paused)':'');
+  document.getElementById('hits').textContent = `contacts: cars ${hits.car}` + (mode==='car'?`, people ${hits.person}, walls ${hits.wall}`:'');
+}
+function drone(x,y,z,col,me){ const off=z*0.25; g.fillStyle='rgba(0,0,0,.3)'; g.beginPath(); g.arc(sx(x),sy(y),Math.max(2,.4*zoom),0,7); g.fill();
+  const px=sx(x), py=sy(y)-off*zoom*0.2; g.strokeStyle=col; g.lineWidth=Math.max(2,.12*zoom); const r=Math.max(5,.5*zoom);
+  g.beginPath(); g.moveTo(px-r,py-r); g.lineTo(px+r,py+r); g.moveTo(px+r,py-r); g.lineTo(px-r,py+r); g.stroke();
+  g.fillStyle=col; g.beginPath(); g.arc(px,py,Math.max(2.5,.25*zoom),0,7); g.fill(); }
+let last=performance.now(); (function loop(now){ const dt=Math.min(.05,(now-last)/1000); last=now; step(dt); draw(); requestAnimationFrame(loop) })(last);
+</script></body></html>
