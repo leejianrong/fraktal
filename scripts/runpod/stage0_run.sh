@@ -33,7 +33,12 @@ trap cleanup EXIT INT TERM
 booted=0
 for n in $(seq 1 "$ATTEMPTS"); do
   say "attempt $n: launching"
-  rp up >> "$LOG" 2>&1 || { say "launch failed (no stock?); retrying in ${LAUNCH_RETRY_SECS}s"; rp down >> "$LOG" 2>&1; sleep "$LAUNCH_RETRY_SECS"; continue; }
+  rp up >> "$LOG" 2>&1 || {
+    if tail -n 20 "$LOG" | grep -qi "insufficient balance"; then
+      say "ERROR RunPod balance is too low to rent a pod; add funds and rerun (not retrying)"; exit 1
+    fi
+    say "launch failed (no stock?); retrying in ${LAUNCH_RETRY_SECS}s"; rp down >> "$LOG" 2>&1; sleep "$LAUNCH_RETRY_SECS"; continue
+  }
   start=$(date +%s)
   while :; do
     elapsed=$(( $(date +%s) - start ))
