@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Driver for the Stage 0 pod job (scripts/runpod/stage0.sh) with a boot check.
-# Usage: [MODE=render3d|batch|fly TRAFFIC=1 FLOW=1 FOLLOW=car|person] [COUNT=50 TILE_M=500 BATCH_BIOME='dense_urban paddy_terraces' SENSOR=1 PUBLISH_ALL=0 SAMPLES=16]
+# Usage: [MODE=render3d|batch|fly TRAFFIC=1 FLOW=1 DRONES=N FOLLOW=car|person] [COUNT=50 TILE_M=500 BATCH_BIOME='dense_urban paddy_terraces' SENSOR=1 PUBLISH_ALL=0 SAMPLES=16]
 #        scripts/runpod/stage0_run.sh COMMIT OUT_DIR   (COMMIT must be pushed)
 #
 # A pod whose container never starts sits "initializing" and prints nothing, so the job's first
@@ -25,7 +25,7 @@ export RP_COMPUTE_TYPE=CPU RP_CLOUD_TYPE=SECURE RP_INTERRUPTIBLE=false RP_CPU_FL
 export RP_VCPU_COUNT=16 RP_CONTAINER_DISK_GB=40 RP_MAX_HOURLY_USD=0.60
 export RP_MAX_LIFETIME_SECS=3000 RP_IDLE_TIMEOUT_SECS=1800 RP_EXIT_GRACE_SECS=600
 export RP_STATE_FILE="$OUT/.rp-state"
-export RP_JOB_CMD="echo $(base64 -w0 "$HERE/stage0.sh") | base64 -d > /tmp/job.sh && COMMIT=$COMMIT MODE=${MODE:-stage0} COUNT=${COUNT:-50} TILE_M=${TILE_M:-500} BATCH_BIOME='${BATCH_BIOME:-dense_urban}' SENSOR=${SENSOR:-0} TRAFFIC=${TRAFFIC:-0} FLOW=${FLOW:-0} PEOPLE_PER_KM=${PEOPLE_PER_KM:-0} ALT=${ALT:-90} SPEED=${SPEED:-20} FOLLOW='${FOLLOW:-}' DURATION=${DURATION:-24} PUBLISH_ALL=${PUBLISH_ALL:-0} SAMPLES='${SAMPLES:-16 64}' bash /tmp/job.sh"
+export RP_JOB_CMD="echo $(base64 -w0 "$HERE/stage0.sh") | base64 -d > /tmp/job.sh && COMMIT=$COMMIT MODE=${MODE:-stage0} COUNT=${COUNT:-50} TILE_M=${TILE_M:-500} BATCH_BIOME='${BATCH_BIOME:-dense_urban}' SENSOR=${SENSOR:-0} TRAFFIC=${TRAFFIC:-0} FLOW=${FLOW:-0} DRONES=${DRONES:-0} PEOPLE_PER_KM=${PEOPLE_PER_KM:-0} ALT=${ALT:-90} SPEED=${SPEED:-20} FOLLOW='${FOLLOW:-}' DURATION=${DURATION:-24} PUBLISH_ALL=${PUBLISH_ALL:-0} SAMPLES='${SAMPLES:-16 64}' bash /tmp/job.sh"
 
 cleanup() { say "teardown"; rp down >> "$LOG" 2>&1; say "pods left: $(runpodctl pod list 2>/dev/null | grep -c fraktal-stage0 || true)"; }
 trap cleanup EXIT INT TERM

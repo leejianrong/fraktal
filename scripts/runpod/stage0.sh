@@ -148,7 +148,7 @@ open("review/center.txt", "w").write("%f %f" % center)
 PY
   stage fly
   EXTRA=""
-  [ "${TRAFFIC:-0}" = 1 ] && EXTRA="--traffic --cars-per-km 25 --people-per-km ${PEOPLE_PER_KM:-0} --altitude-m ${ALT:-90} --off-nadir 35 --fps 8 --speed ${SPEED:-20}"
+  [ "${TRAFFIC:-0}" = 1 ] && EXTRA="--traffic --cars-per-km 25 --people-per-km ${PEOPLE_PER_KM:-0} --drones ${DRONES:-0} --altitude-m ${ALT:-90} --off-nadir 35 --fps 8 --speed ${SPEED:-20}"
   [ "${TRAFFIC:-0}" = 1 ] || EXTRA="--altitude-m 150 --off-nadir 40 --fps 12 --depth"
   [ "${FLOW:-0}" = 1 ] && EXTRA="$EXTRA --flow"
   [ -n "${FOLLOW:-}" ] && EXTRA="$EXTRA --follow $FOLLOW --fps 10 --duration-s ${DURATION:-24}"  # ride on a car or person
@@ -172,8 +172,8 @@ bad = 0
 for t in seen:
     for det in t["detections"]:
         per_frame[det["frame"]] += 1
-for t in seen[:25] + [p for p in seen if p["kind"] == "person"][:25]:  # recount pixels
-    klass = labels3d.CLASSES["person" if t["kind"] == "person" else "vehicle"]
+for t in seen[:25] + [p for p in seen if p["kind"] != "car"][:25]:  # recount pixels
+    klass = labels3d.CLASSES[{"person": "person", "drone": "drone"}.get(t["kind"], "vehicle")]
     for det in t["detections"][::7]:
         with rasterio.open(f"{d}/labels/frame_{det['frame']:04d}.png") as src:
             sem, inst = labels3d.decode(src.read()[:3])
@@ -183,7 +183,7 @@ for t in seen[:25] + [p for p in seen if p["kind"] == "person"][:25]:  # recount
         if int(mine.sum()) != det["pixels"] or (xs.min(), ys.min(), xs.max(), ys.max()) != (x0, y0, x1, y1):
             bad += 1
 long_lived = max(seen, key=lambda t: t["detections"][-1]["frame"] - t["detections"][0]["frame"]) if seen else None
-kinds = {k: (sum(1 for t in table["tracks"] if t["kind"] == k), sum(1 for t in seen if t["kind"] == k)) for k in ("car", "person")}
+kinds = {k: (sum(1 for t in table["tracks"] if t["kind"] == k), sum(1 for t in seen if t["kind"] == k)) for k in ("car", "person", "drone")}
 print("RP_TRACK_KINDS", kinds)
 print("RP_TRACK_CHECK", "tracks", len(table["tracks"]), "seen", len(seen), "mean_visible_per_frame", round(float(per_frame.mean()), 1), "max_visible", int(per_frame.max()), "mismatches", bad,
       "longest_track", long_lived and (long_lived["id"], long_lived["instance"], long_lived["detections"][0]["frame"], long_lived["detections"][-1]["frame"], len(long_lived["detections"])))

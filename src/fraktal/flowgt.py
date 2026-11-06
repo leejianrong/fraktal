@@ -39,6 +39,8 @@ def _motion(
         kk = k[mask]
         out[mask, 0] = tracks.x[kk, frame + 1] - tracks.x[kk, frame]
         out[mask, 1] = tracks.y[kk, frame + 1] - tracks.y[kk, frame]
+        if tracks.z is not None:
+            out[mask, 2] = tracks.z[kk, frame + 1] - tracks.z[kk, frame]
     return out
 
 

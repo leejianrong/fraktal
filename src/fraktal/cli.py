@@ -428,6 +428,7 @@ def _render3d(args: argparse.Namespace) -> Result:
                     "cars_per_km": args.cars_per_km,
                     "drive_side": args.drive_side,
                     "people_per_km": args.people_per_km,
+                    "drones": args.drones,
                 }
                 if args.traffic
                 else None
@@ -578,6 +579,7 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--traffic", action="store_true", help="moving cars, with tracks.json")
     parser.add_argument("--cars-per-km", type=float, default=6.0, help="with --traffic")
+    parser.add_argument("--drones", type=int, default=0, help="flying drones, with --traffic")
     parser.add_argument("--people-per-km", type=float, default=0.0, help="walkers, with --traffic")
     parser.add_argument("--drive-side", choices=agents.DRIVE_SIDES, help="default: the world's")
     parser.add_argument("--altitude-m", type=float, default=300.0)

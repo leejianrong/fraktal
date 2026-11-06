@@ -244,3 +244,25 @@ def test_no_roads_gives_no_people_and_bad_input_is_refused() -> None:
         agents.simulate_people(g, [2.0, 1.0], 0)
     with pytest.raises(agents.AgentError, match="positive"):
         agents.simulate_people(g, TIMES, 0, agents.WalkerConfig(walk_speed_mps=0.0))
+
+
+def test_drones_fly_seeded_routes_at_their_own_height_inside_the_tile() -> None:
+    t = np.arange(0.0, 20.0, 0.5)
+    cfg = agents.DroneConfig(count=3, altitude_m=(40.0, 120.0))
+    a = agents.simulate_drones(600.0, t, 5, cfg)
+    b = agents.simulate_drones(600.0, t, 5, cfg)
+    assert a.kind == "drone" and a.ids == ["drone-0000", "drone-0001", "drone-0002"]
+    assert a.z is not None and a.x.shape == (3, len(t))
+    np.testing.assert_array_equal(a.x, b.x)  # same seed, same flight
+    assert not np.array_equal(a.x, agents.simulate_drones(600.0, t, 6, cfg).x)
+    assert a.z.min() >= 40.0 and a.z.max() <= 120.0 and np.ptp(a.z, axis=1).max() == 0.0
+    assert a.x.min() >= 0.0 and a.x.max() <= 600.0 and a.y.min() >= 0.0 and a.y.max() <= 600.0
+    step = np.hypot(np.diff(a.x, axis=1), np.diff(a.y, axis=1)) / 0.5
+    assert step.max() < 1.3 * 12.0 * 1.2  # never faster than the cruise plus its spread
+
+
+def test_no_drones_gives_empty_tracks_and_a_bad_count_is_refused() -> None:
+    t = np.arange(0.0, 5.0)
+    assert agents.simulate_drones(600.0, t, 1, agents.DroneConfig(count=0)).ids == []
+    with pytest.raises(agents.AgentError):
+        agents.simulate_drones(600.0, t, 1, agents.DroneConfig(count=-1))

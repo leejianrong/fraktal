@@ -508,12 +508,18 @@ def build_vehicles(scene: dict) -> int:
 
 
 CLASS_PERSON = 6
+CLASS_DRONE = 7
 # Moving things are boxes: (forward shift, half length, half width, z0, z1), one per part.
 CAR_BOXES = ((0.0, 2.25, 0.95, 0.25, 1.0), (-0.2, 1.2, 0.85, 1.0, 1.5))
 PERSON_BOXES = (
     (0.0, 0.13, 0.17, 0.0, 0.85),
     (0.0, 0.12, 0.23, 0.85, 1.45),
     (0.0, 0.11, 0.11, 1.45, 1.7),
+)
+DRONE_BOXES = (  # a small quadcopter: body and two crossed arms
+    (0.0, 0.09, 0.09, -0.04, 0.05),
+    (0.0, 0.26, 0.025, 0.0, 0.025),
+    (0.0, 0.025, 0.26, 0.0, 0.025),
 )
 BOX_FACES = [(0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7), (4, 5, 6, 7), (3, 2, 1, 0)]
 CORNERS = np.array([(-1, -1), (1, -1), (1, 1), (-1, 1)], dtype="float64")
@@ -560,6 +566,7 @@ def build_agents(
     AGENTS[name] = {
         "n": n, "first_instance": first_instance, "boxes": boxes, "class": klass,
         "x": np.array(data["x"]), "y": np.array(data["y"]), "heading": np.array(data["heading"]),
+        "z": np.array(data["z"]) if "z" in data else None,
     }  # fmt: skip
     per = 8 * len(boxes)
     faces, material_index = [], []
@@ -598,6 +605,15 @@ def build_traffic(scene_dir: Path, first_instance: int) -> int:
     )  # fmt: skip
 
 
+def build_drones(scene_dir: Path) -> int:
+    mats = [material("drone-body", (0.1, 0.1, 0.12), 0.5, 130)]
+    mats.append(material("drone-arm", (0.75, 0.75, 0.78), 0.5, 131))
+    return build_agents(
+        "drones", scene_dir / "drones.json", DRONE_BOXES, CLASS_DRONE, 0, mats,
+        lambda k, b: 0 if b == 0 else 1,
+    )  # fmt: skip
+
+
 def build_people(scene_dir: Path) -> int:
     mats = [material(f"shirt{i}", c, 0.9, 110 + i) for i, c in enumerate(CLOTHES)]
     mats.append(material("skin", (0.55, 0.38, 0.28), 0.8, 120))
@@ -614,6 +630,8 @@ def set_agents(i: int) -> None:
     for name, a in AGENTS.items():
         co = _box_vertices(a["x"][:, i], a["y"][:, i], a["heading"][:, i], a["boxes"])
         co[:, :, 2] += terrain_z(co[:, :, 0], co[:, :, 1])
+        if a["z"] is not None:  # flying agents: height above the ground below them
+            co[:, :, 2] += a["z"][:, i][:, None]
         if "hide" in a:  # the agent the camera rides on is put out of sight
             co[a["hide"], :, 2] -= 1000.0
         mesh = bpy.data.objects[name].data
@@ -734,6 +752,7 @@ def main() -> int:
         lift_to_terrain(bpy.data.objects.get(name))
     moving = build_traffic(a.scene_dir, len(scene.get("vehicles", [])))
     walking = build_people(a.scene_dir)
+    build_drones(a.scene_dir)
     build_light(scene)
     camera_file = a.scene_dir / "camera.json"
     camera_data = json.loads(camera_file.read_text()) if camera_file.exists() else {}
