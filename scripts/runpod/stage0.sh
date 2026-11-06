@@ -148,7 +148,7 @@ open("review/center.txt", "w").write("%f %f" % center)
 PY
   stage fly
   EXTRA=""
-  [ "${TRAFFIC:-0}" = 1 ] && EXTRA="--traffic --cars-per-km 25 --people-per-km ${PEOPLE_PER_KM:-0} --drones ${DRONES:-0} --altitude-m ${ALT:-90} --off-nadir 35 --fps 8 --speed ${SPEED:-20}"
+  [ "${TRAFFIC:-0}" = 1 ] && EXTRA="--traffic --cars-per-km 25 --people-per-km ${PEOPLE_PER_KM:-0} --drones ${DRONES:-0} --drone-scale ${DRONE_SCALE:-1} --altitude-m ${ALT:-90} --off-nadir 35 --fps 8 --speed ${SPEED:-20}"
   [ "${TRAFFIC:-0}" = 1 ] || EXTRA="--altitude-m 150 --off-nadir 40 --fps 12 --depth"
   [ "${FLOW:-0}" = 1 ] && EXTRA="$EXTRA --flow"
   [ -n "${FOLLOW:-}" ] && EXTRA="$EXTRA --follow $FOLLOW --fps 10 --duration-s ${DURATION:-24}"  # ride on a car or person

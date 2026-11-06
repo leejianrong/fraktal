@@ -261,7 +261,10 @@ def render(
                 float(scene["size_m"]), times, seed,
                 agents.DroneConfig(count=int(traffic["drones"])),  # type: ignore[index]
             )  # fmt: skip
-            (out_dir / "scene" / "drones.json").write_text(json.dumps(flyers.as_dict()) + "\n")
+            scale = float((traffic or {}).get("drone_scale", 1.0))
+            (out_dir / "scene" / "drones.json").write_text(
+                json.dumps({**flyers.as_dict(), "scale": scale}) + "\n"
+            )
 
     if follow is not None:  # a camera riding on a car or a person
         if traffic is None:
@@ -334,6 +337,7 @@ def render(
             extra["traffic"]["files"]["people"] = "scene/people.json"
         if flyers is not None:
             extra["traffic"]["drones"] = len(flyers.ids)
+            extra["traffic"]["drone_scale"] = float((traffic or {}).get("drone_scale", 1.0))
             extra["traffic"]["files"]["drones"] = "scene/drones.json"
         if labels:
             files = (

@@ -606,10 +606,14 @@ def build_traffic(scene_dir: Path, first_instance: int) -> int:
 
 
 def build_drones(scene_dir: Path) -> int:
+    path = scene_dir / "drones.json"
+    scale = float(json.loads(path.read_text()).get("scale", 1.0)) if path.exists() else 1.0
+    boxes = tuple((s * scale, hl * scale, hw * scale, z0 * scale, z1 * scale)
+                  for s, hl, hw, z0, z1 in DRONE_BOXES)  # fmt: skip
     mats = [material("drone-body", (0.1, 0.1, 0.12), 0.5, 130)]
     mats.append(material("drone-arm", (0.75, 0.75, 0.78), 0.5, 131))
     return build_agents(
-        "drones", scene_dir / "drones.json", DRONE_BOXES, CLASS_DRONE, 0, mats,
+        "drones", path, boxes, CLASS_DRONE, 0, mats,
         lambda k, b: 0 if b == 0 else 1,
     )  # fmt: skip
 
