@@ -183,3 +183,13 @@ def test_a_hilly_tile_exports_a_height_grid_and_a_flat_tile_does_not(tmp_path: P
     again = export_scene(world, tmp_path / "t2", CENTER, 800.0, 1.0)
     assert np.array_equal(np.load(tmp_path / "t2" / "ground_height.npy"), nodes)
     assert again["terrain"] == scene["terrain"]
+
+
+def test_label_and_depth_looks_cover_every_moving_agent_type_without_a_name_list() -> None:
+    """A moving agent missing from the look passes renders lit and smears its labels and depth
+    (drones did, FRK-88), so the passes must iterate the agent registry, not a list of names."""
+    from pathlib import Path
+
+    source = (Path(__file__).parents[2] / "src/fraktal/blender_scene.py").read_text()
+    assert '"traffic", "people")' not in source
+    assert source.count('"poles", *AGENTS)') == 2

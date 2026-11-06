@@ -278,7 +278,7 @@ def use_label_look(sc) -> None:
     out = nodes.new("ShaderNodeOutputMaterial")
     links.new(colour.outputs["Color"], emit.inputs["Color"])
     links.new(emit.outputs["Emission"], out.inputs["Surface"])
-    for name in ("ground", "buildings", "trees", "vehicles", "poles", "traffic", "people"):
+    for name in ("ground", "buildings", "trees", "vehicles", "poles", *AGENTS):
         if name in bpy.data.objects:
             mesh = bpy.data.objects[name].data
             mesh.materials.clear()
@@ -334,7 +334,7 @@ def use_depth_look(sc, unit_m: float) -> None:
     out = nodes.new("ShaderNodeOutputMaterial")
     links.new(combine.outputs["Color"], emit.inputs["Color"])
     links.new(emit.outputs["Emission"], out.inputs["Surface"])
-    for name in ("ground", "buildings", "trees", "vehicles", "poles", "traffic", "people"):
+    for name in ("ground", "buildings", "trees", "vehicles", "poles", *AGENTS):
         if name in bpy.data.objects:
             mesh = bpy.data.objects[name].data
             mesh.materials.clear()
