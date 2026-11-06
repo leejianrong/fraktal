@@ -614,6 +614,8 @@ def set_agents(i: int) -> None:
     for name, a in AGENTS.items():
         co = _box_vertices(a["x"][:, i], a["y"][:, i], a["heading"][:, i], a["boxes"])
         co[:, :, 2] += terrain_z(co[:, :, 0], co[:, :, 1])
+        if "hide" in a:  # the agent the camera rides on is put out of sight
+            co[a["hide"], :, 2] -= 1000.0
         mesh = bpy.data.objects[name].data
         mesh.vertices.foreach_set("co", co.astype("float32").ravel())
         mesh.update()
@@ -678,7 +680,7 @@ def build_perspective_camera(px: int):
     """A perspective camera that ``pose_camera`` moves from frame to frame."""
     cam = bpy.data.cameras.new("cam")
     cam.type = "PERSP"
-    cam.clip_start, cam.clip_end = 1.0, 20000.0
+    cam.clip_start, cam.clip_end = 0.3, 20000.0
     obj = bpy.data.objects.new("cam", cam)
     bpy.context.collection.objects.link(obj)
     bpy.context.scene.camera = obj
@@ -734,7 +736,12 @@ def main() -> int:
     walking = build_people(a.scene_dir)
     build_light(scene)
     camera_file = a.scene_dir / "camera.json"
-    frames = json.loads(camera_file.read_text())["frames"] if camera_file.exists() else []
+    camera_data = json.loads(camera_file.read_text()) if camera_file.exists() else {}
+    frames = camera_data.get("frames", [])
+    follow = camera_data.get("follow")
+    if follow and follow["agent"] in AGENTS:  # no camera inside its own car
+        AGENTS[follow["agent"]]["hide"] = follow["index"]
+        set_agents(0)
     if frames:
         cam_obj = build_perspective_camera(px)
     else:

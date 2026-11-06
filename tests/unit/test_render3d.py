@@ -1,11 +1,14 @@
 import json
 import textwrap
 from pathlib import Path
+from typing import Any
 
+import numpy as np
 import pytest
 import rasterio
 
 from fraktal import biomes, render3d
+from fraktal.blender_export import terrain_height
 from fraktal.cli import main
 from fraktal.procedural import generate_world
 
@@ -236,3 +239,58 @@ def test_people_are_written_beside_the_cars_and_listed_in_tracks(
         and "people" not in plain["traffic"]
     )
     assert plain["scene_sha256"] != meta["scene_sha256"]  # the walkers are part of the scene
+
+
+def _ride(
+    world: Path, tmp_path: Path, name: str, follow: dict[str, Any], **extra: Any
+) -> dict[str, Any]:
+    return render3d.render(
+        world, tmp_path / name, CENTER, 1000.0, 0.5, seed=4, frame_px=64,
+        camera_options={"fps": 4.0, "duration_s": 2.0}, script=fake(tmp_path, TRAFFIC_BLENDER),
+        follow=follow, **extra,
+    )  # fmt: skip
+
+
+def test_a_camera_can_ride_on_a_car_and_the_car_is_hidden_from_itself(
+    world: Path, tmp_path: Path
+) -> None:
+    traffic = {"cars_per_km": 40.0, "people_per_km": 30.0}
+    meta = _ride(world, tmp_path, "car", {"kind": "car"}, traffic=traffic)
+    assert meta["trajectory"] == "follow" and len(meta["frames"]) == 8
+    assert meta["follow"]["kind"] == "car" and meta["follow"]["id"].startswith("car-")
+    cam = json.loads((tmp_path / "car" / "scene" / "camera.json").read_text())
+    assert cam["follow"] == {"agent": "traffic", "index": meta["follow"]["index"]}
+    scene_dir = tmp_path / "car" / "scene"
+    scene_json = json.loads((scene_dir / "scene.json").read_text())
+    nodes = np.load(scene_dir / "ground_height.npy") if "terrain" in scene_json else None
+    for f in cam["frames"]:  # 1.25 m above the ground under the camera
+        ground = (
+            0.0
+            if nodes is None
+            else terrain_height(nodes, scene_json["terrain"]["cell_m"], f["x"], f["y"])
+        )
+        assert f["z"] == pytest.approx(ground + 1.25, abs=0.01)
+    agents_file = json.loads((tmp_path / "car" / "scene" / "agents.json").read_text())
+    k = meta["follow"]["index"]  # the camera is just ahead of its car, on its track
+    first = cam["frames"][0]
+    assert (
+        abs(first["x"] - agents_file["x"][k][0]) < 1.0
+        and abs(first["y"] - agents_file["y"][k][0]) < 1.0
+    )
+    walk = _ride(world, tmp_path, "walk", {"kind": "person"}, traffic=traffic)
+    assert walk["follow"]["id"].startswith("person-")
+    cam2 = json.loads((tmp_path / "walk" / "scene" / "camera.json").read_text())
+    assert cam2["follow"]["agent"] == "people" and cam2["frames"][0]["off_nadir_deg"] == 90.0
+    again = _ride(world, tmp_path, "car2", {"kind": "car"}, traffic=traffic)
+    assert again["scene_sha256"] == meta["scene_sha256"] and again["follow"] == meta["follow"]
+
+
+def test_riding_needs_something_to_ride_on(world: Path, tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="needs traffic"):
+        _ride(world, tmp_path, "a", {"kind": "car"})
+    with pytest.raises(ValueError, match="no car called"):
+        _ride(
+            world, tmp_path, "b", {"kind": "car", "id": "car-9999"}, traffic={"cars_per_km": 40.0}
+        )
+    with pytest.raises(ValueError, match="nothing to follow"):
+        _ride(world, tmp_path, "c", {"kind": "person"}, traffic={"cars_per_km": 40.0})

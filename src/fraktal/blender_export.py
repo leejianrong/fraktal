@@ -86,6 +86,19 @@ def terrain_nodes(dem: Any, gsd_m: float, size_m: float) -> tuple[Any, float, fl
     return (nodes - low).astype("float32"), cell, low
 
 
+def terrain_height(nodes: Any, cell_m: float, x: Any, y: Any) -> Any:
+    """Bilinear ground height at tile coordinates from a ``terrain_nodes`` grid."""
+    n = nodes.shape[0] - 1
+    fx = np.clip(np.asarray(x, dtype="float64") / cell_m, 0.0, n - 1e-9)
+    fy = np.clip(np.asarray(y, dtype="float64") / cell_m, 0.0, n - 1e-9)
+    i, j = fx.astype(int), fy.astype(int)
+    wx, wy = fx - i, fy - j
+    return (
+        nodes[j, i] * (1 - wx) * (1 - wy) + nodes[j, i + 1] * wx * (1 - wy)
+        + nodes[j + 1, i] * (1 - wx) * wy + nodes[j + 1, i + 1] * wx * wy
+    )  # fmt: skip
+
+
 def _tile_heights(world_dir: Path, buildings: Any, profile: str, seed: int) -> dict[str, float]:
     """Each building's height: the world's own, or remapped to the biome's storey profile.
 
