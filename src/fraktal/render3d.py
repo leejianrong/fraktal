@@ -38,7 +38,7 @@ import numpy as np
 import rasterio
 from affine import Affine
 
-from fraktal import agents, labels3d, video
+from fraktal import agents, flowgt, labels3d, video
 from fraktal import camera as cameras
 from fraktal import depth as depths
 from fraktal import tracks as tracks_mod
@@ -212,10 +212,12 @@ def render(
     waypoints: list[tuple[float, float]] | None = None,
     make_video: bool = False,
     with_depth: bool = False,
+    with_flow: bool = False,
     traffic: dict[str, Any] | None = None,
     follow: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Export the tile, render it in Blender, write the contract files, return ``render.json``."""
+    with_depth = with_depth or with_flow  # flow is computed from depth
     python = bpy_python or sys.executable
     assets = assets_dir or Path(os.environ.get("FRAKTAL_ASSETS", DEFAULT_ASSETS))
     if not (assets / "manifest.json").is_file():
@@ -358,6 +360,16 @@ def render(
         }  # fmt: skip
         (out_dir / "poses.json").write_text(json.dumps(table) + "\n")
         extra["intrinsics"] = k
+        if with_flow:
+            groups = [(moving, "vehicle", parked)] if moving is not None else []
+            if walkers is not None:
+                groups.append((walkers, "person", 0))
+            n = flowgt.write_sequence(
+                out_dir, table, sorted((out_dir / "depth").glob("frame_*.png")),
+                sorted((out_dir / "labels").glob("frame_*.png")) if labels else None, groups,
+            )  # fmt: skip
+            extra["flow"] = flowgt.meta()
+            emit("render3d_flow", frames=n)
     videos: dict[str, str] = {}
     if make_video and poses:
         fps = (camera_options or {}).get("fps", 12.0)
