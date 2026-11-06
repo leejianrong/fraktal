@@ -146,3 +146,24 @@ react to each other (FRK-86). The dense run took about 2.3 s a frame at 512 px f
 cost of the per-frame car update was not timed separately.
 
 ![Dense urban frames and their labels](../img/traffic-dense-labels.jpg)
+
+## Status after FRK-86 (2026-11-06)
+
+Cars now follow and give way (`kernels/traffic.simulate_interacting`, on by default, `TrafficConfig.interact`).
+Each step a car follows the nearest car ahead in its lane with the Intelligent Driver Model, and treats a
+higher-priority car (arterial before local road, then the lower car number) whose path crosses or merges
+with its own within five seconds as an obstacle until it has passed. A car that has stood still for
+five seconds stops giving way, so a junction cannot lock up. Oncoming cars are ignored. Cars no longer turn
+round at a tile edge: the road goes on, so they drive off the tile.
+
+On a cross of three roads at 40 cars per km, 60 s, same seed:
+
+| | Close pairs (under 2 m, per half-second) | Mean speed | 5th percentile speed |
+|---|---|---|---|
+| without interaction | 148 | 8.0 m/s | 5.1 m/s |
+| with interaction | 25 | 7.0 m/s | 1.2 m/s |
+
+The slow tail is the queues. Overlaps are not gone: the remaining ones are inside the junction, where cars
+that turn cut across each other as close as 0.4 m, and cars that have waited five seconds push in. Two
+rough edges found on the way, both fixed: two turning cars each saw the other as "ahead" and waited for
+ever (the leader rule is now one-way), and cars that U-turned at the tile edge jammed (they now drive off).

@@ -8,9 +8,9 @@ in tile coordinates (metres east and north of the tile's south-west corner), the
 scene export. Randomness only through ``fraktal.ids.substream``, so the same inputs give the same
 tracks.
 
-Cars do not yet react to one another (a faster car can pass through a slower one); car following is
-the next slice. Bridges are left out of the graph for now: the ground mesh follows the terrain, so a
-car on a bridge would sit at water level.
+Cars follow the car ahead in their lane and give way where paths cross (``TrafficConfig.interact``;
+the kernel's docstring says how). Bridges are left out of the graph for now: the ground mesh follows
+the terrain, so a car on a bridge would sit at water level.
 """
 
 from __future__ import annotations
@@ -48,7 +48,9 @@ class TrafficConfig:
     local_speed_mps: float = 6.0
     speed_spread: float = 0.15  # each car's own speed is the limit times 1 +- this
     max_accel: float = 2.5
-    max_brake: float = 3.5
+    max_brake: float = 3.5  # hardest braking, and the limit of the speed plan
+    comfort_brake: float = 2.5  # what car following aims for
+    interact: bool = True  # cars follow the car ahead and give way at crossings
     max_lateral_accel: float = 2.0  # sets the speed through a bend
     min_spawn_gap_m: float = 15.0
     snap_m: float = 1.0  # line ends and crossings closer than this are one junction
@@ -73,6 +75,18 @@ class Graph:
     nodes: np.ndarray[Any, Any]  # (M, 2)
     edges: list[Edge]
     out: list[list[int]]  # per node, the half-edges leaving it; half-edge 2e runs u to v, 2e+1 back
+    bounds: tuple[float, float, float, float] = (
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    )  # the tile the roads were cut to
+
+    def on_boundary(self, node: int, margin: float = 3.0) -> bool:
+        """Whether a junction sits on the tile edge, where the road really goes on."""
+        x, y = self.nodes[node]
+        x0, y0, x1, y1 = self.bounds
+        return bool(min(x - x0, x1 - x, y - y0, y1 - y) <= margin)
 
     def tail(self, half: int) -> int:
         e = self.edges[half >> 1]
@@ -240,7 +254,7 @@ def build_graph(
     for e, edge in enumerate(edges):
         out[edge.u].append(2 * e)
         out[edge.v].append(2 * e + 1)
-    return Graph(np.asarray(nodes, dtype="float64").reshape(-1, 2), edges, out)
+    return Graph(np.asarray(nodes, dtype="float64").reshape(-1, 2), edges, out, bounds)
 
 
 def lane(graph: Graph, half: int, side: str) -> np.ndarray[Any, Any]:
@@ -270,15 +284,21 @@ def _chaikin(points: np.ndarray[Any, Any], rounds: int) -> np.ndarray[Any, Any]:
     return points
 
 
-def _route(graph: Graph, start: int, need_m: float, rng: Any, config: TrafficConfig) -> list[int]:
-    """Half-edges to follow from ``start`` until the route is ``need_m`` long (U-turn at dead ends).
+def _route(
+    graph: Graph, start: int, need_m: float, rng: Any, config: TrafficConfig
+) -> tuple[list[int], bool]:
+    """Half-edges to follow from ``start`` until the route is ``need_m`` long.
 
-    At a junction the next road is picked by seed, never straight back, with arterials favoured.
+    At a junction the next road is picked by seed, never straight back, with arterials favoured. At
+    a dead end inside the tile the car turns round; at a dead end on the tile edge the road goes
+    on, so the route ends there (the second value is true) and the car drives off the tile.
     """
     route, total = [start], graph.edges[start >> 1].length
     while total < need_m and len(route) < MAX_ROUTE_EDGES:
         options = [h for h in graph.out[graph.head(route[-1])] if h != route[-1] ^ 1]
         if not options:
+            if graph.on_boundary(graph.head(route[-1])):
+                return route, True
             options = [route[-1] ^ 1]
         weights = np.array(
             [2.0 if graph.edges[h >> 1].road_class == "arterial" else 1.0 for h in options]
@@ -286,7 +306,7 @@ def _route(graph: Graph, start: int, need_m: float, rng: Any, config: TrafficCon
         pick = options[int(rng.choice(len(options), p=weights / weights.sum()))]
         route.append(pick)
         total += graph.edges[pick >> 1].length
-    return route
+    return route, False
 
 
 @dataclass
@@ -295,9 +315,12 @@ class _Path:
     xy: np.ndarray[Any, Any]
     heading: np.ndarray[Any, Any]  # unwrapped, radians anticlockwise from east
     cap: np.ndarray[Any, Any]  # speed cap at each sample
+    rank: np.ndarray[Any, Any]  # 1 on an arterial, 0 on a local road: who goes first at a crossing
 
 
-def _path(graph: Graph, route: list[int], config: TrafficConfig, factor: float) -> _Path:
+def _path(
+    graph: Graph, route: list[int], config: TrafficConfig, factor: float, leave_m: float = 0.0
+) -> _Path:
     pieces = [lane(graph, h, config.drive_side) for h in route]
     limits = [
         config.arterial_speed_mps if graph.edges[h >> 1].road_class == "arterial"
@@ -306,6 +329,15 @@ def _path(graph: Graph, route: list[int], config: TrafficConfig, factor: float) 
     ]  # fmt: skip
     raw = np.vstack(pieces)
     limit_at_vertex = np.repeat(limits, [len(p) for p in pieces])
+    rank_at_vertex = np.repeat(
+        [1.0 if graph.edges[h >> 1].road_class == "arterial" else 0.0 for h in route],
+        [len(p) for p in pieces],
+    )
+    if leave_m > 0:  # the road goes on past the tile edge: carry straight on
+        away = raw[-1] - raw[-2]
+        raw = np.vstack([raw, raw[-1] + away / np.hypot(*away) * leave_m])
+        limit_at_vertex = np.append(limit_at_vertex, limit_at_vertex[-1])
+        rank_at_vertex = np.append(rank_at_vertex, rank_at_vertex[-1])
     seg = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(raw, axis=0).T))])
     smooth = _chaikin(raw, 3)
     seg_s = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(smooth, axis=0).T))])
@@ -321,7 +353,8 @@ def _path(graph: Graph, route: list[int], config: TrafficConfig, factor: float) 
     bend = np.sqrt(config.max_lateral_accel / np.maximum(kappa, 1e-4))
     vertex = np.searchsorted(seg, s * seg[-1] / seg_s[-1])  # the smoothed path is a little shorter
     base = limit_at_vertex[np.minimum(vertex, len(limit_at_vertex) - 1)] * factor
-    return _Path(s, xy, heading, np.minimum(base, bend))
+    rank = rank_at_vertex[np.minimum(vertex, len(rank_at_vertex) - 1)]
+    return _Path(s, xy, heading, np.minimum(base, bend), rank)
 
 
 def simulate_cars(
@@ -361,8 +394,8 @@ def simulate_cars(
     for half, along in starts:
         factor = 1.0 + config.speed_spread * float(rng.uniform(-1.0, 1.0))
         need = along + top * duration + 50.0
-        route = _route(graph, half, need, rng, config)
-        path = _path(graph, route, config, factor)
+        route, leaves = _route(graph, half, need, rng, config)
+        path = _path(graph, route, config, factor, need if leaves else 0.0)
         paths.append(path)
         s0.append(min(along, path.s[-1] - 1.0))
         v0.append(
@@ -375,10 +408,25 @@ def simulate_cars(
     profile = traffic.braking_profile(cap, GRID_M, config.max_brake * 0.8)
     lens = np.array([p.s[-1] + GRID_M for p in paths])
     steps = int(math.ceil(duration / SIM_DT))
-    s_all, v_all = traffic.simulate(
-        profile, lens, GRID_M, np.array(s0), np.array(v0),
-        accel=config.max_accel, brake=config.max_brake, dt=SIM_DT, steps=steps,
-    )  # fmt: skip
+    if config.interact:
+        xy_all = np.zeros((n, width, 2))
+        head_all = np.zeros((n, width))
+        rank_all = np.zeros((n, width))
+        for k, p in enumerate(paths):  # past a route's end, hold its last point
+            m = len(p.s)
+            xy_all[k, :m], xy_all[k, m:] = p.xy, p.xy[-1]
+            head_all[k, :m], head_all[k, m:] = p.heading, p.heading[-1]
+            rank_all[k, :m], rank_all[k, m:] = p.rank, p.rank[-1]
+        s_all, v_all = traffic.simulate_interacting(
+            profile, xy_all, head_all, rank_all, lens, GRID_M, np.array(s0), np.array(v0),
+            accel=config.max_accel, comfort_brake=config.comfort_brake,
+            max_brake=config.max_brake * 2.0, dt=SIM_DT, steps=steps,
+        )  # fmt: skip
+    else:
+        s_all, v_all = traffic.simulate(
+            profile, lens, GRID_M, np.array(s0), np.array(v0),
+            accel=config.max_accel, brake=config.max_brake, dt=SIM_DT, steps=steps,
+        )  # fmt: skip
     clock = (t - t[0]) / SIM_DT
     lo = np.minimum(np.floor(clock).astype(int), steps)
     hi = np.minimum(lo + 1, steps)
