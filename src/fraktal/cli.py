@@ -412,6 +412,16 @@ def _render3d(args: argparse.Namespace) -> Result:
             waypoints=_waypoints(args.path) if args.path else None,
             make_video=args.video,
             with_depth=args.depth,
+            follow=(
+                {
+                    "kind": args.follow,
+                    "id": args.follow_id,
+                    "mount_height_m": args.mount_height,
+                    "pitch_deg": args.pitch,
+                }
+                if args.follow
+                else None
+            ),
             traffic=(
                 {
                     "cars_per_km": args.cars_per_km,
@@ -424,7 +434,7 @@ def _render3d(args: argparse.Namespace) -> Result:
             camera_options={
                 "altitude_m": args.altitude_m,
                 "off_nadir_deg": args.off_nadir,
-                "fov_deg": args.fov,
+                "fov_deg": args.fov if args.fov is not None else (90.0 if args.follow else 40.0),
                 "duration_s": args.duration_s,
                 "fps": args.fps,
                 "speed_mps": args.speed,
@@ -568,7 +578,17 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--drive-side", choices=agents.DRIVE_SIDES, help="default: the world's")
     parser.add_argument("--altitude-m", type=float, default=300.0)
     parser.add_argument("--off-nadir", type=float, default=35.0, help="degrees from straight down")
-    parser.add_argument("--fov", type=float, default=40.0, help="field of view in degrees")
+    parser.add_argument(
+        "--fov", type=float, help="field of view in degrees (default 40, or 90 when following)"
+    )
+    parser.add_argument(
+        "--follow", choices=("car", "person"), help="ride on a car or person (needs --traffic)"
+    )
+    parser.add_argument(
+        "--follow-id", help="which one, e.g. car-0007 (default: the most travelled)"
+    )
+    parser.add_argument("--mount-height", type=float, help="camera height above ground, metres")
+    parser.add_argument("--pitch", type=float, help="degrees below the horizon when following")
     parser.add_argument("--duration-s", type=float, default=2.0)
     parser.add_argument("--fps", type=float, default=12.0)
     parser.add_argument("--speed", type=float, default=40.0, help="cruise speed, m/s")

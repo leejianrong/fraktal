@@ -42,7 +42,7 @@ from fraktal import agents, labels3d, video
 from fraktal import camera as cameras
 from fraktal import depth as depths
 from fraktal import tracks as tracks_mod
-from fraktal.blender_export import export_scene
+from fraktal.blender_export import export_scene, terrain_height
 from fraktal.log import emit
 
 SCHEMA = 1
@@ -94,6 +94,54 @@ def _write_depth(out_dir: Path, sequence: bool) -> None:
         path.unlink()
     if sequence:
         (out_dir / "depth_raw").rmdir()
+
+
+def _follow(
+    follow: dict[str, Any],
+    scene: dict[str, Any],
+    out_dir: Path,
+    times: Any,
+    moving: agents.Tracks | None,
+    walkers: agents.Tracks | None,
+    options: dict[str, float],
+) -> tuple[list[cameras.Pose], dict[str, Any]]:
+    """Poses for a camera mounted on one car or person, and the note for ``render.json``."""
+    kind = str(follow.get("kind", "car"))
+    tr = walkers if kind == "person" else moving
+    if kind not in ("car", "person") or tr is None or not tr.ids:
+        raise ValueError(f"nothing to follow: no {kind} in this tile (raise the density)")
+    wanted = follow.get("id")
+    if wanted:
+        if wanted not in tr.ids:
+            raise ValueError(
+                f"no {kind} called {wanted!r}; there are {len(tr.ids)} (e.g. {tr.ids[0]})"
+            )
+        k = tr.ids.index(wanted)
+    else:  # the one that stays in the tile and covers the most ground
+        size = scene["size_m"]
+        inside = (tr.x > 20) & (tr.x < size - 20) & (tr.y > 20) & (tr.y < size - 20)
+        steps = np.hypot(np.diff(tr.x, axis=1), np.diff(tr.y, axis=1)) * inside[:, 1:]
+        k = int(np.argmax(steps.sum(axis=1)))
+    car = kind == "car"
+    pitch = follow.get("pitch_deg")
+    nodes = None
+    if "terrain" in scene:
+        nodes = np.load(out_dir / "scene" / scene["terrain"]["file"])
+    cell = scene.get("terrain", {}).get("cell_m", 1.0)
+    poses = cameras.follow_poses(
+        tr.x[k], tr.y[k], tr.heading[k], times,
+        mount_height_m=float(follow.get("mount_height_m") or (1.25 if car else 1.65)),
+        forward_m=0.9 if car else 0.2,
+        pitch_deg=float(pitch if pitch is not None else (3.0 if car else 0.0)),
+        fov_deg=float(options.get("fov_deg") or 90.0),
+        ground=None if nodes is None else (lambda x, y: terrain_height(nodes, cell, x, y)),
+    )  # fmt: skip
+    agent = "traffic" if car else "people"
+    (out_dir / "scene" / "camera.json").write_text(
+        json.dumps({"frames": [p.as_dict() for p in poses], "follow": {"agent": agent, "index": k}})
+        + "\n"
+    )
+    return poses, {"kind": kind, "id": tr.ids[k], "index": k}
 
 
 def run_blender(
@@ -165,6 +213,7 @@ def render(
     make_video: bool = False,
     with_depth: bool = False,
     traffic: dict[str, Any] | None = None,
+    follow: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Export the tile, render it in Blender, write the contract files, return ``render.json``."""
     python = bpy_python or sys.executable
@@ -178,31 +227,50 @@ def render(
         world_dir, out_dir / "scene", center_lonlat, size_m, gsd_m, sun, seed,
         height_profile=height_profile, vehicle_density=0.0 if traffic else 1.0,
     )  # fmt: skip
-    poses = []
-    if trajectory:  # a perspective sequence instead of the nadir tile (FRK-51)
+    poses: list[cameras.Pose] = []
+    moving: agents.Tracks | None = None
+    walkers: agents.Tracks | None = None
+    config = agents.TrafficConfig()
+    follow_meta: dict[str, Any] | None = None
+
+    def simulate(times: Any) -> None:
+        """Moving cars (and people) at ``times``, replacing the parked cars."""
+        nonlocal moving, walkers, config
+        roads, bounds, side = agents.tile_roads(world_dir, center_lonlat, scene["size_m"], gsd_m)
+        config = agents.TrafficConfig(
+            cars_per_km=float((traffic or {}).get("cars_per_km", 6.0)),
+            drive_side=str((traffic or {}).get("drive_side") or side),
+        )
+        graph = agents.build_graph(roads, bounds, config)
+        moving = agents.simulate_cars(graph, times, seed, config)
+        (out_dir / "scene" / "agents.json").write_text(json.dumps(moving.as_dict()) + "\n")
+        if float((traffic or {}).get("people_per_km", 0.0)) > 0:
+            walkers = agents.simulate_people(
+                graph,
+                times,
+                seed,
+                agents.WalkerConfig(float(traffic["people_per_km"])),  # type: ignore[index]
+            )
+            (out_dir / "scene" / "people.json").write_text(json.dumps(walkers.as_dict()) + "\n")
+
+    if follow is not None:  # a camera riding on a car or a person
+        if traffic is None:
+            raise ValueError("a followed camera needs traffic (cars or people to ride on)")
+        opts = camera_options or {}
+        fps, duration = float(opts.get("fps", 12.0)), float(opts.get("duration_s", 2.0))
+        times = np.arange(max(2, round(duration * fps))) / fps
+        simulate(times)
+        poses, follow_meta = _follow(follow, scene, out_dir, times, moving, walkers, opts)
+        trajectory = "follow"
+    elif trajectory:  # a perspective sequence instead of the nadir tile (FRK-51)
         poses = cameras.trajectory(
             trajectory, scene["size_m"], seed, waypoints=waypoints, **(camera_options or {})
         )
         (out_dir / "scene" / "camera.json").write_text(
             json.dumps({"frames": [p.as_dict() for p in poses]}) + "\n"
         )
-    moving: agents.Tracks | None = None
-    walkers: agents.Tracks | None = None
-    if traffic is not None:  # moving cars replace the parked ones, at the same frame times
-        times = np.array([p.t_s for p in poses] or [0.0])
-        roads, bounds, side = agents.tile_roads(world_dir, center_lonlat, scene["size_m"], gsd_m)
-        config = agents.TrafficConfig(
-            cars_per_km=float(traffic.get("cars_per_km", 6.0)),
-            drive_side=str(traffic.get("drive_side") or side),
-        )
-        graph = agents.build_graph(roads, bounds, config)
-        moving = agents.simulate_cars(graph, times, seed, config)
-        (out_dir / "scene" / "agents.json").write_text(json.dumps(moving.as_dict()) + "\n")
-        if float(traffic.get("people_per_km", 0.0)) > 0:
-            walkers = agents.simulate_people(
-                graph, times, seed, agents.WalkerConfig(float(traffic["people_per_km"]))
-            )
-            (out_dir / "scene" / "people.json").write_text(json.dumps(walkers.as_dict()) + "\n")
+    if traffic is not None and follow is None:  # same frame times as the camera
+        simulate(np.array([p.t_s for p in poses] or [0.0]))
     digest = scene_sha256(out_dir / "scene")
     t1 = time.time()
     emit(
@@ -329,6 +397,8 @@ def render(
     }
     if poses:  # frames are oblique, so there is no georeferenced tile
         meta["trajectory"] = trajectory
+        if follow_meta:
+            meta["follow"] = follow_meta
         meta["px"] = frame_px
         meta["frames"] = [p.as_dict() for p in poses]
         meta["files"] = {

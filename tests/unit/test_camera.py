@@ -91,3 +91,34 @@ def test_a_path_is_checked() -> None:
         camera.trajectory("path", 500.0, 0)
     with pytest.raises(ValueError, match="outside the tile"):
         camera.trajectory("path", 500.0, 0, waypoints=[(10.0, 10.0), (490.0, 490.0)])
+
+
+def test_a_riding_camera_sits_on_the_agent_looking_along_its_heading() -> None:
+    import numpy as np
+
+    from fraktal import depth
+
+    t = np.arange(3) * 0.5
+    mount = {"mount_height_m": 1.25, "forward_m": 0.9, "pitch_deg": 3.0, "fov_deg": 90.0}
+    east = camera.follow_poses([10.0, 12.0, 14.0], [5.0] * 3, [0.0] * 3, t, **mount)
+    assert [p.heading_deg for p in east] == [90.0] * 3  # east is 90 degrees clockwise from north
+    assert east[0].x == pytest.approx(10.9) and east[0].y == pytest.approx(5.0)
+    assert east[0].z == pytest.approx(1.25) and east[0].off_nadir_deg == pytest.approx(87.0)
+    m = depth.camera_to_world(east[0].as_dict())
+    forward = m[:3, 2]  # camera z axis: where it looks
+    assert forward[0] > 0.99 and forward[2] < 0 and abs(forward[1]) < 1e-9  # east, a little down
+    north = camera.follow_poses([0.0], [0.0], [np.pi / 2], [0.0], mount_height_m=1.6,
+                                forward_m=0.0, pitch_deg=0.0, fov_deg=70.0)  # fmt: skip
+    assert north[0].heading_deg == pytest.approx(0.0)
+    assert depth.camera_to_world(north[0].as_dict())[:3, 2] == pytest.approx([0.0, 1.0, 0.0])
+
+
+def test_a_riding_camera_follows_the_ground_and_checks_its_pitch() -> None:
+    import numpy as np
+
+    (p,) = camera.follow_poses([4.0], [6.0], [0.0], [0.0], mount_height_m=1.5, forward_m=0.0,
+                               pitch_deg=0.0, fov_deg=90.0, ground=lambda x, y: x + y)  # fmt: skip
+    assert p.z == pytest.approx(1.5 + 10.0)
+    with pytest.raises(ValueError, match="pitch"):
+        camera.follow_poses(np.zeros(1), np.zeros(1), np.zeros(1), np.zeros(1), mount_height_m=1.0,
+                            forward_m=0.0, pitch_deg=75.0, fov_deg=90.0)  # fmt: skip

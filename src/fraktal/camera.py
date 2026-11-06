@@ -167,4 +167,38 @@ def _path(
     return poses
 
 
-__all__ = ["KINDS", "Pose", "trajectory"]
+def follow_poses(
+    x: Any,
+    y: Any,
+    heading: Any,
+    t: Any,
+    *,
+    mount_height_m: float,
+    forward_m: float,
+    pitch_deg: float,
+    fov_deg: float,
+    ground: Any = None,
+) -> list[Pose]:
+    """A camera riding on an agent: ``heading`` is radians anticlockwise from east, as in tracks.
+
+    The camera sits ``forward_m`` ahead of the agent's centre and ``mount_height_m`` above the
+    ground (``ground(x, y)`` gives the ground height, zero when omitted) and looks along the
+    heading, ``pitch_deg`` below the horizon. Its target is a point 40 m ahead on the ground.
+    """
+    x, y, heading, t = (np.asarray(a, dtype="float64") for a in (x, y, heading, t))
+    if not 0.0 <= pitch_deg < 60.0:
+        raise ValueError("pitch must be in [0, 60) degrees below the horizon")
+    compass = (90.0 - np.degrees(heading)) % 360.0  # clockwise from north, like the other poses
+    sin, cos = np.sin(np.radians(compass)), np.cos(np.radians(compass))
+    cx, cy = x + forward_m * sin, y + forward_m * cos
+    z = mount_height_m + (
+        np.asarray(ground(cx, cy), dtype="float64") if ground else np.zeros_like(cx)
+    )
+    return [
+        Pose(i, float(t[i]), float(cx[i]), float(cy[i]), float(z[i]), float(compass[i]),
+             90.0 - pitch_deg, fov_deg, float(cx[i] + 40.0 * sin[i]), float(cy[i] + 40.0 * cos[i]))
+        for i in range(len(t))
+    ]  # fmt: skip
+
+
+__all__ = ["KINDS", "Pose", "follow_poses", "trajectory"]
