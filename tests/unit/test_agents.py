@@ -198,3 +198,49 @@ def test_a_busy_junction_does_not_lock_up() -> None:
     )
     assert (tr.speed[:, -1] < 0.3).sum() <= 2  # a few may be waiting, but traffic still flows
     assert tr.speed[:, -1].mean() > 3.0
+
+
+def test_people_walk_on_the_verges_at_walking_pace_with_stops() -> None:
+    g = agents.build_graph(CROSS, BOUNDS)
+    times = np.arange(0.0, 60.0, 0.5)
+    cfg = agents.WalkerConfig(people_per_km=30.0, stops_per_min=3.0)
+    people = agents.simulate_people(g, times, 3, cfg)
+    assert people.kind == "person" and len(people.ids) == 30 and people.ids[0] == "person-0000"
+    assert people.speed.max() <= cfg.walk_speed_mps * (1 + cfg.speed_spread) + 1e-9
+    assert (people.speed == 0).any() and (people.speed > 0.8).any()  # they stop and they walk
+    from shapely.geometry import Point
+
+    centre = CROSS.geometry.union_all()
+    inside = (people.x > 5) & (people.x < 495) & (people.y > 5) & (people.y < 495)
+    dist = np.array(
+        [
+            centre.distance(Point(x, y))
+            for x, y in zip(people.x[inside], people.y[inside], strict=True)
+        ]
+    )
+    assert dist.min() > 0.0 and np.median(dist) > 4.0  # beside the road, not on it
+    assert np.percentile(dist, 90) < 7.2 + 0.5  # and no farther than the verge of the wide road
+    moved = np.hypot(people.x[:, -1] - people.x[:, 0], people.y[:, -1] - people.y[:, 0])
+    assert (moved > 5.0).mean() > 0.8
+    step = np.hypot(np.diff(people.x, axis=1), np.diff(people.y, axis=1))
+    assert step.max() < 1.7 * 0.5 + 0.5  # no jumps
+
+
+def test_people_are_deterministic_and_independent_of_the_drive_side() -> None:
+    g = agents.build_graph(CROSS, BOUNDS)
+    a = agents.simulate_people(g, TIMES, 5)
+    b = agents.simulate_people(g, TIMES, 5)
+    c = agents.simulate_people(g, TIMES, 6)
+    assert np.array_equal(a.x, b.x) and not np.array_equal(a.x, c.x)
+    cars = agents.simulate_cars(g, TIMES, 5, agents.TrafficConfig(drive_side="left"))
+    assert len(cars.ids) > 0 and np.array_equal(a.x, agents.simulate_people(g, TIMES, 5).x)
+
+
+def test_no_roads_gives_no_people_and_bad_input_is_refused() -> None:
+    empty = agents.build_graph(_roads([("local", 6.0, [(10, 10), (12, 10)])]), BOUNDS)
+    assert agents.simulate_people(empty, TIMES, 0).ids == []
+    g = agents.build_graph(CROSS, BOUNDS)
+    with pytest.raises(agents.AgentError, match="ascending"):
+        agents.simulate_people(g, [2.0, 1.0], 0)
+    with pytest.raises(agents.AgentError, match="positive"):
+        agents.simulate_people(g, TIMES, 0, agents.WalkerConfig(walk_speed_mps=0.0))

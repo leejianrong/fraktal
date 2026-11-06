@@ -257,14 +257,10 @@ def build_graph(
     return Graph(np.asarray(nodes, dtype="float64").reshape(-1, 2), edges, out, bounds)
 
 
-def lane(graph: Graph, half: int, side: str) -> np.ndarray[Any, Any]:
-    """The centre line of half-edge ``half``'s lane: the road shifted a quarter of its width."""
-    edge = graph.edges[half >> 1]
-    xy = edge.coords if half % 2 == 0 else edge.coords[::-1]
-    distance = (-1.0 if side == "right" else 1.0) * edge.width_m / 4.0
+def _offset(xy: np.ndarray[Any, Any], distance: float) -> np.ndarray[Any, Any]:
+    """``xy`` shifted sideways by ``distance`` metres (positive to the left of travel)."""
     try:
-        shifted = LineString(xy).offset_curve(distance)
-        parts = _line_parts(shifted)
+        parts = _line_parts(LineString(xy).offset_curve(distance))
         if not parts:
             return np.asarray(xy)
         out = np.asarray(max(parts, key=lambda p: p.length).coords, dtype="float64")
@@ -273,6 +269,20 @@ def lane(graph: Graph, half: int, side: str) -> np.ndarray[Any, Any]:
     if np.hypot(*(out[0] - xy[0])) > np.hypot(*(out[-1] - xy[0])):
         out = out[::-1]  # the offset came out reversed
     return out
+
+
+def lane(graph: Graph, half: int, side: str) -> np.ndarray[Any, Any]:
+    """The centre line of half-edge ``half``'s lane: the road shifted a quarter of its width."""
+    edge = graph.edges[half >> 1]
+    xy = edge.coords if half % 2 == 0 else edge.coords[::-1]
+    return _offset(xy, (-1.0 if side == "right" else 1.0) * edge.width_m / 4.0)
+
+
+def verge(graph: Graph, half: int, left: bool, margin_m: float) -> np.ndarray[Any, Any]:
+    """A footpath beside half-edge ``half``, ``margin_m`` outside the road edge (left or right)."""
+    edge = graph.edges[half >> 1]
+    xy = edge.coords if half % 2 == 0 else edge.coords[::-1]
+    return _offset(xy, (1.0 if left else -1.0) * (edge.width_m / 2.0 + margin_m))
 
 
 def _chaikin(points: np.ndarray[Any, Any], rounds: int) -> np.ndarray[Any, Any]:
@@ -355,6 +365,81 @@ def _path(
     base = limit_at_vertex[np.minimum(vertex, len(limit_at_vertex) - 1)] * factor
     rank = rank_at_vertex[np.minimum(vertex, len(rank_at_vertex) - 1)]
     return _Path(s, xy, heading, np.minimum(base, bend), rank)
+
+
+@dataclass(frozen=True)
+class WalkerConfig:
+    people_per_km: float = 10.0  # per kilometre of road, both sides together
+    walk_speed_mps: float = 1.4
+    speed_spread: float = 0.2  # each person's pace is the walking speed times 1 +- this
+    verge_m: float = 1.2  # how far outside the road edge people walk
+    stops_per_min: float = 2.0  # how often someone stops (to chat, look, wait)
+    stop_s: tuple[float, float] = (2.0, 8.0)  # how long a stop lasts
+
+
+def simulate_people(
+    graph: Graph, times: Any, seed: int, config: WalkerConfig | None = None
+) -> Tracks:
+    """People walking on the verges of ``graph``'s roads at each of ``times``.
+
+    Each person picks a verge side and a seeded route through the junctions (the straight link
+    across a junction is walked as it comes), at a pace of their own with random stops. People do
+    not react to cars and cars do not react to people (yet).
+    """
+    config = config or WalkerConfig()
+    t = np.asarray(times, dtype="float64")
+    if t.ndim != 1 or len(t) < 1 or np.any(np.diff(t) < 0):
+        raise AgentError("times must be a non-empty ascending 1D array")
+    if config.people_per_km < 0 or config.walk_speed_mps <= 0:
+        raise AgentError("people_per_km must not be negative and walk_speed_mps must be positive")
+    n = int(round(config.people_per_km * graph.total_length_m() / 1000.0))
+    empty = np.zeros((0, len(t)))
+    if n == 0 or not graph.edges:
+        return Tracks([], t, empty, empty, empty, empty, kind="person")
+    rng = substream(seed, "pedestrians")
+    duration = float(t[-1] - t[0])
+    steps = int(math.ceil(duration / SIM_DT))
+    lengths = np.array([e.length for e in graph.edges])
+    reach = config.walk_speed_mps * (1.0 + config.speed_spread) * duration + 30.0
+    walkers: list[tuple[_Path, float, float]] = []
+    walking = np.ones((n, steps), dtype=bool)
+    for k in range(n):
+        e = int(rng.choice(len(lengths), p=lengths / lengths.sum()))
+        half = 2 * e + int(rng.integers(0, 2))
+        along = float(rng.uniform(0.0, lengths[e]))
+        along = along if half % 2 == 0 else lengths[e] - along
+        left = bool(rng.integers(0, 2))
+        route, leaves = _route(graph, half, along + reach, rng, TrafficConfig())
+        raw = np.vstack([verge(graph, h, left, config.verge_m) for h in route])
+        if leaves:
+            away = raw[-1] - raw[-2]
+            raw = np.vstack([raw, raw[-1] + away / np.hypot(*away) * reach])
+        smooth = _chaikin(raw, 3)
+        seg_s = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(smooth, axis=0).T))])
+        s = np.arange(0.0, seg_s[-1], GRID_M)
+        xy = np.stack([np.interp(s, seg_s, smooth[:, c]) for c in range(2)], axis=1)
+        heading = np.unwrap(np.arctan2(*np.gradient(xy, axis=0).T[::-1]))
+        pace = config.walk_speed_mps * (1.0 + config.speed_spread * float(rng.uniform(-1.0, 1.0)))
+        walkers.append(
+            (_Path(s, xy, heading, np.zeros(0), np.zeros(0)), pace, min(along, s[-1] - 1.0))
+        )
+        for _ in range(int(rng.poisson(config.stops_per_min * duration / 60.0))):
+            start = int(rng.uniform(0.0, duration) / SIM_DT)
+            length = int(rng.uniform(*config.stop_s) / SIM_DT)
+            walking[k, start : start + length] = False
+    clock = (t - t[0]) / SIM_DT
+    lo = np.minimum(np.floor(clock).astype(int), steps - 1) if steps else np.zeros(len(t), int)
+    x, y, heading_out, speed = (np.empty((n, len(t))) for _ in range(4))
+    done = np.concatenate([np.zeros((n, 1)), np.cumsum(walking, axis=1)], axis=1) * SIM_DT
+    for k, (path, pace, s0) in enumerate(walkers):
+        travelled = s0 + pace * done[k, np.minimum(np.round(clock).astype(int), steps)]
+        x[k] = np.interp(travelled, path.s, path.xy[:, 0])
+        y[k] = np.interp(travelled, path.s, path.xy[:, 1])
+        heading_out[k] = np.interp(travelled, path.s, path.heading)
+        speed[k] = np.where(walking[k, lo] if steps else True, pace, 0.0)
+    ids = [f"person-{k:04d}" for k in range(n)]
+    wrapped = (heading_out + math.pi) % (2 * math.pi) - math.pi
+    return Tracks(ids, t, x, y, wrapped, speed, kind="person")
 
 
 def simulate_cars(
@@ -443,6 +528,6 @@ def simulate_cars(
 
 
 __all__ = [
-    "AgentError", "Graph", "Tracks", "TrafficConfig", "build_graph", "lane", "simulate_cars",
-    "draw_tracks", "tile_roads",
+    "AgentError", "Graph", "Tracks", "TrafficConfig", "WalkerConfig", "build_graph", "lane",
+    "simulate_cars", "simulate_people", "verge", "draw_tracks", "tile_roads",
 ]  # fmt: skip

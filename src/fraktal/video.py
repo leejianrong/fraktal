@@ -24,6 +24,7 @@ CLASS_COLOURS = {  # by class id; chosen to be easy to tell apart
     3: (40, 180, 70),
     4: (60, 120, 240),
     5: (240, 210, 50),
+    6: (250, 140, 30),
 }
 
 

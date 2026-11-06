@@ -148,7 +148,7 @@ open("review/center.txt", "w").write("%f %f" % center)
 PY
   stage fly
   EXTRA=""
-  [ "${TRAFFIC:-0}" = 1 ] && EXTRA="--traffic --cars-per-km 25 --altitude-m 90 --off-nadir 35 --fps 8 --speed 20"
+  [ "${TRAFFIC:-0}" = 1 ] && EXTRA="--traffic --cars-per-km 25 --people-per-km ${PEOPLE_PER_KM:-0} --altitude-m ${ALT:-90} --off-nadir 35 --fps 8 --speed ${SPEED:-20}"
   [ "${TRAFFIC:-0}" = 1 ] || EXTRA="--altitude-m 150 --off-nadir 40 --fps 12 --depth"
   fraktal render3d review/world --out review/fly --center $(cat review/center.txt) --size-m 800 --gsd-m 0.5 \
     --path review/path.json --fov 60 --frame-px 512 $EXTRA \
@@ -170,17 +170,20 @@ bad = 0
 for t in seen:
     for det in t["detections"]:
         per_frame[det["frame"]] += 1
-for t in seen[:25]:  # recount each track's pixels in its label images
+for t in seen[:25] + [p for p in seen if p["kind"] == "person"][:25]:  # recount pixels
+    klass = labels3d.CLASSES["person" if t["kind"] == "person" else "vehicle"]
     for det in t["detections"][::7]:
         with rasterio.open(f"{d}/labels/frame_{det['frame']:04d}.png") as src:
             sem, inst = labels3d.decode(src.read()[:3])
         x0, y0, x1, y1 = det["bbox"]
-        mine = (sem == 4) & (inst == t["instance"])
+        mine = (sem == klass) & (inst == t["instance"])
         ys, xs = np.nonzero(mine)
         if int(mine.sum()) != det["pixels"] or (xs.min(), ys.min(), xs.max(), ys.max()) != (x0, y0, x1, y1):
             bad += 1
 long_lived = max(seen, key=lambda t: t["detections"][-1]["frame"] - t["detections"][0]["frame"]) if seen else None
-print("RP_TRACK_CHECK", "cars", len(table["tracks"]), "seen", len(seen), "mean_visible_per_frame", round(float(per_frame.mean()), 1), "max_visible", int(per_frame.max()), "mismatches", bad,
+kinds = {k: (sum(1 for t in table["tracks"] if t["kind"] == k), sum(1 for t in seen if t["kind"] == k)) for k in ("car", "person")}
+print("RP_TRACK_KINDS", kinds)
+print("RP_TRACK_CHECK", "tracks", len(table["tracks"]), "seen", len(seen), "mean_visible_per_frame", round(float(per_frame.mean()), 1), "max_visible", int(per_frame.max()), "mismatches", bad,
       "longest_track", long_lived and (long_lived["id"], long_lived["instance"], long_lived["detections"][0]["frame"], long_lived["detections"][-1]["frame"], len(long_lived["detections"])))
 PY
   fi

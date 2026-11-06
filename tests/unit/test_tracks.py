@@ -51,3 +51,18 @@ def test_the_number_of_label_images_must_match_the_track_frames(tmp_path: Path) 
     _write(tmp_path / "a.png", np.zeros((4, 4), np.uint8), np.zeros((4, 4), int))
     with pytest.raises(ValueError, match="1 label images for 2"):
         tracks.from_labels([tmp_path / "a.png"], _tracks(), 0)
+
+
+def test_people_are_found_by_their_own_class(tmp_path: Path) -> None:
+    sem, inst = np.zeros((10, 10), np.uint8), np.zeros((10, 10), int)
+    sem[2:4, 2:4], inst[2:4, 2:4] = 6, 1  # person 0
+    sem[6:8, 6:8], inst[6:8, 6:8] = 4, 1  # a car with the same number is not a person
+    _write(tmp_path / "f.png", sem, inst)
+    walkers = agents.Tracks(["person-0000"], np.array([0.0]), np.zeros((1, 1)), np.zeros((1, 1)),
+                            np.zeros((1, 1)), np.ones((1, 1)), kind="person")  # fmt: skip
+    out = tracks.from_labels([tmp_path / "f.png"], walkers, 0, "person")
+    (person,) = out["tracks"]
+    assert person["kind"] == "person" and person["instance"] == 1
+    assert (
+        person["detections"][0]["bbox"] == [2, 2, 3, 3] and person["detections"][0]["pixels"] == 4
+    )
