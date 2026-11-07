@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import numpy as np
@@ -45,3 +46,60 @@ def test_no_data_is_ignored_in_the_ranges(tmp_path: Path) -> None:
         data[:, :8, :] = 0
         dst.write(data)
     assert refboard.band_ranges(tmp_path, ["img1"])[:, 0].min() > 200
+
+
+def _fake_data(data: Path) -> Path:
+    """Reference chips for two biomes and renders for them, all small."""
+    from PIL import Image
+
+    maxar = data / "eval" / "maxar-reference"
+    maxar.mkdir(parents=True)
+    for event in ("Typhoon-Kalmaegi-Nov-2025", "Kenya-Flooding-May24"):
+        name = f"{event}__47_000_2025-01-01_abc__busy"
+        chip = np.random.default_rng(1).integers(60, 200, (3, 64, 64)).astype("uint8")
+        chip[:, :, :32] //= 3  # large-scale structure, so the chip counts as usable
+        np.save(maxar / f"{name}.npy", chip)
+        meta = {"event": event, "scene": "47/000/2025-01-01/abc-visual.tif", "kind": "busy"}
+        (maxar / f"{name}.json").write_text(json.dumps({**meta, "pixel_size": [0.31, 0.31]}))
+    synthetic = data / "synth"
+    for biome in ("dense_urban", "mangrove_coast"):
+        tile = synthetic / biome / "tile_0000"
+        tile.mkdir(parents=True)
+        Image.fromarray(np.full((100, 100, 3), 200, dtype="uint8")).save(tile / "sensor.png")
+    return synthetic
+
+
+def test_review_writes_a_sheet_with_a_row_per_biome_and_real_chips_on_each(tmp_path: Path) -> None:
+    from PIL import Image
+
+    from fraktal.cli import main
+
+    data = tmp_path / "data"
+    synthetic = _fake_data(data)
+    args = ["review", "--data-dir", str(data), "--synthetic", str(synthetic), "--per-row", "2"]
+    assert main([*args, "--board"]) == 0
+    sheet = Image.open(data / "review" / "sheet_satellite.jpg")
+    assert sheet.size == (3 * 300, 2 * (300 + 18))  # one synthetic and two real chips per row
+    assert "never train on" in (data / "review" / "reference-board.html").read_text()
+
+
+def test_review_refuses_to_write_real_imagery_outside_the_data_dir(tmp_path: Path) -> None:
+    from fraktal.cli import main
+
+    data = tmp_path / "data"
+    synthetic = _fake_data(data)
+    args = ["review", "--data-dir", str(data), "--synthetic", str(synthetic)]
+    assert main([*args, "--out", str(tmp_path / "elsewhere")]) == 2
+    assert not (tmp_path / "elsewhere").exists()
+
+
+def test_unusable_chips_are_cloud_no_data_or_featureless() -> None:
+    rng = np.random.default_rng(0)
+    good = rng.integers(40, 180, (64, 64, 3)).astype("uint8")
+    good[:, :32] //= 3  # large-scale structure: half the chip is darker
+    cloud = np.full((64, 64, 3), 240, dtype="uint8")
+    edge = good.copy()
+    edge[:, :16] = 0
+    sea = np.full((64, 64, 3), 90, dtype="uint8") + rng.integers(0, 6, (64, 64, 3)).astype("uint8")
+    assert refboard.usable(good)
+    assert not refboard.usable(cloud) and not refboard.usable(edge) and not refboard.usable(sea)

@@ -50,3 +50,22 @@ Consequence: `KHARTOUM_TONE`, `palette.json` and the synthetic Khartoum chips we
 benchmark pair is consistent and earlier results hold, but SpaceNet is not a colour target for realism. See
 the ADR-0012 addendum; the rebuild is FRK-117, at the FRK-45 milestone. I have not measured how much the
 cast changes the colour gauge numbers: that needs the rebuilt chips.
+
+## Review sheets (FRK-101)
+
+```bash
+uv run fraktal review --synthetic data/dataset_v0 --view satellite --board
+uv run fraktal review --synthetic data/dataset_v0 --view drone
+```
+
+`--synthetic` is a `render3d-batch` output (`<biome>/tile_*/sensor.png`, falling back to `image.png`). Each
+row of `data/review/sheet_<view>.jpg` is one biome: renders on the left (orange labels are the real chips),
+real chips on the right, each cell the middle 250 m of the chip (`--ground-m`), so a house is the same size
+on both sides. `--board` also writes `data/review/reference-board.html`, with every chip. The output must be
+inside the data directory, which git ignores; the command refuses anywhere else.
+
+Satellite rows use Maxar chips matched by event to the biome (a judgement, in `refboard.SATELLITE_EVENTS`)
+and a SpaceNet tile with the per-band stretch for Khartoum. Drone rows use Open Cities chips, rotated so each
+row shows different ones. Chips that are mostly cloud, no-data or featureless are skipped, which leaves few
+good ones for some biomes (informal settlement 2, Khartoum 3 Maxar chips). Oil palm and mangrove have no
+really close Maxar match; the coast and the Indonesian fields are the nearest.

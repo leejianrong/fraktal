@@ -613,6 +613,51 @@ def _scene_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--seed", type=int, default=0)
 
 
+def _review(args: argparse.Namespace) -> Result:
+    from fraktal import refboard
+
+    out: Path = args.out or args.data_dir / "review"
+    if not out.resolve().is_relative_to(args.data_dir.resolve()):
+        raise CliError(  # real imagery must stay where git ignores it
+            ExitCode.USAGE, "usage", f"--out must be inside the data directory ({args.data_dir})"
+        )
+    written: dict[str, str] = {}
+    try:
+        out.mkdir(parents=True, exist_ok=True)
+        if args.synthetic:
+            rows = []
+            biomes = sorted(p.name for p in args.synthetic.iterdir() if p.is_dir())
+            for k, biome in enumerate(biomes):
+                synthetic = refboard.synthetic_chips(args.synthetic, biome, args.per_row)
+                if synthetic:
+                    real = refboard.reference_chips(
+                        args.data_dir, args.view, biome, args.per_row, k, len(biomes)
+                    )
+                    rows.append((biome, synthetic, real))
+            if not rows:
+                raise ValueError(f"no <biome>/tile_*/sensor.png renders under {args.synthetic}")
+            sheet = out / f"sheet_{args.view}.jpg"
+            refboard.make_sheet(rows, args.ground_m).save(sheet, quality=88)
+            written["sheet"] = str(sheet)
+        if args.board:
+            written["board"] = str(refboard.write_board(args.data_dir, out))
+    except (OSError, ValueError, KeyError) as err:
+        raise CliError(ExitCode.FAILURE, "review_failed", str(err)) from err
+    if not written:
+        raise CliError(ExitCode.USAGE, "usage", "pass --synthetic DIR and/or --board")
+    return Result(written, "wrote " + ", ".join(written.values()))
+
+
+def _review_args(parser: argparse.ArgumentParser) -> None:
+    _data_dir_arg(parser)
+    parser.add_argument("--synthetic", type=Path, help="renders: <biome>/tile_*/sensor.png")
+    parser.add_argument("--view", choices=("satellite", "drone"), default="satellite")
+    parser.add_argument("--per-row", type=int, default=3, help="renders and real chips per row")
+    parser.add_argument("--ground-m", type=float, default=250.0, help="ground shown per cell")
+    parser.add_argument("--board", action="store_true", help="also write reference-board.html")
+    parser.add_argument("--out", type=Path, help="default <data-dir>/review; must be in data-dir")
+
+
 def _render3d_batch_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("world", type=Path, help="a world directory (from `fraktal generate`)")
     parser.add_argument("--out", type=Path, required=True, help="output directory (resumable)")
@@ -997,6 +1042,7 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "traffic": _traffic_args,
     "demo": _demo_args,
     "scene": _scene_args,
+    "review": _review_args,
 }
 
 COMMANDS: dict[str, tuple[str, Handler]] = {
@@ -1019,6 +1065,7 @@ COMMANDS: dict[str, tuple[str, Handler]] = {
     "traffic": ("Simulate cars on a tile's roads and map their paths", _traffic),
     "demo": ("Write a one-file browser demo you can drive around in", _demo),
     "scene": ("Export a tile for the Godot viewer (no Blender)", _scene),
+    "review": ("Real-versus-synthetic review sheets (eval only)", _review),
 }
 
 
