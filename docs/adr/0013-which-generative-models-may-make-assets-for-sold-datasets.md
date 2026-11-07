@@ -1,6 +1,6 @@
 # ADR-0013: Which generative models may make assets for sold datasets
 
-- Status: Proposed (2026-11-07, drafted from primary texts; Jian to accept)
+- Status: Proposed (2026-11-07, drafted from primary texts; corrected after the FRK-122 trial; Jian to accept)
 - Date: 2026-11-07
 - Deciders: Jian
 
@@ -21,34 +21,47 @@ files are re-read when the repositories are cloned for the FRK-122 trial.
 |---|---|---|
 | TRELLIS.2, code and weights | MIT. LICENSE is the standard text, copyright Microsoft; README: "This model and code are released under the MIT License"; Hugging Face metadata `mit`. Needs an NVIDIA GPU with at least 24 GB; tested on A100 and H100 | allowed, subject to the next row |
 | nvdiffrast and nvdiffrec (TRELLIS.2 dependencies) | NVIDIA Source Code License (1-Way Commercial), section 3.3: "The Work and any derivative works thereof only may be used or intended for use non-commercially"; non-commercially means "for research or evaluation purposes only" | not allowed in our pipeline. The README says nvdiffrast renders generated assets and nvdiffrec provides the PBR renderer; whether the asset path needs them is not known |
-| TRELLIS.2 FlexGEMM and O-Voxel | README states no licence | open |
-| TripoSG, code | MIT, "Copyright (c) 2025 VAST-AI-Research and contributors" | allowed |
-| TripoSG, weights | Hugging Face metadata `mit`; needs more than 8 GB of GPU memory; the example writes a `.glb`, textures are not mentioned | allowed for geometry |
+| TRELLIS.2 call sites of nvdiffrast | read in the code: `trellis2/pipelines/trellis2_texturing.py` (texturing pipeline), `trellis2/renderers/*` (preview rendering), and `o-voxel/o_voxel/postprocess.py` (`to_glb`, the texture-baked GLB export). `trellis2_image_to_3d.py` does not import it | geometry and per-voxel attributes can be had without nvdiffrast; the baked GLB export cannot |
+| TRELLIS.2 FlexGEMM and CuMesh | separate repositories (`JeffreyXiang/FlexGEMM`, `JeffreyXiang/CuMesh`), licences not read; O-Voxel is inside the MIT repository | open |
+| TripoSG, repository | root LICENSE is MIT, "Copyright (c) 2025 VAST-AI-Research and contributors"; Hugging Face metadata for the weights is `mit`; needs more than 8 GB of GPU memory | see the next two rows |
+| TripoSG, `triposg/` package | its own LICENSE is the **Tencent Hunyuan FlashVDM Community License**: "DOES NOT APPLY IN THE EUROPEAN UNION, UNITED KINGDOM AND SOUTH KOREA"; clause 3(b): "You must not use the Tencent Hunyuan FlashVDM Works or any Output or results of the Tencent Hunyuan FlashVDM Works to improve any other AI model"; clause 3(c): no use "outside the Territory" | **excluded**. A dataset sold to train models is that use, and the default decoder path (`use_flash_decoder=True`) is FlashVDM. Missed in the first draft of this ADR, which read only the root LICENSE |
+| diso (TripoSG's and Step1X-3D's optional iso-surface extractor) | CC BY-NC 4.0 | excluded; Step1X-3D can use its marching-cubes extractor instead |
 | RMBG-1.4 (TripoSG's background remover) | "bria-rmbg-1.4": "Commercial use is subject to a commercial agreement with BRIA" | excluded |
 | BiRefNet (background removal) | Hugging Face metadata `mit` | allowed as the replacement |
 | Step1X-3D, code | Apache-2.0 (standard text; README: "licensed under the Apache License 2.0") | allowed |
-| Step1X-3D, weights | Hugging Face metadata `apache-2.0` for geometry and texture; 27 to 29 GB for both stages | geometry allowed |
-| Step1X-3D texture baker | README: reuses `custom_rasterizer` and `differentiable_renderer` from Hunyuan3D 2.0; no licence given | texture stage held until read |
+| Step1X-3D, weights | Hugging Face metadata `apache-2.0` for geometry and texture; geometry alone used 7.4 GB of GPU memory in the trial | geometry allowed, and run in FRK-122 |
+| Step1X-3D texture baker | README: reuses `custom_rasterizer` and `differentiable_renderer` from Hunyuan3D 2.0; its `render.py` imports nvdiffrast | excluded; not used |
+| Step1X-3D `pymeshlab` | GPL-3.0 library, imported at the top of the pipeline module; only `remove_floater` and `reduce_face` call it, and its file plugins do not even load on the pod image | not called in our path (floaters and decimation are our own code); it never touches the meshes |
+| RMBG-2.0 (TRELLIS.2's default background remover, `pipeline.json`) | Bria model, same agreement as RMBG-1.4 (not re-read) | excluded; the same class takes `ZhengPeng7/BiRefNet` |
+| DINOv3 `facebook/dinov3-vitl16-pretrain-lvd1689m` (TRELLIS.2's image encoder) | "DINOv3 License" (Meta): limited licence that allows use, copying and derivatives; forbids military, weapons, espionage and ITAR uses; "Built with DINOv3" if the materials are distributed; no output restriction, no user or revenue threshold; the weights are gated on Hugging Face | probably usable, but needs an account and acceptance by Jian, so TRELLIS.2 is not tried yet |
 | FLUX.1 schnell, SDXL base 1.0 | Apache-2.0 and CreativeML Open RAIL++-M, read from the licence files in FRK-59 | allowed |
 | Hunyuan3D, Stable Fast 3D, Cube 3D, FLUX.1 dev, hosted APIs (Meshy, Tripo, Rodin) | territory and user limits, revenue cap, research only, non-commercial model terms, per-service terms (FRK-59 and web summaries) | excluded until their texts are read |
 
 ## Decision (proposed)
 
 1. **Allowed:** text to image with FLUX.1 schnell or SDXL; background removal with BiRefNet; image to 3D
-   geometry with TripoSG, and Step1X-3D's geometry stage. TRELLIS.2 is allowed only after the trial shows its
-   asset path runs without nvdiffrast and nvdiffrec (or with a replacement whose licence is read).
-2. **Texture comes from our own materials and generated textures** (FRK-126), not from a model's texture
+   geometry with Step1X-3D's geometry stage, run with its marching-cubes extractor and with its `pymeshlab`
+   post-processing switched off.
+2. **TRELLIS.2 is held, not excluded.** Its image-to-3D path avoids nvdiffrast, but it needs the gated DINOv3
+   weights (Jian accepts Meta's licence and provides a Hugging Face token) and BiRefNet in place of RMBG-2.0.
+   It would give per-voxel colours, which our geometry-only route lacks.
+3. **Texture comes from our own materials and generated textures** (FRK-126), not from a model's texture
    stage, until those stages are cleared.
-3. **Excluded:** RMBG-1.4, Hunyuan3D, Stable Fast 3D, Cube 3D, FLUX.1 dev and hosted generation services.
-4. **The manifest's generator block lists every component** of the pipeline that made the asset (image
+4. **Excluded:** TripoSG (Tencent FlashVDM licence in `triposg/`, diso), RMBG-1.4 and RMBG-2.0, Hunyuan3D,
+   Stable Fast 3D, Cube 3D, FLUX.1 dev and hosted generation services.
+5. **The manifest's generator block lists every component** of the pipeline that made the asset (image
    model, background remover, 3D model) with versions, so an exclusion found later finds the assets it hit.
-5. A model version change means the licence is read again.
+6. A model version change means the licence is read again, including every licence file in the repository,
+   not only the root one.
 
 ## Consequences
 
-- The first trial stack is permissive end to end: FLUX.1 schnell or SDXL, then BiRefNet, then TripoSG, then our
-  own materials. TRELLIS.2 is tried alongside only to settle the dependency question.
-- Still to read: how TRELLIS.2's asset path uses nvdiffrast and nvdiffrec (code), the FlexGEMM and O-Voxel
-  licences, the Hunyuan3D 2.0 tools Step1X-3D reuses, and the BiRefNet licence file beyond its metadata. They
-  are in the FRK-122 trial's checklist.
+- The trial stack is permissive end to end: SDXL, then BiRefNet, then Step1X-3D geometry, then our own
+  materials. It ran in FRK-122; results are in [generative-assets-plan.md](../research/generative-assets-plan.md).
+- The first draft of this ADR allowed TripoSG after reading the root LICENSE and the Hugging Face metadata.
+  Cloning the repository showed `triposg/LICENSE` is a different, territory-limited licence with a clause
+  against improving other AI models. The lesson is in decision 6: read every licence file, and the code
+  that imports the dependencies, not the README summary.
+- Still to read: the FlexGEMM and CuMesh licences, the BiRefNet licence file beyond its Hugging Face
+  metadata, the RMBG-2.0 terms in full, and the T5 encoder weights Step1X-3D downloads.
 - Training-data provenance of these models is not assessed here.

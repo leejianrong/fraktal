@@ -23,7 +23,7 @@ stage() { echo "$1" > "$RUN/stage"; echo "STAGE $1 t=$(( $(date +%s) - T0 ))s"; 
 HB=$!
 publish() {
   stage publish
-  tar czf review.tgz review job.log 2>/dev/null || true
+  tar czf review.tgz --exclude=review/meshes_raw review job.log 2>/dev/null || true  # raw meshes are 1M faces each
   BASE="fraktal-$RANDOM-$RANDOM"
   timeout 900 runpodctl send --code "$BASE" review.tgz > send.log 2>&1 &
   SEND=$!

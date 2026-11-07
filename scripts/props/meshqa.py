@@ -18,6 +18,7 @@ RENDER_FACES = 3000
 MIN_FACES = 200
 FLOATER_SHARE = 0.02  # a connected piece with fewer faces than this share of the total is dropped
 MAX_PIECES = 8  # more kept pieces than this means the mesh is shattered
+PROPORTION_TOLERANCE = 1.7  # each sorted extent may differ from its expected value by this factor
 MAX_ASPECT = 25.0  # longest over shortest extent; beyond this a mesh is a plank or a needle
 
 
@@ -62,7 +63,33 @@ def decimate(mesh: trimesh.Trimesh, faces: int = MAX_FACES) -> trimesh.Trimesh:
     return out
 
 
-def check(raw: trimesh.Trimesh, final: trimesh.Trimesh, pieces: int, kept: int) -> dict[str, Any]:
+def proportions_off(
+    extents: list[float], expected_lwh: tuple[float, float, float] | None
+) -> str | None:
+    """Compare sorted extents with the class's expected length, width and height.
+
+    The expected box is scaled so its longest side matches the mesh's, since the mesh is placed by
+    its longest side. A real vehicle is not a cube, and a "sign" that is a wireframe cube fails.
+    """
+    if expected_lwh is None:
+        return None
+    got = sorted(extents, reverse=True)
+    want = sorted(expected_lwh, reverse=True)
+    want = [w * got[0] / want[0] for w in want]
+    worst = max(max(g / w, w / g) for g, w in zip(got[1:], want[1:], strict=True))
+    if worst > PROPORTION_TOLERANCE:
+        shown = ([round(g, 2) for g in got], [round(w, 2) for w in want])
+        return f"proportions off: got {shown[0]}, expected {shown[1]}"
+    return None
+
+
+def check(
+    raw: trimesh.Trimesh,
+    final: trimesh.Trimesh,
+    pieces: int,
+    kept: int,
+    expected_lwh: tuple[float, float, float] | None = None,
+) -> dict[str, Any]:
     """A pass or fail with reasons, and the numbers behind it."""
     extents = [float(e) for e in final.extents]
     aspect = max(extents) / max(min(extents), 1e-9)
@@ -75,6 +102,9 @@ def check(raw: trimesh.Trimesh, final: trimesh.Trimesh, pieces: int, kept: int) 
         reasons.append(f"shattered: {kept} pieces kept of {pieces}")
     if aspect > MAX_ASPECT:
         reasons.append(f"extreme aspect {aspect:.1f}")
+    off = proportions_off(extents, expected_lwh)
+    if off:
+        reasons.append(off)
     return {
         "pass": not reasons,
         "reasons": reasons,
@@ -88,10 +118,14 @@ def check(raw: trimesh.Trimesh, final: trimesh.Trimesh, pieces: int, kept: int) 
     }
 
 
-def process(raw: trimesh.Trimesh, longest_m: float) -> tuple[trimesh.Trimesh, dict[str, Any]]:
+def process(
+    raw: trimesh.Trimesh,
+    longest_m: float,
+    expected_lwh: tuple[float, float, float] | None = None,
+) -> tuple[trimesh.Trimesh, dict[str, Any]]:
     cleaned, pieces, kept = clean(raw)
     final = decimate(place(to_z_up(cleaned), longest_m))
-    return final, check(raw, final, pieces, kept)
+    return final, check(raw, final, pieces, kept, expected_lwh)
 
 
 VIEWS = ((22, -55), (0, -90), (90, -90))  # three-quarter, side, top
