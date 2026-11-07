@@ -65,6 +65,6 @@ print('import ok')" 2>&1)
 done
 
 stage trial
-timeout 2700 /workspace/props/bin/python src/scripts/props/props_trial.py review --step1x /workspace/step1x \
+timeout 2700 /workspace/props/bin/python src/scripts/props/props_trial.py review --step1x /workspace/step1x ${TRIAL_ARGS:-} \
   || echo "ERROR props_trial exited $?"
 du -sh review | sed 's/^/RP_ARTIFACT_SIZE /'
