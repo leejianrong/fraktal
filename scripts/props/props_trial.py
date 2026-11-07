@@ -30,7 +30,11 @@ NEGATIVE = (
 # (id, prompt, longest side in metres)
 PROPS = [
     ("motorbike-red", "a red commuter motorbike", 1.9),
-    ("motorbike-scooter", "a black step-through scooter", 1.8),
+    (
+        "motorbike-scooter",
+        "a black motorised moped scooter with a seat, one headlight and two small wheels",
+        1.8,
+    ),
     ("motorbike-cargo", "a blue motorbike with a cargo box on the back", 2.1),
     ("tuktuk-yellow", "a yellow three-wheeled auto rickshaw with a canopy", 2.7),
     ("tuktuk-green", "a green three-wheeled taxi with a folding roof", 2.7),
@@ -38,7 +42,7 @@ PROPS = [
     ("minibus-white", "a white passenger minibus van", 5.5),
     ("minibus-colour", "a colourfully painted minibus", 5.6),
     ("pickup-white", "a white pickup truck", 5.3),
-    ("pickup-red", "a dusty red pickup truck with an open back", 5.3),
+    ("pickup-red", "one single dusty red pickup truck with an open back, only one vehicle", 5.3),
     ("stall-tarp", "a wooden market stall with a blue tarpaulin roof", 2.5),
     ("stall-kiosk", "a small street kiosk with a corrugated metal roof", 2.4),
     ("stall-umbrella", "a fruit stall with a large umbrella", 2.6),
@@ -46,9 +50,9 @@ PROPS = [
     ("tank-blue", "a blue cylindrical water storage tank", 1.7),
     ("container-rust", "a rusty shipping container", 6.1),
     ("container-blue", "a blue shipping container", 6.1),
-    ("sign-billboard", "a roadside billboard on two metal posts", 4.0),
+    ("sign-billboard", "one large rectangular billboard on a steel frame, one object only", 4.0),
     ("sign-shop", "a small hand-painted shop signboard on a wooden frame", 2.0),
-    ("sign-street", "a street name sign on a metal pole", 3.0),
+    ("sign-street", "a green street name sign on a short metal pole, blank sign", 3.0),
 ]
 
 
