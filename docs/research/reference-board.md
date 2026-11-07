@@ -7,7 +7,7 @@ evaluation only: never trained on, redistributed, committed or used in sales mat
 | Set | View | Where | Licence | Notes |
 |---|---|---|---|---|
 | Open Cities AI | drone, 4 to 8 cm averaged to 0.5 m | `data/eval/open-cities-10/` (90 chips, 4 cities by file prefix) | ODbL-1.0 | built by `fraktal eval-set` |
-| SpaceNet 2 Khartoum | satellite, 650 px | `data/spacenet2/chips/` | see ADR-0008 | colours look strongly green: band order or stretch to check (FRK-100) |
+| SpaceNet 2 Khartoum | satellite, 650 px | `data/spacenet2/chips/` | see ADR-0008 | benchmark chips carry a green cast; use `refboard.spacenet_view` to look (below) |
 | Maxar Open Data | satellite, 0.31 m | `data/eval/maxar-reference/` (28 windows of 1024 px, 6 events) | CC BY-NC 4.0 (registry page, 2026-11-07) | `scripts/refboard/pull_maxar.py` |
 
 Maxar citation, as the registry asks: "Maxar Open Data Program was accessed on DATE from
@@ -37,3 +37,16 @@ Limits: these are disaster-response acquisitions, so some scenes are post-event;
 windows are mostly cloud or reef; one window has a black scene-edge strip; a Maxar scene is a single
 date, so there is no season or haze variation per place; the "biome" a window resembles is a judgement,
 not a label.
+
+## SpaceNet colour (FRK-100)
+
+The files are `RGB-PanSharpen`, uint16, bands in R, G, B order, so the band order is right. Over a sample
+of 26 tiles the raw medians are R 534, G 592, B 409 (2nd to 98th percentile: R 364 to 800, G 475 to 887,
+B 344 to 595). `chips.stretch_range` maps all three bands with one range, so blue stays far below green and
+the benchmark chips come out strongly green (channel means R 88, G 118, B 34, from the fit recorded beside `KHARTOUM_TONE`). A per-band
+stretch (`refboard.band_ranges`, `refboard.spacenet_view`) gives a natural reddish-brown desert city.
+
+Consequence: `KHARTOUM_TONE`, `palette.json` and the synthetic Khartoum chips were fitted to the cast, so the
+benchmark pair is consistent and earlier results hold, but SpaceNet is not a colour target for realism. See
+the ADR-0012 addendum; the rebuild is FRK-117, at the FRK-45 milestone. I have not measured how much the
+cast changes the colour gauge numbers: that needs the rebuilt chips.
