@@ -1,5 +1,7 @@
 # Plan: a Godot 4 prototype you can drive, walk and fly (ADR-0011 phase 4)
 
+> **Re-scoped by [ADR-0012](../adr/0012-blender-is-the-product-renderer-godot-is-a-demo-viewer.md) (2026-11-07):** Godot is a light demo viewer. Keep FRK-93 (fly), FRK-94 (replay agents) and FRK-116 (a small Windows demo zip); FRK-92 and FRK-95 are low priority; FRK-96, 97 and 98 (capture, labels, pod) are parked, and Blender is the only place products are captured. The table of follow-on slices below is the original order.
+
 Written 2026-11-07, before engine code. Epic FRK-E8; slice 1 is FRK-91. The engine choice and its
 licence read are in [realtime-engine-spike.md](realtime-engine-spike.md); this note is the build plan.
 
