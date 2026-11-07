@@ -157,7 +157,7 @@ def test_the_maxar_planner_prefers_before_and_after_scenes_of_the_same_tile() ->
     def k(tile: str, date: str, name: str) -> str:
         return f"events/{event}/ard/47/{tile}/{date}/{name}-visual.tif"
 
-    plan = pull.plan(event, keys)
+    plan = pull.plan(event, keys, limit=2)
     assert plan == [
         (k("A", "2025-02-15", "x"), k("A", "2025-04-04", "y")),
         (k("C", "2025-01-01", "p"), k("C", "2025-03-28", "q")),
