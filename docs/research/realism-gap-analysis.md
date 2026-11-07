@@ -40,7 +40,7 @@ touches. Layer says who owns the fix: **world** is the Python generators (benefi
 ## 1. Ground (FRK-108)
 
 Real: in the Open Cities, Maxar Sudan, Maxar Myanmar and SpaceNet chips the ground is mostly bare red or
-ochre soil, with paths worn into it, patchy dry grass, dust at road edges and edges between land uses that
+ochre soil, with paths worn into it, patchy dry grass, and edges between land uses that
 follow fences, tracks and drainage. Vegetation is dark trees on that soil, not a green carpet.
 
 Ours: a mottled green ground in every biome, including khartoum, whose real chips are tan. The world's
@@ -56,8 +56,8 @@ class map, Blender change for the ground texture.
 ## 2. Street layout (FRK-104)
 
 Real: informal streets curve, taper, branch irregularly and dead-end; footpaths run between houses; main
-roads are multi-lane with markings, medians, kerbs and a service strip (the Nairobi road in the Maxar Kenya
-chips has several lanes, markings and moving vehicles).
+roads are wide with several lanes and moving traffic (the Maxar Kenya road and the SpaceNet highway tiles show
+this, the SpaceNet ones with a median).
 
 Ours: arterials are least-cost paths between centres, and local streets branch off them at a fixed spacing
 (`local_spacing_m`, 70 m in dense_urban) as parallel combs; the road is a flat grey band with no markings
@@ -100,7 +100,8 @@ long ribbed shed; the Kenya chips show large blue-roofed and pale-roofed sheds w
 Khartoum has warehouses with ribbed roofs and walled lots; Maxar Sudan shows rectangular walled compounds with
 outbuildings.
 
-Ours: none of these exist. The tallest object is a mid-rise block. A wall appears only as a roof parapet.
+Ours: none of these exist. There are no large halls, no tanks on the ground and no yard walls; a wall appears
+only as a roof parapet.
 
 Fix: a hall typology and yard objects (class `yard_object`) and compound walls (class `wall`), as decided in
 the ADR-0012 addendum. Halls stay `building` with typology `industrial_hall`. For satellite data the halls
@@ -154,7 +155,8 @@ are small next to the gaps above.
 
 - Blur and noise: with the sensor chain, 3D output was as close to the real chips as 2.5D on 9 of 10 gauge
   pairs (ADR-0010). Do not spend effort here first.
-- Building heights: the storey profiles per biome (`heights.PROFILES`) look right in the nadir sheets.
+- Building heights: the storey profiles per biome (`heights.PROFILES`) are plausible, but heights are not visible
+  in nadir views and I have no real oblique reference, so this is unchecked rather than fine.
 - Label exactness: unaffected by anything above.
 
 ## Proposed order for Phase B
