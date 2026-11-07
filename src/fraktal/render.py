@@ -99,7 +99,9 @@ CLOUD_SHADOW = 0.5  # how much a cloud shadow darkens open ground
 CLOUD_GSD_M = 8.0  # clouds are drawn this coarse and smoothed up to the image resolution
 
 # Per-channel gain that matches the V1 synthetic chips' channel means to the real Khartoum chips
-# (R 133 -> 88, G 126 -> 118, B 109 -> 34): the real chips have a strong green cast (FRK-12).
+# (R 133 -> 88, G 126 -> 118, B 109 -> 34). The green cast is not in the scene: it comes from the
+# benchmark chips' single stretch range for all bands (ADR-0012 addendum, `refboard.spacenet_view`).
+# Kept so the benchmark pair stays consistent until the FRK-45 milestone re-baselines.
 KHARTOUM_TONE: tuple[float, float, float] = (0.66, 0.94, 0.31)
 
 
