@@ -1,5 +1,6 @@
 import argparse
 import json
+from pathlib import Path
 
 import pytest
 
@@ -74,3 +75,19 @@ def test_unexpected_exception_exits_4(
     envelope = json.loads(capsys.readouterr().out)
     assert envelope["error"]["kind"] == "unexpected"
     assert "disk on fire" in envelope["error"]["message"]
+
+
+def test_scene_exports_a_tile_without_blender(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from fraktal import biomes
+    from fraktal.procedural import generate_world
+
+    world = tmp_path / "w"
+    generate_world(world, (104.0, 1.5), 3, biomes.resolve("dense_urban"))
+    out = tmp_path / "s"
+    assert main(["scene", str(world), "--out", str(out), "--size-m", "200", "--json"]) == 0
+    info = json.loads(capsys.readouterr().out)
+    assert info["ok"] and info["data"]["buildings"] > 0
+    assert (out / "start.json").exists()
+    assert (out / "scene.json").exists() and (out / "ground.npy").exists()

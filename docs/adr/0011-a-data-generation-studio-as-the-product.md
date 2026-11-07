@@ -167,3 +167,13 @@ a dashcam drive and a walk are the same pipeline. Details, pod checks and limits
 [the agents plan](../research/moving-agents-plan.md). Still open from this ADR: moving drones as
 agents, motorbikes and tuk-tuks (a realism pass), sensors beyond depth and pose (phase 3), the engine
 prototype (phase 4, a spike note exists) and the studio shell (phase 5).
+
+## After FRK-91 (phase 4 started)
+
+A Godot 4 viewer is in `godot/` ([plan](../research/godot-prototype-plan.md), epic FRK-E8). `fraktal scene WORLD --out DIR`
+writes a tile with no Blender, and `godot --path godot -- --scene DIR` loads the relief ground, buildings,
+trees and poles and lets you drive a car, on WSL (OpenGL) and on Windows. The engine only reads the exported
+files; the car is the browser demo's model stepped by hand, so a scripted drive gives the same final state on
+every run and on Linux and Windows. Measured on an Intel UHD: 46 fps on WSL, a steady 60 on Windows.
+Walking, flying, replaying the simulated agents and capturing frames and labels are FRK-92 to FRK-98.
+
