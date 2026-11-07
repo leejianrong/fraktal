@@ -110,7 +110,8 @@ def maxar_chips(data_dir: Path, biome: str, count: int) -> list[Chip]:
             image = _hwc(np.load(path))
             if usable(image):
                 meta = json.loads(path.with_suffix(".json").read_text())
-                label = f"{meta['event']} {meta['scene'].split('/')[2]} {meta['kind']}"
+                phase = f" {meta['phase']}" if "phase" in meta else ""
+                label = f"{meta['event']} {meta['scene'].split('/')[2]}{phase}"
                 chips.append(Chip(label, image, float(meta["pixel_size"][0])))
         per_event.append(chips)
     out: list[Chip] = []
