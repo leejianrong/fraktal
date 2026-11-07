@@ -159,7 +159,9 @@ def make_meshes(out: Path, props: list[tuple[str, str, float]], step1x: Path) ->
                 guidance_scale=7.5,
                 num_inference_steps=50,
                 generator=torch.Generator(device=pipe.device).manual_seed(2000 + k),
-                force_remove_background=False, surface_extractor_type="mc", do_reduce_face=False,
+                force_remove_background=False,
+                do_remove_floater=False,
+                do_shade_smooth=False, surface_extractor_type="mc", do_reduce_face=False,
                 max_facenum=200000,
             )  # fmt: skip
             raw = generated.mesh[0]
