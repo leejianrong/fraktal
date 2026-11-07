@@ -136,7 +136,6 @@ def cut_out(out: Path, props: list[tuple[str, str, float]]) -> dict[str, float]:
 def make_meshes(out: Path, props: list[tuple[str, str, float]], step1x: Path) -> dict[str, object]:
     import torch
     import trimesh
-    from PIL import Image
 
     sys.path.insert(0, str(step1x))
     from step1x3d_geometry.models.pipelines.pipeline import Step1X3DGeometryPipeline
@@ -156,7 +155,8 @@ def make_meshes(out: Path, props: list[tuple[str, str, float]], step1x: Path) ->
         t = time.perf_counter()
         try:
             generated = pipe(
-                Image.open(out / "cutouts" / f"{name}.png"), guidance_scale=7.5,
+                str(out / "cutouts" / f"{name}.png"),  # a path: check_inputs rejects a PIL image
+                guidance_scale=7.5,
                 num_inference_steps=50,
                 generator=torch.Generator(device=pipe.device).manual_seed(2000 + k),
                 force_remove_background=False, surface_extractor_type="mc", do_reduce_face=False,
