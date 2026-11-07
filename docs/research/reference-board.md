@@ -8,7 +8,7 @@ evaluation only: never trained on, redistributed, committed or used in sales mat
 |---|---|---|---|---|
 | Open Cities AI | drone, 4 to 8 cm averaged to 0.5 m | `data/eval/open-cities-10/` (90 chips, 4 cities by file prefix) | ODbL-1.0 | built by `fraktal eval-set` |
 | SpaceNet 2 Khartoum | satellite, 650 px | `data/spacenet2/chips/` | see ADR-0008 | benchmark chips carry a green cast; use `refboard.spacenet_view` to look (below) |
-| Maxar Open Data | satellite, 0.31 m | `data/eval/maxar-reference/` (28 windows of 1024 px, 6 events) | CC BY-NC 4.0 (registry page, 2026-11-07) | `scripts/refboard/pull_maxar.py` |
+| Maxar Open Data | satellite, 0.31 m | `data/eval/maxar-reference/` (47 windows of 1024 px from 6 events, 42 of them in before and after pairs) | CC BY-NC 4.0 (registry page, 2026-11-07) | `scripts/refboard/pull_maxar.py` |
 
 Maxar citation, as the registry asks: "Maxar Open Data Program was accessed on DATE from
 https://registry.opendata.aws/maxar-open-data". The script writes it with the access date into
@@ -20,23 +20,35 @@ https://registry.opendata.aws/maxar-open-data". The script writes it with the ac
 uv run python scripts/refboard/pull_maxar.py --out data/eval/maxar-reference
 ```
 
-Reads only the windows it keeps from the cloud-optimised scenes (about 85 MB, about a minute). It takes
-the three biggest scenes per event, one per area, skips single-band (panchromatic) scenes, and from each
-keeps two 1024 px windows: the one with the most large-scale structure and one from the upper middle.
-Windows with cloud, open sea or scene-edge gaps are rejected by a simple rule on a thumbnail.
+Reads only the windows it keeps from the cloud-optimised scenes (about 150 MB, three to four minutes). Per
+event it looks for ARD tiles that have a scene before and a scene after the event date, since the grid is
+fixed and the same pixel window then shows the same ground twice. It tries candidates, best first, until three
+tiles give chips: tiles with both sides first, then one-sided ones. Single-band (panchromatic) scenes are
+skipped. From each tile it takes two 1024 px windows chosen on the first scene's thumbnail (the one with the
+most large-scale structure and one from the upper middle) and reads the same ground from the other scene. A
+window that is cloudy, empty or featureless is dropped by a simple rule; if only one side is clear, that side
+is kept and the chip is marked `paired: false`.
+
+Each chip's metadata has `phase` (`pre` or `post`), `event_date` and `paired`. The review sheets and the board
+show the phase. The event dates are in `EVENT_DATES` in the script, taken from the event descriptions and public
+reporting, so a scene within a few days of the date may be labelled wrongly: Myanmar 2025-03-28, Kalmaegi
+2025-11-04, Mocha 2023-05-14, Kenya 2024-04-29 (the Mai Mahiu dam burst, rain began in March), Sudan 2022-07-01
+(the start of the flood season), Indonesia 2022-11-21 (Cianjur; the set ends a week later).
 
 ## What is in it
 
 Events: Indonesia earthquake 2022, Myanmar earthquake 2025 (Mandalay area), Typhoon Kalmaegi 2025
 (Philippines), Cyclone Mocha 2023 (Rakhine coast), Kenya flooding 2024 (Nairobi), Sudan flooding 2022.
-Cyclone Senyar 2025 gave nothing: its scenes are single-band. Content: dense housing with red or tin
+Chips per event, pre and post: Mocha 5 and 5, Myanmar 4 and 3, Indonesia 3 and 4, Kenya 4 and 4, Sudan 6 and 6,
+Kalmaegi 2 and 1 (the typhoon scenes are mostly sea or cloud). Cyclone Senyar 2025 gave nothing: its scenes are
+single-band. Content: dense housing with red or tin
 roofs, informal settlement with packed tin roofs, tank farms and warehouses, a stadium, walled compounds
 and irrigated farmland, paddy, mangrove, palm coast.
 
-Limits: these are disaster-response acquisitions, so some scenes are post-event; about 4 of the 28
-windows are mostly cloud or reef; one window has a black scene-edge strip; a Maxar scene is a single
-date, so there is no season or haze variation per place; the "biome" a window resembles is a judgement,
-not a label.
+Limits: these are disaster-response acquisitions, so the post scenes show damage and floods as well as
+seasons; a thin cloud can pass the filter (one Indonesia post chip has haze); a few chips are mostly vegetation
+or water; the "biome" a window resembles is a judgement, not a label. A pair is two acquisitions with different
+sun angles and sensors, so colour and shadows differ between its sides as well as the ground.
 
 ## SpaceNet colour (FRK-100)
 

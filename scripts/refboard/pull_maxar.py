@@ -53,7 +53,7 @@ EVENT_DATES = {
     "Kenya-Flooding-May24": "2024-04-29",  # Mai Mahiu dam burst; heavy rain from March
     "Sudan-flooding-8-22-2022": "2022-07-01",  # start of the flood season
 }
-PAIRS_PER_EVENT = 2
+PAIRS_PER_EVENT = 3
 WINDOW = 1024
 CELL = 64  # thumbnail cell used to rank windows by texture, in thumbnail pixels
 
@@ -88,8 +88,10 @@ def visual_tiles(event: str) -> list[tuple[str, int]]:
     return keys
 
 
-def plan(event: str, keys: list[tuple[str, int]]) -> list[tuple[str | None, str | None]]:
-    """Up to ``PAIRS_PER_EVENT`` (pre, post) scene keys.
+def plan(
+    event: str, keys: list[tuple[str, int]], limit: int | None = None
+) -> list[tuple[str | None, str | None]]:
+    """(pre, post) scene keys to try, best first, at most ``limit``.
 
     The same ARD tile before and after the event comes first, since it shows the same ground twice;
     tiles with only one side fill the rest.
@@ -109,9 +111,8 @@ def plan(event: str, keys: list[tuple[str, int]]) -> list[tuple[str | None, str 
         pre, post = best(scenes, False), best(scenes, True)
         size = max(v[1] for v in (pre, post) if v)
         (both if pre and post else single).append((size, pre and pre[0], post and post[0]))
-    chosen = sorted(both, reverse=True)[:PAIRS_PER_EVENT]
-    chosen += sorted(single, reverse=True)[: PAIRS_PER_EVENT - len(chosen)]
-    return [(pre, post) for _, pre, post in chosen]
+    chosen = sorted(both, reverse=True) + sorted(single, reverse=True)
+    return [(pre, post) for _, pre, post in chosen[:limit]]
 
 
 def windows(src: rasterio.DatasetReader) -> list[tuple[str, Window]]:
@@ -156,7 +157,7 @@ def windows(src: rasterio.DatasetReader) -> list[tuple[str, Window]]:
     ]
 
 
-def save_pair(out: Path, event: str, pre: str | None, post: str | None) -> None:
+def save_pair(out: Path, event: str, pre: str | None, post: str | None) -> int:
     """Windows chosen on the first available scene, then the same ground read from the other."""
     from fraktal.refboard import usable
 
@@ -169,7 +170,8 @@ def save_pair(out: Path, event: str, pre: str | None, post: str | None) -> None:
         }
         opened = {p: src for p, src in opened.items() if src.count >= 3}  # skip panchromatic scenes
         if not opened:
-            return
+            return 0
+        saved = 0
         first = next(iter(opened.values()))
         for kind, window in windows(first):
             bounds = rasterio.windows.bounds(window, first.transform)
@@ -180,8 +182,7 @@ def save_pair(out: Path, event: str, pre: str | None, post: str | None) -> None:
                 data = src.read([1, 2, 3], window=win, boundless=False)
                 if usable(np.moveaxis(data, 0, -1)):
                     chips[phase] = (src, win, data)
-            if len(opened) == 2 and len(chips) < 2:  # a pair needs both sides to be clear
-                continue
+            # A side that is cloudy or empty is skipped; the clear side is still kept, as unpaired.
             for phase, (src, win, data) in chips.items():
                 key = scenes[phase] or ""
                 scene = key.split("/ard/")[1]
@@ -193,7 +194,7 @@ def save_pair(out: Path, event: str, pre: str | None, post: str | None) -> None:
                     "kind": kind,
                     "phase": phase,
                     "event_date": EVENT_DATES[event],
-                    "paired": len(opened) == 2,
+                    "paired": len(chips) == 2,
                     "window": [win.col_off, win.row_off, win.width, win.height],
                     "pixel_size": [abs(src.res[0]), abs(src.res[1])],
                     "crs": str(src.crs),
@@ -201,6 +202,8 @@ def save_pair(out: Path, event: str, pre: str | None, post: str | None) -> None:
                 }
                 (out / f"{name}.json").write_text(json.dumps(meta) + "\n")
                 print(f"{name} {data.shape} {phase}", flush=True)
+                saved += 1
+        return saved
 
 
 def main() -> int:
@@ -216,8 +219,11 @@ def main() -> int:
         f"Maxar Open Data Program was accessed on {today} from https://registry.opendata.aws/maxar-open-data.\n"
     )
     for event in EVENTS:
-        for pre, post in plan(event, visual_tiles(event)):
-            save_pair(args.out, event, pre, post)
+        done = 0
+        for pre, post in plan(event, visual_tiles(event), limit=40):  # many are sea, cloud or grey
+            done += save_pair(args.out, event, pre, post) > 0
+            if done == PAIRS_PER_EVENT:
+                break
     return 0
 
 
