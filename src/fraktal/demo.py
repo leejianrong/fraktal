@@ -34,7 +34,7 @@ def _tracks(t: agents.Tracks) -> dict[str, Any]:
     return out
 
 
-def _start(graph: agents.Graph) -> list[float]:
+def start_pose(graph: agents.Graph) -> list[float]:
     """The middle of the longest road, facing along it: a place the player can drive from."""
     edge = max(graph.edges, key=lambda e: e.length)
     k = len(edge.coords) // 2
@@ -86,7 +86,7 @@ def build(
         "fps": fps,
         "frames": len(times),
         "colours": COLOURS,
-        "start": _start(graph),
+        "start": start_pose(graph),
         "roads": [
             {"pts": np.round(e.coords, 1).tolist(), "w": round(e.width_m, 1)} for e in graph.edges
         ],
@@ -113,4 +113,4 @@ def build(
     }
 
 
-__all__ = ["build"]
+__all__ = ["build", "start_pose"]

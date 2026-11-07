@@ -562,6 +562,57 @@ def _demo_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--drones", type=int, default=3)
 
 
+def _scene(args: argparse.Namespace) -> Result:
+    import json
+
+    from fraktal.blender_export import export_scene
+
+    world: Path = args.world
+    try:
+        lon, lat = args.center or json.loads((world / "world.json").read_text())["center_lonlat"]
+        center = (float(lon), float(lat))
+        scene = export_scene(world, args.out, center, args.size_m, args.gsd_m, seed=args.seed)
+    except (OSError, ValueError, KeyError) as err:
+        raise CliError(ExitCode.FAILURE, "scene_failed", str(err)) from err
+    start = _player_start(world, center, args.size_m)
+    pose = {"x": start[0], "y": start[1], "heading": start[2]}
+    (args.out / "start.json").write_text(json.dumps(pose) + "\n")
+    info = {
+        "out": str(args.out),
+        "start": start,
+        "size_m": scene["size_m"],
+        "buildings": len(scene["buildings"]),
+        "trees": len(scene["trees"]),
+        "terrain": scene.get("terrain"),
+    }
+    return Result(info, f"wrote the tile to {args.out} ({info['buildings']} buildings)")
+
+
+def _player_start(world: Path, center: tuple[float, float], size_m: float) -> list[float]:
+    """Where the player starts: the middle of the tile's longest road, else the tile centre."""
+    from fraktal import agents
+    from fraktal.demo import start_pose
+
+    try:
+        roads, bounds, side = agents.tile_roads(world, center, size_m)
+        graph = agents.build_graph(roads, bounds, agents.TrafficConfig(drive_side=side))
+        if graph.edges:
+            return start_pose(graph)
+    except (OSError, ValueError):
+        pass
+    return [size_m / 2, size_m / 2, 0.0]
+
+
+def _scene_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("world", type=Path, help="a world directory (from `fraktal generate`)")
+    parser.add_argument("--out", type=Path, required=True, help="output directory")
+    parser.add_argument("--center", type=float, nargs=2, metavar=("LON", "LAT"),
+                        help="default: the world's centre")  # fmt: skip
+    parser.add_argument("--size-m", type=float, default=500.0)
+    parser.add_argument("--gsd-m", type=float, default=0.5)
+    parser.add_argument("--seed", type=int, default=0)
+
+
 def _render3d_batch_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("world", type=Path, help="a world directory (from `fraktal generate`)")
     parser.add_argument("--out", type=Path, required=True, help="output directory (resumable)")
@@ -945,6 +996,7 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "render3d-batch": _render3d_batch_args,
     "traffic": _traffic_args,
     "demo": _demo_args,
+    "scene": _scene_args,
 }
 
 COMMANDS: dict[str, tuple[str, Handler]] = {
@@ -966,6 +1018,7 @@ COMMANDS: dict[str, tuple[str, Handler]] = {
     "render3d-batch": ("Render many tiles of a world, resumable", _render3d_batch),
     "traffic": ("Simulate cars on a tile's roads and map their paths", _traffic),
     "demo": ("Write a one-file browser demo you can drive around in", _demo),
+    "scene": ("Export a tile for the Godot viewer (no Blender)", _scene),
 }
 
 

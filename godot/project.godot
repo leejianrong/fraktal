@@ -1,0 +1,18 @@
+; Fraktal real-time viewer (ADR-0011 phase 4). Opens a tile written by `fraktal scene`.
+config_version=5
+
+[application]
+config/name="Fraktal viewer"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.7")
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[physics]
+common/physics_ticks_per_second=60
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
