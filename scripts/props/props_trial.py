@@ -72,6 +72,40 @@ EXPECTED = {
 }  # fmt: skip
 
 
+# Second attempt at the props that failed the proportion check (7 flagged by meshqa on the first
+# run, plus the cube-shaped umbrella stall). Same size and expected box; the prompts now say what
+# shape the object is and show it side-on, which is what its length-to-width ratio shows best.
+RETRY = {
+    "minibus-white": "a white passenger minibus van seen from the side, long boxy body, "
+    "four wheels on the ground, side-on three-quarter view",
+    "minibus-colour": "a colourfully painted passenger minibus seen from the side, long body, "
+    "four wheels on the ground, side-on three-quarter view",
+    "pickup-red": "a single dusty red pickup truck with an open cargo bed, seen from the front "
+    "three-quarter, one vehicle only, four wheels on the ground",
+    "container-rust": "a rusty corrugated steel shipping container, a long low rectangular box "
+    "about three times longer than it is wide, closed doors at one end, side-on view",
+    "container-blue": "a blue corrugated steel shipping container, a long low rectangular box "
+    "about three times longer than it is wide, closed doors at one end, side-on view",
+    "sign-shop": "a flat rectangular wooden shop signboard on two short wooden posts, wide and "
+    "thin, blank face, seen from the front three-quarter",
+    "sign-street": "a green rectangular street name sign, blank, bolted to the top of a tall "
+    "thin grey metal pole, whole pole visible, seen from the front three-quarter",
+    "stall-umbrella": "a market fruit stall: a low wooden table with baskets of fruit under a "
+    "large round umbrella on a central pole",
+}
+SEEDS = 2
+
+
+def retry_props() -> list[tuple[str, str, float]]:
+    """name-s0, name-s1, ... for every retried prop, with the new prompt and the old size."""
+    sizes = {n: s for n, _, s in PROPS}
+    return [(f"{n}-s{k}", RETRY[n], sizes[n]) for n in RETRY for k in range(SEEDS)]
+
+
+def expected(name: str) -> tuple[float, float, float] | None:
+    return EXPECTED.get(name) or EXPECTED.get(name.rsplit("-s", 1)[0])
+
+
 def vram_gb() -> float:
     import torch
 
@@ -185,7 +219,7 @@ def make_meshes(out: Path, props: list[tuple[str, str, float]], step1x: Path) ->
                 raw = trimesh.util.concatenate(list(raw.geometry.values()))
             seconds = round(time.perf_counter() - t, 2)
             raw.export(out / "meshes_raw" / f"{name}.glb")  # kept even if our own QA fails
-            final, report = meshqa.process(raw, size_m, EXPECTED.get(name))
+            final, report = meshqa.process(raw, size_m, expected(name))
             final.export(out / "meshes" / f"{name}.glb")
             report.update(prompt=prompt, gen_s=seconds)
             rows.append(
@@ -219,10 +253,11 @@ def main() -> int:
     parser.add_argument("out", type=Path)
     parser.add_argument("--step1x", type=Path, required=True)
     parser.add_argument("--count", type=int, default=len(PROPS))
+    parser.add_argument("--retry", action="store_true", help="the failed props, new prompts")
     args = parser.parse_args()
     for sub in ("images", "cutouts", "meshes", "meshes_raw"):
         (args.out / sub).mkdir(parents=True, exist_ok=True)
-    props = PROPS[: args.count]
+    props = retry_props() if args.retry else PROPS[: args.count]
     result: dict[str, object] = {"prompts": {n: p for n, p, _ in props}}
     t0 = time.perf_counter()
     for stage, fn in (
