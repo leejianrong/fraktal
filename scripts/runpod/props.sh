@@ -41,7 +41,8 @@ python -m venv --system-site-packages /workspace/props
 PIP=/workspace/props/bin/pip
 timeout 900 $PIP install -q diffusers==0.32.2 transformers==4.48.0 accelerate safetensors einops jaxtyping omegaconf \
   timm trimesh scikit-image scipy PyMCubes pymeshlab rembg onnxruntime opencv-python-headless pillow \
-  matplotlib fast-simplification easydict kornia huggingface-hub || echo "ERROR pip install returned $?"
+  matplotlib fast-simplification easydict kornia huggingface-hub typeguard pytorch-lightning \
+  mosaicml-streaming datasets plyfile imageio pyyaml || echo "ERROR pip install returned $?"
 /workspace/props/bin/python -c "import torch,diffusers,transformers; print('torch', torch.__version__, 'cuda', torch.cuda.is_available(), 'diffusers', diffusers.__version__, 'transformers', transformers.__version__)"
 /workspace/props/bin/pip freeze > review/pip-freeze.txt
 nvidia-smi > review/nvidia-smi.txt 2>&1 || true
@@ -49,7 +50,7 @@ nvidia-smi > review/nvidia-smi.txt 2>&1 || true
 # Third-party research code runs here and nowhere else. Import it first, before any big download:
 # fix a missing module a few times, then give up and say which one.
 stage import_check
-for try in 1 2 3 4 5 6; do
+for try in 1 2 3 4 5 6 7 8 9 10 11 12; do
   err=$(cd /workspace/step1x && /workspace/props/bin/python -c "
 import sys; sys.path.insert(0, '.')
 from step1x3d_geometry.models.pipelines.pipeline import Step1X3DGeometryPipeline
@@ -58,7 +59,8 @@ print('import ok')" 2>&1)
   echo "import_check try $try failed: $(echo "$err" | tail -n 3 | tr '\n' ' ')"
   mod=$(echo "$err" | grep -oE "No module named '[A-Za-z0-9_]+" | tail -1 | sed "s/No module named '//")
   [ -z "$mod" ] && break
-  case "$mod" in cv2) mod=opencv-python-headless;; skimage) mod=scikit-image;; mcubes) mod=PyMCubes;; esac
+  case "$mod" in cv2) mod=opencv-python-headless;; skimage) mod=scikit-image;; mcubes) mod=PyMCubes;;
+    streaming) mod=mosaicml-streaming;; pytorch_lightning) mod=pytorch-lightning;; yaml) mod=pyyaml;; sklearn) mod=scikit-learn;; PIL) mod=pillow;; esac
   timeout 300 $PIP install -q "$mod" || echo "WARN could not install $mod"
 done
 
