@@ -57,11 +57,18 @@ done
 [ "$booted" = 1 ] || { say "pod never booted in $ATTEMPTS attempts"; exit 2; }
 
 say "waiting for the artifact (progress below, once a minute)"
-rp relay-get "$OUT/artifact" >> "$LOG" 2>&1 &
-RG=$!
-while kill -0 "$RG" 2>/dev/null; do
-  rp logs --source container --tail 400 --max-wait 5s 2>/dev/null | grep -oE '(STAGE [^"]*|hb [^"]*|ERROR[^"]*|WARN[^"]*)' | tail -n 2 | sed 's/^/  pod: /' | tee -a "$LOG"
-  sleep 60
+# A relay-get that dies (it was SIGKILLed once, exit 137) must not tear down a healthy pod: retry
+# while the pod is still up. The pod's own lifetime limit and idle watchdog still end it.
+for relay_try in 1 2 3 4 5; do
+  rp relay-get "$OUT/artifact" >> "$LOG" 2>&1 &
+  RG=$!
+  while kill -0 "$RG" 2>/dev/null; do
+    rp logs --source container --tail 400 --max-wait 5s 2>/dev/null | grep -oE '(STAGE [^"]*|hb [^"]*|ERROR[^"]*|WARN[^"]*)' | tail -n 2 | sed 's/^/  pod: /' | tee -a "$LOG"
+    sleep 60
+  done
+  wait "$RG"; rc=$?; say "relay-get exit $rc (try $relay_try)"
+  [ "$rc" = 0 ] && break
+  runpodctl pod list 2>/dev/null | grep -q "$RP_POD_NAME" || { say "pod is gone; not retrying"; break; }
+  say "relay-get failed but the pod is still up; retrying in 10s"; sleep 10
 done
-wait "$RG"; say "relay-get exit $?"
 cp "$OUT/artifact/pod.log" "$OUT/job-pod.log" 2>/dev/null || true
