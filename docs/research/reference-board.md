@@ -69,3 +69,26 @@ and a SpaceNet tile with the per-band stretch for Khartoum. Drone rows use Open 
 row shows different ones. Chips that are mostly cloud, no-data or featureless are skipped, which leaves few
 good ones for some biomes (informal settlement 2, Khartoum 3 Maxar chips). Oil palm and mangrove have no
 really close Maxar match; the coast and the Indonesian fields are the nearest.
+
+## Ground-level photos (FRK-119)
+
+```bash
+# MAPILLARY_TOKEN in the environment or in ./.env (git-ignored); Commons needs no token
+uv run python scripts/refboard/pull_ground.py --out data/eval/ground-reference
+```
+
+Two sources, one folder (`data/eval/ground-reference`, a metadata file beside each JPEG):
+
+- **Mapillary**, about 100 photos from 9 spots (Nairobi centre and Mathare, Kampala, Dar es Salaam, Accra,
+  Jakarta, Cebu, Mandalay, Quezon City), one per sequence, panoramas skipped, 1024 px. Mostly dashcam views:
+  roads, kerbs, boundary walls, shopfronts, motorbikes, power lines. Reported as CC BY-SA 4.0 (not re-read).
+  The token is a read-only client token, sent in an `Authorization` header, never in a URL. Manila's centre,
+  Khartoum and Khartoum Bahri returned no images; there is no Mapillary coverage there in the boxes tried.
+- **Wikimedia Commons**, about 20 photos found by a search phrase per city, kept only when the title names a
+  street scene (a search for "Nairobi street" also returns portraits and interiors). Licence and author are
+  recorded per photo. Khartoum comes only from here.
+
+Limits: the Mapillary photos are one hash-chosen sample, not a survey; the API returns a different 100 images
+on each call, so a re-run adds new ones. Some are blurry or show the car bonnet. Commons photos are what people
+chose to upload, which skews to landmarks. `fraktal review --board` shows a few per place; there is no
+side-by-side sheet for eye-level renders yet (FRK-115).
