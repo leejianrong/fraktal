@@ -64,3 +64,35 @@ realistic first, put the investment in Blender, keep Godot light.
 | Run the 3D benchmark arm first (FRK-45) | The renders still look artificial; a flat result would not tell us whether realism or 3D is the cause |
 | Retire the 2.5D renderer | It drives the benchmark spine and bulk nadir data, and is cheap |
 | Put realism work in the renderers only | Layout lives in the generators; fixing it there helps every view |
+
+## Addendum 2026-11-07: label classes and the SpaceNet colour
+
+Recommendations adopted by Jian on 2026-11-07 ("make a recommendation and we'll go with that").
+
+**Label classes (3D path, `labels3d.CLASSES`; ids are append-only, existing ones do not change)**
+
+- **Walls and fences are a new class, `wall` (8).** One instance per compound. Gates are gaps (class `none`
+  or ground). The benchmark target is `building`; a wall merged into it would add thin linear false positives
+  that real footprint labels (OSM, Open Cities) never mark, and a separate class lets a customer drop it.
+- **Large industrial buildings stay `building`.** The task is footprints and real labels include warehouses.
+  The scene's per-building `typology` (for example `industrial_hall`) is the attribute that tells them apart,
+  so "industrial only" is a filter on instance ids, not a second class.
+- **Yard objects (storage tanks, containers, silos) are a new class, `yard_object` (9).** They are not
+  buildings in OSM or in the real labels, and from above they must not count as building pixels. Tanks and
+  panels on a roof stay part of the building, since from above they are roof.
+- The 2.5D renderer keeps `building`, land cover and road only. Walls and yard objects exist in the 3D path.
+
+**SpaceNet colour**
+
+- The band order is correct: the files are `RGB-PanSharpen`, and a per-band stretch gives a natural
+  reddish-brown desert city. The green cast is an artefact of our own stretch: `chips.stretch_range` uses one
+  2nd to 98th percentile range for all three bands, while the raw blue band is far lower (medians 534, 592
+  and 409 for R, G, B).
+- `KHARTOUM_TONE` (0.66, 0.94, 0.31), `palette.json` and the synthetic Khartoum chips were fitted to that
+  cast, so the benchmark pair (synthetic against real chips) is internally consistent and the ADR-0006 and
+  ADR-0009 numbers stay valid. We do not change the chips, palette or tone now: it would invalidate those
+  results and need GPU time, and training waits for the milestone.
+- SpaceNet is not a colour target for realism. Colour decisions use Maxar and Open Cities, which are
+  colour-correct. The reference board shows SpaceNet with a per-band stretch.
+- At the FRK-45 milestone run, the first step is to rebuild the SpaceNet chips with a per-band stretch, refit
+  the palette, drop the cast-matching default tone, and record a new baseline.
