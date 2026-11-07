@@ -174,7 +174,8 @@ def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "EVAL_ONLY.txt").write_text(
         "private evaluation and looking only: never train, fine-tune or condition a model\n"
-        "on these photos, and never redistribute, commit or ship them. Licences are in each metadata file.\n"
+        "on these photos, and never redistribute, commit or ship them.\n"
+        "Licences are in each metadata file.\n"
     )
     total = commons(args.out, args.commons_per_place)
     tok = token()
