@@ -96,3 +96,25 @@ Recommendations adopted by Jian on 2026-11-07 ("make a recommendation and we'll 
   colour-correct. The reference board shows SpaceNet with a per-band stretch.
 - At the FRK-45 milestone run, the first step is to rebuild the SpaceNet chips with a per-band stretch, refit
   the palette, drop the cast-matching default tone, and record a new baseline.
+
+## Addendum 2, 2026-11-07: answers to the gap analysis questions and the generative asset line
+
+Jian's answers, after reading the [gap analysis](../research/realism-gap-analysis.md).
+
+- **Ground-level reference: Mapillary, with Wikimedia Commons as the start that needs no token.** Mapillary
+  has street-level coverage of most of the cities we care about, a query by bounding box, and images shot
+  from vehicles, which is the dashcam and eye-level view we render. Its images are reported as CC BY-SA 4.0
+  (secondary source, not re-read). A token is needed (`MAPILLARY_TOKEN`, from the environment only).
+  Commons needs none but its coverage is patchy, so it comes first. Google Street View is out: its terms do
+  not allow bulk download (not re-read). Card FRK-119.
+- **Khartoum looks tan, as the real chips do.** The benchmark path keeps its cast-matched tone, palette and
+  chips until FRK-117; the 3D biome moves to a tan soil palette and a neutral tone (FRK-120).
+- **Maxar scenes: both before and after the event**, so the board shows undamaged and damaged places and the
+  set is as varied as the data we want to make (FRK-118).
+- **Licences for reference imagery are relaxed, because it is only looked at.** That stance stops there:
+  reference imagery (Open Cities, Maxar, SpaceNet, ground-level photos) is never used to train, fine-tune or
+  condition any model, is never redistributed and never reaches a dataset. Generated assets do ship inside
+  datasets, so models and their dependencies keep the full licence check (ADR-0010 decisions 5 and 6).
+- **Generative assets are a line of work of their own**: epic FRK-E10, plan in
+  [generative-assets-plan.md](../research/generative-assets-plan.md). ADR-0013 (FRK-121) will record which
+  models may be used after their primary licences are read.

@@ -175,3 +175,12 @@ chosen gaps are closed (ADR-0012). FRK-103 is where Jian reorders, drops or appr
 - Should the khartoum biome keep a green-tinted look for the benchmark, or move to the tan the real chips
   show? The SpaceNet cast explains the green (ADR-0012 addendum); a colour-correct Khartoum waits for FRK-117.
 - Do we want Maxar scenes from before the disaster dates only, to avoid damaged buildings as a reference?
+
+## Answers (2026-11-07)
+
+1. Ground-level reference: Mapillary, starting with Wikimedia Commons (FRK-119); licence is not a worry for
+   looking only, but the photos are never used to train or condition anything.
+2. Khartoum moves to the tan the real chips show; the benchmark path keeps its cast until FRK-117 (FRK-120).
+3. Maxar scenes from before and after the event, both (FRK-118).
+
+Details in the ADR-0012 addendum 2.
