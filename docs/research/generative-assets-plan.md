@@ -4,8 +4,10 @@ Written 2026-11-07. Goal: widen what the renders contain (vehicles, stalls, roof
 roof materials) with diffusion-made textures and image-to-3D and text-to-3D props, without breaking the
 rules that make a dataset sellable. Builds on [texture-model-spike.md](texture-model-spike.md) (FRK-59, FRK-73),
 [3d-assets-and-realism.md](3d-assets-and-realism.md), [infinigen-spike.md](infinigen-spike.md) and ADR-0010
-decisions 5 and 6. The model facts below are from 2026 web summaries, **not primary sources**; FRK-121 reads
-the licence files and replaces this table with an ADR.
+decisions 5 and 6. The model table below is from 2026 web summaries; the licence files of the shortlisted
+models were read the same day and are in [ADR-0013](../adr/0013-which-generative-models-may-make-assets-for-sold-datasets.md),
+which overrides this table where they differ (notably: TRELLIS.2 depends on non-commercial NVIDIA renderers,
+and TripoSG's default background remover needs a commercial agreement).
 
 ## Where the library stands
 
@@ -51,6 +53,32 @@ the licence files and replaces this table with an ADR.
 
 Text-to-3D models of the open kind are weaker than a two-step pipeline, so "text to 3D" here means text to
 image (FLUX.1 schnell) then image to 3D.
+
+## Assets written as code (the LLM route)
+
+An LLM can write the asset instead of a diffusion model drawing it. The tools that exist: BlenderMCP, a
+community plugin that lets any LLM drive Blender; LL3M (University of Chicago), a multi-agent system that writes
+and revises Blender Python with a critic that looks at renders; and BlenderLLM, a 7B model fine-tuned on
+Blender and CAD scripts. None of their licences were read, and we do not need them: the useful part is the loop,
+not the tool.
+
+For Fraktal this route already exists in the repo: the building grammar, trees, cars and poles are code. What
+an LLM adds is writing more parametric generators (a motorbike, a tuk-tuk, a minibus, a stall) as Python
+functions with parameters and a seed, which a person reviews and tests.
+
+| | Code-written | Image-to-3D |
+|---|---|---|
+| Licence | none, we own the code (the LLM's output terms apply) | per ADR-0013, with dependency traps |
+| Determinism and variation | exact, parameters give variants for free | one mesh per generation |
+| Labels and parts | exact, each part is a named object | one mesh, parts unknown |
+| Look | primitives, extrusions and curves: blocky, fine at aerial scale | more organic, baked lighting and holes |
+| GPU | none (a render loop to look at it) | 8 to 29 GB per run |
+| Best for | vehicles, stalls, tanks, walls, signs at aerial scale | organic or cluttered ground-level props |
+
+Proposal: do both and compare (FRK-130 for the code route, FRK-122 for image-to-3D). The code route is the better
+first bet for aerial-scale props because it has no licence risk, is deterministic and parametric, and is cheap to
+test. The loop needs Blender to render what the LLM wrote; locally there is none, so that loop runs on a pod
+unless Jian allows a headless Blender on this machine.
 
 ## What to generate and what to keep procedural
 
