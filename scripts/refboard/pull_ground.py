@@ -173,8 +173,8 @@ def main() -> int:
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "EVAL_ONLY.txt").write_text(
-        "private evaluation and looking only: never train, fine-tune or condition a model on these\n"
-        "photos, and never redistribute, commit or ship them. Licences are in each metadata file.\n"
+        "private evaluation and looking only: never train, fine-tune or condition a model\n"
+        "on these photos, and never redistribute, commit or ship them. Licences are in each metadata file.\n"
     )
     total = commons(args.out, args.commons_per_place)
     tok = token()
