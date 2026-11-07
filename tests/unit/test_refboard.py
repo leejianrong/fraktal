@@ -105,3 +105,26 @@ def test_unusable_chips_are_cloud_no_data_or_featureless() -> None:
     sea = np.full((64, 64, 3), 90, dtype="uint8") + rng.integers(0, 6, (64, 64, 3)).astype("uint8")
     assert refboard.usable(good)
     assert not refboard.usable(cloud) and not refboard.usable(edge) and not refboard.usable(sea)
+
+
+def test_ground_photos_are_listed_per_place_and_source_and_shown_on_the_board(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("PIL")
+    from PIL import Image
+
+    root = tmp_path / "eval" / "ground-reference"
+    root.mkdir(parents=True)
+    for name in ("mapillary__kampala__1", "mapillary__kampala__2", "mapillary__kampala__3",
+                 "commons__kampala__a", "mapillary__cebu__9"):  # fmt: skip
+        Image.fromarray(np.full((30, 40, 3), 100, dtype="uint8")).save(root / f"{name}.jpg")
+    chips = refboard.ground_chips(tmp_path, per_place=2)
+    assert [c.label for c in chips] == [
+        "commons kampala",
+        "mapillary cebu",
+        "mapillary kampala",
+        "mapillary kampala",
+    ]
+    assert chips[0].image.shape == (30, 40, 3)  # a photo keeps its aspect
+    board = refboard.write_board(tmp_path, tmp_path / "out")
+    assert "Ground level" in board.read_text()

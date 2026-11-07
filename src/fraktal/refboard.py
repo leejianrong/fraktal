@@ -146,6 +146,24 @@ def open_cities_chips(data_dir: Path, count: int, row: int = 0, rows: int = 1) -
     return spread[row * count : (row + 1) * count]
 
 
+def ground_chips(data_dir: Path, per_place: int = 2) -> list[Chip]:
+    """Street-level photos (Mapillary and Wikimedia Commons), up to ``per_place`` of each source per
+    place, in a stable order. They have no ground sample distance, so ``gsd_m`` is 0."""
+    from PIL import Image
+
+    root = data_dir / "eval" / "ground-reference"
+    seen: dict[tuple[str, str], int] = {}
+    out = []
+    for path in sorted(root.glob("*.jpg")):
+        source, place = path.name.split("__")[:2]
+        if seen.get((source, place), 0) >= per_place:
+            continue
+        seen[(source, place)] = seen.get((source, place), 0) + 1
+        label = f"{source} {place}"
+        out.append(Chip(label, np.asarray(Image.open(path).convert("RGB")), 0.0))
+    return out
+
+
 def reference_chips(
     data_dir: Path, view: str, biome: str, count: int, row: int = 0, rows: int = 1
 ) -> list[Chip]:
@@ -213,7 +231,8 @@ def write_board(data_dir: Path, out: Path) -> Path:
     from PIL import Image
 
     def figure(chip: Chip) -> str:
-        image = Image.fromarray(chip.image).resize((512, 512), Image.Resampling.LANCZOS)
+        image = Image.fromarray(chip.image)
+        image.thumbnail((640, 640), Image.Resampling.LANCZOS)  # keeps the aspect of a photo
         buf = io.BytesIO()
         image.save(buf, "JPEG", quality=84)
         data = base64.b64encode(buf.getvalue()).decode()
@@ -226,6 +245,9 @@ def write_board(data_dir: Path, out: Path) -> Path:
         ],
         "Open Cities AI: drone (ODbL-1.0)": open_cities_chips(data_dir, 24),
         "SpaceNet 2 Khartoum: satellite, per-band stretch": spacenet_chips(data_dir, 8),
+        "Ground level: Mapillary (CC BY-SA, reported) and Wikimedia Commons (licence per photo)": (
+            ground_chips(data_dir)
+        ),
     }
     seen: set[str] = set()
     body = ""
@@ -253,6 +275,7 @@ def write_board(data_dir: Path, out: Path) -> Path:
 __all__ = [
     "Chip",
     "band_ranges",
+    "ground_chips",
     "make_sheet",
     "reference_chips",
     "spacenet_view",
