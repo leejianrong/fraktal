@@ -11,6 +11,7 @@ Usage: uv run python scripts/refboard/pull_maxar.py --out data/eval/maxar-refere
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime
 import json
 import os
@@ -40,6 +41,19 @@ EVENTS = [  # tropical events; the biome each is closest to is a guess, for matc
     "Kenya-Flooding-May24",
     "Sudan-flooding-8-22-2022",
 ]
+# Approximate dates of each event, to call a scene before or after it (a scene on the day counts as
+# after). Taken from the event descriptions and public reporting, not from the scene metadata, so a
+# phase label near the date can be wrong by a few days.
+EVENT_DATES = {
+    "Indonesia-Earthquake22": "2022-11-21",  # Cianjur earthquake; the set ends a week later
+    "Typhoon-Kalmaegi-Nov-2025": "2025-11-04",
+    "Earthquake-Myanmar-March-2025": "2025-03-28",
+    "Cyclone-Senyar-Indonesia-Nov-2025": "2025-11-27",
+    "BayofBengal-Cyclone-Mocha-May-23": "2023-05-14",
+    "Kenya-Flooding-May24": "2024-04-29",  # Mai Mahiu dam burst; heavy rain from March
+    "Sudan-flooding-8-22-2022": "2022-07-01",  # start of the flood season
+}
+PAIRS_PER_EVENT = 2
 WINDOW = 1024
 CELL = 64  # thumbnail cell used to rank windows by texture, in thumbnail pixels
 
@@ -74,19 +88,30 @@ def visual_tiles(event: str) -> list[tuple[str, int]]:
     return keys
 
 
-def pick_tiles(keys: list[tuple[str, int]], n: int = 3) -> list[str]:
-    """The biggest scenes, one per area (quadkey prefix), best first."""
-    out: list[str] = []
-    seen: set[str] = set()
-    for key, _ in sorted(keys, key=lambda t: -t[1]):
-        quad = key.split("/ard/")[1].split("/")[1][:8]
-        if quad in seen:
-            continue
-        seen.add(quad)
-        out.append(key)
-        if len(out) == n * 3:  # spare candidates: some scenes are single-band
-            break
-    return out
+def plan(event: str, keys: list[tuple[str, int]]) -> list[tuple[str | None, str | None]]:
+    """Up to ``PAIRS_PER_EVENT`` (pre, post) scene keys.
+
+    The same ARD tile before and after the event comes first, since it shows the same ground twice;
+    tiles with only one side fill the rest.
+    """
+    event_date = EVENT_DATES[event]
+    tiles: dict[str, dict[str, tuple[str, int]]] = {}
+    for key, size in keys:
+        _, quad, date = key.split("/ard/")[1].split("/")[:3]
+        tiles.setdefault(quad, {})[date] = (key, size)
+
+    def best(scenes: dict[str, tuple[str, int]], after: bool) -> tuple[str, int] | None:
+        found = [v for d, v in scenes.items() if (d >= event_date) == after]
+        return max(found, key=lambda v: v[1]) if found else None
+
+    both, single = [], []
+    for scenes in tiles.values():
+        pre, post = best(scenes, False), best(scenes, True)
+        size = max(v[1] for v in (pre, post) if v)
+        (both if pre and post else single).append((size, pre and pre[0], post and post[0]))
+    chosen = sorted(both, reverse=True)[:PAIRS_PER_EVENT]
+    chosen += sorted(single, reverse=True)[: PAIRS_PER_EVENT - len(chosen)]
+    return [(pre, post) for _, pre, post in chosen]
 
 
 def windows(src: rasterio.DatasetReader) -> list[tuple[str, Window]]:
@@ -131,6 +156,53 @@ def windows(src: rasterio.DatasetReader) -> list[tuple[str, Window]]:
     ]
 
 
+def save_pair(out: Path, event: str, pre: str | None, post: str | None) -> None:
+    """Windows chosen on the first available scene, then the same ground read from the other."""
+    from fraktal.refboard import usable
+
+    scenes = {"pre": pre, "post": post}
+    with contextlib.ExitStack() as stack:
+        opened = {
+            phase: stack.enter_context(rasterio.open("/vsicurl/" + BUCKET + key))
+            for phase, key in scenes.items()
+            if key
+        }
+        opened = {p: src for p, src in opened.items() if src.count >= 3}  # skip panchromatic scenes
+        if not opened:
+            return
+        first = next(iter(opened.values()))
+        for kind, window in windows(first):
+            bounds = rasterio.windows.bounds(window, first.transform)
+            chips = {}
+            for phase, src in opened.items():
+                win = rasterio.windows.from_bounds(*bounds, transform=src.transform).round_offsets()
+                win = win.round_lengths()
+                data = src.read([1, 2, 3], window=win, boundless=False)
+                if usable(np.moveaxis(data, 0, -1)):
+                    chips[phase] = (src, win, data)
+            if len(opened) == 2 and len(chips) < 2:  # a pair needs both sides to be clear
+                continue
+            for phase, (src, win, data) in chips.items():
+                key = scenes[phase] or ""
+                scene = key.split("/ard/")[1]
+                name = f"{event}__{scene.replace('/', '_').removesuffix('-visual.tif')}__{kind}"
+                np.save(out / f"{name}.npy", data)
+                meta = {
+                    "event": event,
+                    "scene": scene,
+                    "kind": kind,
+                    "phase": phase,
+                    "event_date": EVENT_DATES[event],
+                    "paired": len(opened) == 2,
+                    "window": [win.col_off, win.row_off, win.width, win.height],
+                    "pixel_size": [abs(src.res[0]), abs(src.res[1])],
+                    "crs": str(src.crs),
+                    "bounds": list(rasterio.windows.bounds(win, src.transform)),
+                }
+                (out / f"{name}.json").write_text(json.dumps(meta) + "\n")
+                print(f"{name} {data.shape} {phase}", flush=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", type=Path, required=True)
@@ -144,31 +216,8 @@ def main() -> int:
         f"Maxar Open Data Program was accessed on {today} from https://registry.opendata.aws/maxar-open-data.\n"
     )
     for event in EVENTS:
-        kept = 0
-        for key in pick_tiles(visual_tiles(event)):
-            if kept == 3:
-                break
-            scene = key.split("/ard/")[1]
-            with rasterio.open("/vsicurl/" + BUCKET + key) as src:
-                if src.count < 3:  # panchromatic only: no colour to look at
-                    continue
-                found = windows(src)
-                kept += bool(found)
-                for kind, window in found:
-                    name = f"{event}__{scene.replace('/', '_').removesuffix('-visual.tif')}__{kind}"
-                    data = src.read([1, 2, 3], window=window)
-                    np.save(args.out / f"{name}.npy", data)
-                    meta = {
-                        "event": event,
-                        "scene": scene,
-                        "kind": kind,
-                        "window": [window.col_off, window.row_off, window.width, window.height],
-                        "pixel_size": [abs(src.res[0]), abs(src.res[1])],
-                        "crs": str(src.crs),
-                        "bounds": list(rasterio.windows.bounds(window, src.transform)),
-                    }
-                    (args.out / f"{name}.json").write_text(json.dumps(meta) + "\n")
-                    print(f"{name} {data.shape}", flush=True)
+        for pre, post in plan(event, visual_tiles(event)):
+            save_pair(args.out, event, pre, post)
     return 0
 
 

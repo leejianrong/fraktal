@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -128,3 +129,38 @@ def test_ground_photos_are_listed_per_place_and_source_and_shown_on_the_board(
     assert chips[0].image.shape == (30, 40, 3)  # a photo keeps its aspect
     board = refboard.write_board(tmp_path, tmp_path / "out")
     assert "Ground level" in board.read_text()
+
+
+def _pull_maxar() -> Any:
+    import importlib.util
+
+    path = Path(__file__).resolve().parents[2] / "scripts" / "refboard" / "pull_maxar.py"
+    spec = importlib.util.spec_from_file_location("pull_maxar", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_maxar_planner_prefers_before_and_after_scenes_of_the_same_tile() -> None:
+    pull = _pull_maxar()
+    event = "Earthquake-Myanmar-March-2025"  # 2025-03-28
+    keys = [
+        (f"events/{event}/ard/47/A/2025-02-15/x-visual.tif", 100),
+        (f"events/{event}/ard/47/A/2025-04-04/y-visual.tif", 90),
+        (f"events/{event}/ard/47/B/2025-04-04/z-visual.tif", 500),  # big, but only after the event
+        (f"events/{event}/ard/47/C/2025-01-01/p-visual.tif", 80),
+        (f"events/{event}/ard/47/C/2025-03-28/q-visual.tif", 70),  # on the day counts as after
+        (f"events/{event}/ard/47/D/2025-01-02/r-visual.tif", 60),
+    ]
+
+    def k(tile: str, date: str, name: str) -> str:
+        return f"events/{event}/ard/47/{tile}/{date}/{name}-visual.tif"
+
+    plan = pull.plan(event, keys)
+    assert plan == [
+        (k("A", "2025-02-15", "x"), k("A", "2025-04-04", "y")),
+        (k("C", "2025-01-01", "p"), k("C", "2025-03-28", "q")),
+    ]
+    only_single = pull.plan(event, keys[2:3] + keys[5:])
+    assert only_single == [(None, keys[2][0]), (keys[5][0], None)]
