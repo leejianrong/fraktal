@@ -56,6 +56,22 @@ PROPS = [
 ]
 
 
+# Expected length, width, height in metres, for the proportion check in meshqa. Rough, from what
+# these things are; the check is a filter and a person still looks at every mesh.
+EXPECTED = {
+    "motorbike-red": (1.9, 0.8, 1.1), "motorbike-scooter": (1.8, 0.7, 1.1),
+    "motorbike-cargo": (2.1, 0.8, 1.3), "tuktuk-yellow": (2.7, 1.4, 1.7),
+    "tuktuk-green": (2.7, 1.4, 1.7), "tuktuk-blue": (2.8, 1.4, 1.7),
+    "minibus-white": (5.5, 2.0, 2.5), "minibus-colour": (5.6, 2.0, 2.5),
+    "pickup-white": (5.3, 1.9, 1.8), "pickup-red": (5.3, 1.9, 1.8),
+    "stall-tarp": (2.5, 1.5, 2.3), "stall-kiosk": (2.4, 2.0, 2.4),
+    "stall-umbrella": (2.6, 1.6, 2.4),
+    "tank-black": (1.8, 1.0, 1.0), "tank-blue": (1.7, 1.1, 1.1),
+    "container-rust": (6.1, 2.4, 2.6), "container-blue": (6.1, 2.4, 2.6),
+    "sign-billboard": (4.0, 0.8, 3.0), "sign-shop": (2.0, 0.3, 1.5), "sign-street": (3.0, 0.8, 0.5),
+}  # fmt: skip
+
+
 def vram_gb() -> float:
     import torch
 
@@ -169,7 +185,7 @@ def make_meshes(out: Path, props: list[tuple[str, str, float]], step1x: Path) ->
                 raw = trimesh.util.concatenate(list(raw.geometry.values()))
             seconds = round(time.perf_counter() - t, 2)
             raw.export(out / "meshes_raw" / f"{name}.glb")  # kept even if our own QA fails
-            final, report = meshqa.process(raw, size_m)
+            final, report = meshqa.process(raw, size_m, EXPECTED.get(name))
             final.export(out / "meshes" / f"{name}.glb")
             report.update(prompt=prompt, gen_s=seconds)
             rows.append(
@@ -225,7 +241,7 @@ def main() -> int:
     result["total_s"] = round(time.perf_counter() - t0, 1)
     (args.out / "trial.json").write_text(json.dumps(result, indent=1) + "\n")
     print("RP_REPORT_BEGIN")
-    print(json.dumps({k: v for k, v in result.items() if k != "prompts"}, indent=1)[:6000])
+    print(json.dumps({k: v for k, v in result.items() if k != "prompts"}, indent=1))
     print("RP_REPORT_END")
     return 0 if "error" not in str(result.get("meshes", ""))[:200] else 1
 

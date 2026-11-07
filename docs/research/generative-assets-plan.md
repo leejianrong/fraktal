@@ -38,9 +38,9 @@ and TripoSG's default background remover needs a commercial agreement).
 
 | Model | Job | Licence reported | Plan |
 |---|---|---|---|
-| TRELLIS.2 (Microsoft) | image to 3D with materials | MIT, code and weights; the original pipeline used nvdiffrast and nvdiffrec, which may be non-commercial, and a reimplementation replaces them; about 24 GB of GPU memory | first choice, check dependencies |
-| Step1X-3D | image to 3D, geometry and texture | Apache-2.0; about 27 to 29 GB | second choice |
-| TripoSG | image to 3D, geometry only | MIT | needs a texturing step |
+| TRELLIS.2 (Microsoft) | image to 3D with materials | MIT code and weights; imports nvdiffrast (NVIDIA non-commercial) only for texture baking, previews and GLB export, not for geometry; default background remover RMBG-2.0 is excluded; image encoder DINOv3 is gated; 24 GB or more of GPU memory | held: needs Jian's Hugging Face token and acceptance of Meta's DINOv3 licence |
+| Step1X-3D | image to 3D, geometry and texture | Apache-2.0 code and weights; texture stage reuses Hunyuan3D tools and nvdiffrast | **used**, geometry stage only (FRK-122) |
+| TripoSG | image to 3D, geometry only | MIT at the repository root, but `triposg/` carries the Tencent FlashVDM licence (no use in the EU, UK or South Korea; no use of outputs to improve other AI models) and it needs diso (CC BY-NC) | **excluded** (ADR-0013) |
 | Pixal3D, Direct3D-S2 | image to 3D | MIT | watch, not first |
 | Hunyuan3D 2.1 | image to 3D | Tencent community licence, not valid in the EU, UK or South Korea, with a user threshold | excluded (ADR-0010) |
 | Stable Fast 3D | image to 3D | Stability community licence, free under $1M revenue | excluded |
@@ -100,8 +100,8 @@ heuristic; compare both), remove baked light, check the seam and the histogram, 
 Single-image PBR derivation is approximate, so real relief stays geometry where it matters.
 
 **Image to 3D (FRK-122).** A prompt-made image of one object on a plain background, background removal, image
-to 3D, then clean-up in headless Blender, scale from a size table, QA, manifest row. Background-removal models
-need a licence check too.
+to 3D, then clean-up, scale from a size table, QA, manifest row. Background-removal models need a licence check
+too (two default ones are excluded).
 
 **Text to 3D (FRK-123).** The same, with FLUX schnell making the image, seeded and logged.
 
@@ -115,11 +115,69 @@ hashes kept in the manifest; that is a later decision.
 **Variation (FRK-128).** A seeded sampler picks assets and varies scale, rotation, tint and wear, and reports
 how often each asset repeats in a tile, since twenty assets repeated everywhere look fake.
 
+## First trial results (FRK-122, 2026-11-07)
+
+Stack: SDXL base 1.0 (30 steps, 1024 px), BiRefNet cut-out, Step1X-3D-Geometry-1300m (50 steps, octree 384,
+marching cubes), then our own clean-up and checks. 20 prompted props (motorbikes, tuk-tuks, minibuses, pickups,
+stalls, water tanks, containers, signs) on one RunPod A40 (48 GB, $0.59 an hour). Images:
+[props-trial-images.jpg](../img/props-trial-images.jpg); meshes with the QA verdict:
+[props-trial-meshes.jpg](../img/props-trial-meshes.jpg).
+
+| Step | Time | GPU memory |
+|---|---|---|
+| SDXL image | 6.8 s each (model load 10 to 14 s) | 11.2 GB |
+| BiRefNet cut-out | 0.55 s each | 1.7 GB |
+| Step1X-3D geometry | **72.6 s each** (65.5 to 85.5; model load 8 to 12 s) | 7.4 GB |
+| Whole run | 47 minutes: 165 s install, 155 s images, 17 s cut-outs, about 24 minutes of meshes | |
+
+Cost: about $0.46 for the successful run, and about $0.8 for the six runs it took to get one working (estimated
+from pod uptime times the hourly rate, not from an invoice). At about 50 meshes per pod hour, generation alone is
+about $0.012 a mesh plus 7 s for its image. How much of the 73 s is the CPU marching cubes and how much the GPU
+was not measured.
+
+What came out. Raw meshes have 650k to 1.26M faces (measured on the 11 raw meshes that arrived), so they are
+decimated to 20k faces (about 350 KB each) before use. The motorbikes, tuk-tuks, water tanks, the white minibus
+and pickup, and the market stalls are recognisable and about the right shape. Wrong: the shop sign is a wireframe
+cube; both containers are near-cubes (5.9 x 6.1 x 5.9 m, not 6.1 x 2.4 x 2.6), because a three-quarter view
+foreshortens the depth; the red pickup is two trucks (its image had two); both minibuses are too wide. The
+quadric decimation of a fragmented 1M-face surface leaves holes in thin roofs (the stalls). Every mesh is grey:
+this route has no colour, so colour must come from our materials, which is not built yet.
+
+QA. With only generic checks, all 20 passed, including the cube-frame sign. With expected length, width and
+height per class (`EXPECTED` in `props_trial.py`, compared after scaling to the longest side), 12 pass and 8 are
+flagged: both containers, both minibuses, the two-truck pickup, the sign cube, and the street sign, which is a
+false alarm from my crude expected size. A proportion prior is cheap and catches what the eye catches; a person
+still has to look.
+
+What went wrong, in order (each cost a run of a few cents):
+
+- Step1X-3D's `check_inputs` is inverted: it raises for a PIL image or a tensor and accepts only a file path.
+- It imports training code at start-up (`pytorch_lightning`, `typeguard`, `streaming` from `mosaicml-streaming`)
+  and `pymeshlab`, whose file plugins fail to load on the pod image; `remove_floater` then threw. Fixed by
+  installing the imports, switching its `pymeshlab` post-processing off and doing floaters and decimation
+  ourselves. The job's early import check with automatic `pip install` of missing modules worked well.
+- I launched run 5 while run 4's driver was alive; both use the pod name `fraktal-props`, and `rp up` reuses a
+  pod by name, so they collided. Check for running drivers before a launch.
+- The 288 MB artifact (raw meshes included) stalled near the end of the relay transfer, and the pod's sender then
+  timed out. The truncated archive still gave the images, cut-outs and all 20 final meshes, and the per-mesh
+  numbers came from the pod log. My own report printing was cut at 6,000 characters, which lost the full QA
+  table. Next time the artifact leaves out raw meshes, and the full report is printed.
+- A relay-get that dies (it was killed once, exit 137) tore down a healthy pod; the driver now retries while the
+  pod is up.
+
+Not done against the card: no Blender render sheet (the sheet is drawn with matplotlib; importing the meshes
+into Blender is FRK-124), and TRELLIS.2 was not run, because of the gated DINOv3 weights. Its nvdiffrast question
+is answered in ADR-0013.
+
+Verdict so far: image-to-3D works well enough to be worth building on for vehicles, tanks and stalls, with a
+proportion check and a human look in the loop, and it is clearly not a fit for flat things with text (signs).
+The cheap, deterministic code route (FRK-130) is still untested against it.
+
 ## Order of work
 
 1. FRK-121: read the licences, write ADR-0013. No GPU, can start now.
 2. FRK-126 (textures) and FRK-125 (manifest) once the licences are read: cheap, and textures feed FRK-109.
-3. FRK-122 (pod trial, small cost, unknown until measured), then FRK-124 and FRK-123.
+3. FRK-122 done (above); next FRK-124 (import, scale, instancing, labels) and FRK-123.
 4. FRK-127 after Jian's FRK-103 choice; FRK-128 after FRK-124 and FRK-127; FRK-129 to look at the result.
 
 Realism cards consume these: FRK-109 and FRK-110 want the textures, FRK-112 wants the props, FRK-115 wants both.
