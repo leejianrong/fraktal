@@ -166,6 +166,7 @@ def make_meshes(out: Path, props: list[tuple[str, str, float]], step1x: Path) ->
             if isinstance(raw, trimesh.Scene):
                 raw = trimesh.util.concatenate(list(raw.geometry.values()))
             seconds = round(time.perf_counter() - t, 2)
+            raw.export(out / "meshes_raw" / f"{name}.glb")  # kept even if our own QA fails
             final, report = meshqa.process(raw, size_m)
             final.export(out / "meshes" / f"{name}.glb")
             report.update(prompt=prompt, gen_s=seconds)
@@ -183,7 +184,13 @@ def make_meshes(out: Path, props: list[tuple[str, str, float]], step1x: Path) ->
                 "gen_s": seconds,
             }
         per[name], reports[name] = seconds, report
-        log(event="props_mesh", name=name, seconds=seconds, ok=report["pass"])
+        log(
+            event="props_mesh",
+            name=name,
+            seconds=seconds,
+            ok=report["pass"],
+            reasons=report["reasons"],
+        )
     if rows:
         meshqa.sheet(rows).save(out / "sheet_meshes.jpg", quality=88)
     return {"load_s": round(load, 1), "per_mesh_s": per, "vram_gb": vram_gb(), "qa": reports}
@@ -195,7 +202,7 @@ def main() -> int:
     parser.add_argument("--step1x", type=Path, required=True)
     parser.add_argument("--count", type=int, default=len(PROPS))
     args = parser.parse_args()
-    for sub in ("images", "cutouts", "meshes"):
+    for sub in ("images", "cutouts", "meshes", "meshes_raw"):
         (args.out / sub).mkdir(parents=True, exist_ok=True)
     props = PROPS[: args.count]
     result: dict[str, object] = {"prompts": {n: p for n, p, _ in props}}
