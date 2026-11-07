@@ -26,6 +26,7 @@ train = [
 ]
 report = [
     "matplotlib>=3.9",
+    "pillow>=10",
     "reportlab>=4.2",
 ]
 

@@ -641,6 +641,9 @@ def _review(args: argparse.Namespace) -> Result:
             written["sheet"] = str(sheet)
         if args.board:
             written["board"] = str(refboard.write_board(args.data_dir, out))
+    except ImportError as err:
+        msg = "Pillow is missing; run `make install-report`"
+        raise CliError(ExitCode.FAILURE, "review_failed", msg) from err
     except (OSError, ValueError, KeyError) as err:
         raise CliError(ExitCode.FAILURE, "review_failed", str(err)) from err
     if not written:

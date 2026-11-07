@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 import rasterio
 from rasterio.transform import from_origin
 
@@ -50,6 +51,7 @@ def test_no_data_is_ignored_in_the_ranges(tmp_path: Path) -> None:
 
 def _fake_data(data: Path) -> Path:
     """Reference chips for two biomes and renders for them, all small."""
+    pytest.importorskip("PIL")
     from PIL import Image
 
     maxar = data / "eval" / "maxar-reference"
@@ -70,12 +72,12 @@ def _fake_data(data: Path) -> Path:
 
 
 def test_review_writes_a_sheet_with_a_row_per_biome_and_real_chips_on_each(tmp_path: Path) -> None:
-    from PIL import Image
-
     from fraktal.cli import main
 
     data = tmp_path / "data"
     synthetic = _fake_data(data)
+    from PIL import Image
+
     args = ["review", "--data-dir", str(data), "--synthetic", str(synthetic), "--per-row", "2"]
     assert main([*args, "--board"]) == 0
     sheet = Image.open(data / "review" / "sheet_satellite.jpg")
