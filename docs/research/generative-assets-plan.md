@@ -173,6 +173,39 @@ Verdict so far: image-to-3D works well enough to be worth building on for vehicl
 proportion check and a human look in the loop, and it is clearly not a fit for flat things with text (signs).
 The cheap, deterministic code route (FRK-130) is still untested against it.
 
+## Code-written props (FRK-130, 2026-11-08)
+
+`src/fraktal/propgen.py` holds five parametric generators (container, water tank, market stall, signboard,
+tuk-tuk) in plain numpy, seeded through `substream`. `scripts/props/bpy_build.py` builds them in Blender,
+renders a ground and an aerial view with Cycles and exports a GLB each; the contact sheet of ten variants of
+each is `docs/img/propgen-trial.jpg`. I wrote the generators myself in one session, so this measures what an
+LLM-authored generator looks like, not an autonomous agent loop (BlenderMCP or LL3M style, not tried).
+
+| | Code route (FRK-130) | Image to 3D (FRK-122) |
+|---|---|---|
+| Time per asset | 0.2 to 2.3 ms to generate, 0.84 s to render two views and export, 16 vCPU | 72.6 s of GPU, plus 7 s image |
+| Pod cost | about $0.02 for all 50 variants of compute; three runs with boot about $0.15 (uptime x rate, not billed) | about $0.012 per mesh of GPU time |
+| Size and proportions | exact by construction, tested (15 unit tests: determinism, size limits, ground contact, outward faces) | 8 of 20 off on the first run; best of two seeds fixed all 8 by eye |
+| Colour and materials | flat colour with roughness, set per part | none, grey |
+| Surface and detail | clean, blocky, toy-like (tuk-tuk, stall, tank); corrugation on containers is faint | organic, far more detail, but holes and lumps |
+| Variation | only what the parameters give: a container has two (length, colour) | every seed differs |
+
+What it shows: the code route makes clean, correctly scaled, coloured assets for almost nothing, but they look
+simple, and variation is capped by how many parameters we write. It is a good fit for boxy, repetitive things
+that must have exact dimensions (containers, tanks, signboards, stall frames) and a poor fit for vehicles, where
+the tuk-tuk looks like a child's model next to the generated one.
+
+Defects I saw on the sheet, not fixed: white signboard faces vanish against the pale sky, the tank lid and ribs
+are barely visible at aerial scale, and the container corrugation needs bevels to read. Three renders were
+needed to get a usable exposure; the first two clipped white and black plastic to the background.
+
+Route by asset, as a first answer:
+
+- Containers, tanks, signboards, stalls: code, with more parameters (door states, rust, dents, stencils).
+- Vehicles and anything organic: image to 3D, best of N seeds, then the proportion check.
+- Generic clutter that matches our look: CC0 libraries, once surveyed.
+- Not tried: texturing the generated meshes with our own materials (FRK-126), which would close the colour gap.
+
 ## Order of work
 
 1. FRK-121: read the licences, write ADR-0013. No GPU, can start now.
