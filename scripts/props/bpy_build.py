@@ -30,6 +30,7 @@ def reset() -> None:
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
     scene.view_settings.view_transform = "Standard"
+    scene.view_settings.exposure = -1.3  # the Nishita sky plus sun clips white plastic otherwise
     world = bpy.data.worlds.new("sky")
     scene.world = world
     world.use_nodes = True
@@ -38,7 +39,7 @@ def reset() -> None:
         sky.outputs["Color"], world.node_tree.nodes["Background"].inputs["Color"]
     )
     sun = bpy.data.objects.new("sun", bpy.data.lights.new("sun", "SUN"))
-    sun.data.energy = 3.0
+    sun.data.energy = 2.0
     sun.rotation_euler = (math.radians(50), 0, math.radians(35))
     scene.collection.objects.link(sun)
 
@@ -69,7 +70,7 @@ def build(prop: dict, mats: dict) -> list:
         [(-s, -s, -0.001), (s, -s, -0.001), (s, s, -0.001), (-s, s, -0.001)], [], [(0, 1, 2, 3)]
     )
     gobj = bpy.data.objects.new("ground", ground)
-    gobj.data.materials.append(material("dirt", (0.35, 0.29, 0.2), 0.95, 0.0))
+    gobj.data.materials.append(material("dirt", (0.22, 0.18, 0.12), 0.95, 0.0))
     bpy.context.scene.collection.objects.link(gobj)
     return objs
 
