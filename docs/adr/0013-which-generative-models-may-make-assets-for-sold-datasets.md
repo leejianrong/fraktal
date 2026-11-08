@@ -1,6 +1,6 @@
 # ADR-0013: Which generative models may make assets for sold datasets
 
-- Status: Proposed (2026-11-07, drafted from primary texts; corrected after the FRK-122 trial; Jian to accept)
+- Status: Proposed (2026-11-07, drafted from primary texts; corrected after the FRK-122 trial; TRELLIS and DINOv3 excluded 2026-11-08; Jian to accept)
 - Date: 2026-11-07
 - Deciders: Jian
 
@@ -42,16 +42,26 @@ files are re-read when the repositories are cloned for the FRK-122 trial.
 1. **Allowed:** text to image with FLUX.1 schnell or SDXL; background removal with BiRefNet; image to 3D
    geometry with Step1X-3D's geometry stage, run with its marching-cubes extractor and with its `pymeshlab`
    post-processing switched off.
-2. **TRELLIS.2 is held, not excluded.** Its image-to-3D path avoids nvdiffrast, but it needs the gated DINOv3
-   weights (Jian accepts Meta's licence and provides a Hugging Face token) and BiRefNet in place of RMBG-2.0.
-   It would give per-voxel colours, which our geometry-only route lacks.
+2. **TRELLIS (v1 and TRELLIS.2) and DINOv3 are not planned (Jian, 2026-11-08), for licensing concerns:**
+   - DINOv3 (TRELLIS.2's image encoder) has a custom Meta licence. It allows commercial use, but its military,
+     weapons and espionage clauses are vague for a dataset sold to buyers we do not control, Meta can amend the
+     terms with immediate effect (section 8), we indemnify Meta (section 5b), and the weights are gated behind a
+     personal account. Replacing the encoder would mean retraining TRELLIS.2.
+   - TRELLIS v1 uses DINOv2 (`dinov2_vitl14_reg` in its `pipeline.json`) and MIT code and weights, but its
+     dependencies include diffoctreerast (custom non-commercial research licence), nvdiffrast (NVIDIA
+     non-commercial, texture baking and GLB export) and a modified FlexiCubes in the mesh decoder path. The
+     FlexiCubes and mip-splatting licences were not read, and will not be unless this is reopened.
+   - Reopen only if a legal review clears these, or if a permissive replacement of the same quality appears.
 3. **Texture comes from our own materials and generated textures** (FRK-126), not from a model's texture
    stage, until those stages are cleared.
 4. **Excluded:** TripoSG (Tencent FlashVDM licence in `triposg/`, diso), RMBG-1.4 and RMBG-2.0, Hunyuan3D,
-   Stable Fast 3D, Cube 3D, FLUX.1 dev and hosted generation services.
+   Stable Fast 3D, Cube 3D, FLUX.1 dev and hosted generation services, TRELLIS and DINOv3 (decision 2).
 5. **The manifest's generator block lists every component** of the pipeline that made the asset (image
    model, background remover, 3D model) with versions, so an exclusion found later finds the assets it hit.
-6. A model version change means the licence is read again, including every licence file in the repository,
+6. **Code-written props are the preferred route** where the shape allows (FRK-130, Jian 2026-11-08): they carry no
+   model licence, are deterministic and exact in size. Their look is simple for now and is to be improved with
+   textures and detail in Blender.
+7. A model version change means the licence is read again, including every licence file in the repository,
    not only the root one.
 
 ## Consequences
@@ -62,6 +72,6 @@ files are re-read when the repositories are cloned for the FRK-122 trial.
   Cloning the repository showed `triposg/LICENSE` is a different, territory-limited licence with a clause
   against improving other AI models. The lesson is in decision 6: read every licence file, and the code
   that imports the dependencies, not the README summary.
-- Still to read: the FlexGEMM and CuMesh licences, the BiRefNet licence file beyond its Hugging Face
+- Still to read: the BiRefNet licence file beyond its Hugging Face
   metadata, the RMBG-2.0 terms in full, and the T5 encoder weights Step1X-3D downloads.
 - Training-data provenance of these models is not assessed here.
