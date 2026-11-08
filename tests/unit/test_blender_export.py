@@ -192,7 +192,7 @@ def test_label_and_depth_looks_cover_every_moving_agent_type_without_a_name_list
 
     source = (Path(__file__).parents[2] / "src/fraktal/blender_scene.py").read_text()
     assert '"traffic", "people")' not in source
-    assert source.count('"props", *AGENTS)') == 2
+    assert source.count('"props", "walls", *AGENTS)') == 2
 
 
 def test_props_are_exported_as_arrays_with_catalogue_classes(tmp_path: Path) -> None:
@@ -217,3 +217,22 @@ def test_props_are_exported_as_arrays_with_catalogue_classes(tmp_path: Path) -> 
         == props
     )
     assert export_scene(world, tmp_path / "p3", CENTER, 400.0, 1.0, prop_density=0.0)["props"] == []
+
+
+def test_compound_walls_are_exported_per_biome_share(tmp_path: Path) -> None:
+    import numpy as np
+
+    world = tmp_path / "khartoum"
+    generate_world(world, CENTER, 3, biomes.resolve("khartoum"))
+    out = tmp_path / "w"
+    scene = export_scene(world, out, CENTER, 400.0, 1.0, wall_share=1.0)
+    walls = scene["walls"]
+    assert len(walls) > 5
+    owner = np.load(out / "walls_face_owner.npy")
+    assert set(owner.tolist()) == set(range(len(walls)))
+    assert (
+        export_scene(world, tmp_path / "w2", CENTER, 400.0, 1.0, wall_share=1.0)["walls"] == walls
+    )
+    assert export_scene(world, tmp_path / "w3", CENTER, 400.0, 1.0, wall_share=0.0)["walls"] == []
+    default = export_scene(world, tmp_path / "w4", CENTER, 400.0, 1.0)["walls"]
+    assert 0 < len(default) < len(walls)  # the khartoum share is under 1

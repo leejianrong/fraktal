@@ -19,7 +19,7 @@ import numpy as np
 import rasterio
 from rasterio.enums import Resampling
 
-from fraktal import building_grammar, props_scene, trees3d
+from fraktal import building_grammar, compounds, props_scene, trees3d
 from fraktal import heights as heights_mod
 from fraktal.coast import TIDAL_FLAT
 from fraktal.ground_soil import apply_soil, soil_style
@@ -27,7 +27,7 @@ from fraktal.ids import substream
 from fraktal.kernels.noise import lattice_shape, value_noise
 from fraktal.landcover_gen import WATER
 from fraktal.objects import CAR_COLOURS, place
-from fraktal.procedural import read_buildings, read_fields, read_roads
+from fraktal.procedural import read_buildings, read_fields, read_parcels, read_roads
 from fraktal.render import (
     DEFAULT_HEIGHT_M,
     FISHPOND_WATER,
@@ -246,6 +246,7 @@ def export_scene(
     tree_density: float = 1.0,
     vehicle_density: float = 1.0,
     prop_density: float = 60.0,
+    wall_share: float | None = None,
     height_profile: str = "auto",
 ) -> dict[str, Any]:
     """Write the tile around ``center_lonlat`` and return the scene description.
@@ -335,6 +336,10 @@ def export_scene(
     vehicles = _vehicles(surface, road, mask, gsd_m, side, vehicle_density, seed)
     poles = _poles(roads, mask, west, south, gsd_m, side)
     props = props_scene.sample(surface, mask, road, gsd_m, side, prop_density, seed)
+    walls = compounds.build(
+        read_parcels(world_dir).to_crs(epsg), local, roads, (west, south), side * gsd_m, seed,
+        compounds.share_for(biome) if wall_share is None else wall_share,
+    )  # fmt: skip
     buildings = []
     for row in local.itertuples():
         if row.geometry.is_empty or not row.geometry.intersects(
@@ -385,6 +390,9 @@ def export_scene(
     packed = props_scene.pack(props)
     for key in ("vertices", "faces", "face_material", "face_owner"):
         np.save(out_dir / f"props_{key}.npy", packed[key])
+    packed_walls = compounds.pack(walls)
+    for key in ("vertices", "faces", "face_material", "face_owner"):
+        np.save(out_dir / f"walls_{key}.npy", packed_walls[key])
     np.save(out_dir / "ground.npy", ground)
     np.save(out_dir / "ground_rough.npy", rough)
     terrain = None
@@ -413,6 +421,8 @@ def export_scene(
         "poles": poles,
         "props": props,
         "prop_materials": packed["materials"],
+        "walls": walls,
+        "wall_materials": packed_walls["materials"],
     }
     if terrain:
         scene["terrain"] = terrain
