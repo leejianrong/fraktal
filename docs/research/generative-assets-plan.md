@@ -173,6 +173,17 @@ Verdict so far: image-to-3D works well enough to be worth building on for vehicl
 proportion check and a human look in the loop, and it is clearly not a fit for flat things with text (signs).
 The cheap, deterministic code route (FRK-130) is still untested against it.
 
+### Retry of the flagged props (2026-11-08)
+
+The 7 props that meshqa flagged (both minibuses, red pickup, both containers, shop sign, street sign) plus the
+cube-shaped umbrella stall were re-run with prompts that state the shape and a side-on view, two seeds each
+(`--retry`, 16 meshes, about 28 minutes on an A40, roughly $0.28 by uptime times rate). 11 of 16 pass the
+proportion check, and by eye every prop has at least one usable seed. Containers stay a coin flip (2 of 4 are
+proper boxes), and the check is too strict on a thin street sign. Holes from decimation to 20k faces remain.
+A vision-model reading of the same sheet (one subagent, not blind: the sheet shows the check's FAIL flags)
+rejected the same two cubes, marked 5 meshes usable and 9 as needing fixes for holes and lumps. Best of N seeds
+with the check, then a look, is the working method.
+
 ## Code-written props (FRK-130, 2026-11-08)
 
 `src/fraktal/propgen.py` holds five parametric generators (container, water tank, market stall, signboard,
