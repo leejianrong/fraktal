@@ -91,7 +91,7 @@ def test_wall_kinds_follow_the_biome_and_sheet_fences_are_thin_and_metal() -> No
     informal, khartoum = _many("informal_settlement"), _many("khartoum")
 
     def sheet(cs: list[dict[str, Any]]) -> float:
-        return sum(c["kind"] == "sheet" for c in cs) / len(cs)
+        return float(sum(c["kind"] == "sheet" for c in cs)) / len(cs)
 
     assert sheet(informal) > 0.4 > 0.2 > sheet(khartoum) > 0.0
     assert {c["kind"] for c in informal + khartoum} == set(compounds.KINDS)
