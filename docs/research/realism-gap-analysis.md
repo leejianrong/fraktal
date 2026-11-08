@@ -283,3 +283,31 @@ Details in the ADR-0012 addendum 2.
   or parked car is placed on one (`test_cars_and_people_still_route_on_an_organic_informal_settlement`). Not done:
   people walking along footpaths, junction geometry (out of scope), and parcels and walls ignore footpaths. The
   bend test uses a strong setting; at the biome settings the curves are gentle and the plan view is the real check.
+- **FRK-126 follow-up (ground textures and a learned-normal comparison, 2026-11-08):** SDXL base 1.0 on an A40
+  (4.6 s per 1024 px image, 16 images, about 75 s of GPU time) made four roles with four seeds each, wrapped with
+  circular padding (`scripts/textures/sdxl_ground.py`, `scripts/runpod/ground_textures_run.sh`;
+  `docs/img/ground-textures.jpg`, left: rows are red earth, tan soil, scrub, sand plaster). Results: `soil_red`
+  seed 0 is plain fine-grained red earth, seeds 1 to 3 are cracked dried mud; `soil_tan` came out as river
+  cobbles in all four seeds, so it is rejected; `soil_scrub` ignored the grass tufts and gave earth and cracked mud
+  again; `sand plaster` is nearly flat. Seam scores 0.73 to 1.14 (about 1 is seamless); the worst (0.73, a tan
+  seed) was not used. **Learned normals (Marigold normals v1.1, OpenRAIL++-M, same licence family as SDXL; its card
+  lists no training data, which I could not check) were compared with the derived ones on seed 0 of each role
+  (right: texture, derived normal, Marigold normal): the correlation is 0.00 on red earth, scrub and plaster, where
+  Marigold returns a flat map, and 0.40 (x) and 0.59 (y) on the cobbles. It reads scene geometry, not
+  microrelief, so for these textures the procedural derivation stays and Marigold is not used.** Kept and used:
+  `gen-soil-red` (seed 0) with derived maps, applied in `blender_scene.add_ground_detail` as fine grain on the
+  ground (the colour follows the texture's lightness by 35 percent at a 2 m tile, and its normal map tilts the
+  surface), in world metres so it follows the terrain. Checked on a pod on two Khartoum tiles at 0.15 m: the ground
+  is a pinker red-brown with cream patches, and the grain is barely visible at that scale (a 2 m tile is about 13
+  pixels), so it mostly adds a little tone. The cracked mud is not in the library. Not done: a texture for the
+  muted-green patches, SDXL tin or plaster with own maps (the existing ones are used), checking the ground grain
+  at the 3 cm scale.
+- **FRK-128 (prop sampler variation, 2026-11-08):** `props_scene.sample` now gives each prop a size (log-normal,
+  4 percent, clamped to 0.92 to 1.08), one of four brightness steps and one of three wear levels (a darker colour
+  and more roughness), drawn from their own stream (`props:vary`) so where props go is unchanged. `pack` applies the
+  size and writes one material per distinct look, named `<part>~t<tint>w<wear>`, so Blender reads the same
+  arrays. `repeat_stats` reports `distinct_shapes`, `distinct_looks`, `shape_repeat_rate` and `look_repeat_rate`
+  per tile; `blender_export` writes it as `props_stats` in `scene.json`. On a 300 m informal-settlement tile at
+  60 per km2 the stats were 5 props, 4 shapes, so a shape repeat rate of 0.2 and a look repeat rate of 0.0.
+  Golden test: `test_golden_sampler_output`. A scaled prop can reach up to 8 percent past its clearance box, which
+  is a few centimetres to 0.25 m for a container; the clearance test was left as it was so placements stay the same.
