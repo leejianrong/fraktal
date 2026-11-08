@@ -1,6 +1,6 @@
 # ADR-0013: Which generative models may make assets for sold datasets
 
-- Status: Proposed (2026-11-07, drafted from primary texts; corrected after the FRK-122 trial; TRELLIS and DINOv3 excluded 2026-11-08; Jian to accept)
+- Status: Accepted (2026-11-09; drafted 2026-11-07 from primary texts, corrected after the FRK-122 trial, TRELLIS and DINOv3 excluded 2026-11-08)
 - Date: 2026-11-07
 - Deciders: Jian
 
@@ -37,7 +37,7 @@ files are re-read when the repositories are cloned for the FRK-122 trial.
 | FLUX.1 schnell, SDXL base 1.0 | Apache-2.0 and CreativeML Open RAIL++-M, read from the licence files in FRK-59 | allowed |
 | Hunyuan3D, Stable Fast 3D, Cube 3D, FLUX.1 dev, hosted APIs (Meshy, Tripo, Rodin) | territory and user limits, revenue cap, research only, non-commercial model terms, per-service terms (FRK-59 and web summaries) | excluded until their texts are read |
 
-## Decision (proposed)
+## Decision
 
 1. **Allowed:** text to image with FLUX.1 schnell or SDXL; background removal with BiRefNet; image to 3D
    geometry with Step1X-3D's geometry stage, run with its marching-cubes extractor and with its `pymeshlab`
