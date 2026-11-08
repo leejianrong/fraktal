@@ -38,7 +38,7 @@ and TripoSG's default background remover needs a commercial agreement).
 
 | Model | Job | Licence reported | Plan |
 |---|---|---|---|
-| TRELLIS.2 (Microsoft) | image to 3D with materials | MIT code and weights; imports nvdiffrast (NVIDIA non-commercial) only for texture baking, previews and GLB export, not for geometry; default background remover RMBG-2.0 is excluded; image encoder DINOv3 is gated; 24 GB or more of GPU memory | held: needs Jian's Hugging Face token and acceptance of Meta's DINOv3 licence |
+| TRELLIS.2 (Microsoft) | image to 3D with materials | MIT code and weights; imports nvdiffrast (NVIDIA non-commercial) only for texture baking, previews and GLB export, not for geometry; default background remover RMBG-2.0 is excluded; image encoder DINOv3 is gated; 24 GB or more of GPU memory | **excluded** (Jian, 2026-11-08): DINOv3 licence concerns; TRELLIS v1 has non-commercial dependencies (ADR-0013) |
 | Step1X-3D | image to 3D, geometry and texture | Apache-2.0 code and weights; texture stage reuses Hunyuan3D tools and nvdiffrast | **used**, geometry stage only (FRK-122) |
 | TripoSG | image to 3D, geometry only | MIT at the repository root, but `triposg/` carries the Tencent FlashVDM licence (no use in the EU, UK or South Korea; no use of outputs to improve other AI models) and it needs diso (CC BY-NC) | **excluded** (ADR-0013) |
 | Pixal3D, Direct3D-S2 | image to 3D | MIT | watch, not first |
@@ -210,7 +210,8 @@ Defects I saw on the sheet, not fixed: white signboard faces vanish against the 
 are barely visible at aerial scale, and the container corrugation needs bevels to read. Three renders were
 needed to get a usable exposure; the first two clipped white and black plastic to the background.
 
-Route by asset, as a first answer:
+Route by asset, as a first answer (Jian, 2026-11-08: happy with this trial; use the code route more, and make its
+look richer later with textures and detail in Blender; TRELLIS and DINOv3 are excluded, see ADR-0013):
 
 - Containers, tanks, signboards, stalls: code, with more parameters (door states, rust, dents, stencils).
 - Vehicles and anything organic: image to 3D, best of N seeds, then the proportion check.
