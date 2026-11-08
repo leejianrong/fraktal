@@ -315,12 +315,13 @@ def export_scene(
         ground = np.clip(ground * (1.0 + modulation)[..., None], 0.0, 1.0).astype("float32")
     walls = compounds.build(
         read_parcels(world_dir).to_crs(epsg), local, roads, (west, south), side * gsd_m, seed,
-        compounds.share_for(biome) if wall_share is None else wall_share,
+        compounds.share_for(biome) if wall_share is None else wall_share, biome,
     )  # fmt: skip
     trees: list[list[Any]] = []
     if tree_density > 0:
         segments = [seg for c in walls for seg in c["segments"]]
         trees = trees3d.scatter(surface, mask, gsd_m, tree_density, seed, biome, segments)
+        trees += trees3d.yard_trees(walls, seed, biome, compounds.YARD_TREE_SHARE * tree_density)
     if field_palms is not None:  # planted rows: every palm of an oil-palm field
         palm_shapes, palm_heights, _ = field_palms
         for (row, col, radius, *_rest), height in zip(palm_shapes, palm_heights, strict=True):
@@ -329,7 +330,16 @@ def export_scene(
                 trees.append([x, y, round(radius * gsd_m, 2), round(float(height), 2), "palm"])
     vehicles = _vehicles(surface, road, mask, gsd_m, side, vehicle_density, seed)
     poles = _poles(roads, mask, west, south, gsd_m, side)
-    props = props_scene.sample(surface, mask, road, gsd_m, side, prop_density, seed)
+    props = props_scene.sample(
+        surface,
+        mask,
+        road,
+        gsd_m,
+        side,
+        prop_density,
+        seed,
+        walls=[s for c in walls for s in c["segments"]],
+    )
     buildings = []
     for row in local.itertuples():
         if row.geometry.is_empty or not row.geometry.intersects(

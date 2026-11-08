@@ -62,3 +62,13 @@ def test_scatter_keeps_trees_off_buildings_and_walls() -> None:
         assert mask[min(399, int((200 - y) / 0.5)), min(399, int(x / 0.5))] == 0
         near = abs(y - 20.0) < radius * 0.6 + 0.25 and 20.0 <= x <= 80.0
         assert not near or radius < 0.3
+
+
+def test_yard_trees_stand_at_the_yard_point_for_a_share_of_compounds() -> None:
+    compounds = [{"id": f"p{i}", "yard": [10.0 + i, 20.0]} for i in range(200)] + [
+        {"id": "none", "yard": None}
+    ]
+    trees = trees3d.yard_trees(compounds, 1, "khartoum", 0.3)
+    assert trees == trees3d.yard_trees(compounds, 1, "khartoum", 0.3)
+    assert 40 < len(trees) < 80 and all(2.0 <= t[2] <= 3.4 and t[1] == 20.0 for t in trees)
+    assert trees3d.yard_trees(compounds, 1, "khartoum", 0.0) == []

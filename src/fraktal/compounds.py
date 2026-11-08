@@ -28,9 +28,24 @@ WALL_SHARE = {  # of the parcels with a building, set by eye from the board; the
     "mangrove_coast": 0.05,
 }
 DEFAULT_SHARE = 0.3
-WALL_MATERIALS = ("wall-cream", "wall-ochre", "wall-grey", "wall-brick")
+WALL_MATERIALS = (
+    "wall-cream", "wall-ochre", "wall-grey", "wall-brick",
+    "wall-white", "wall-sand", "wall-terracotta",
+)  # fmt: skip
+SHEET_MATERIALS = ("sheet-zinc", "sheet-rust", "sheet-blue")
+# Shares of (block wall, block wall with piers, sheet-metal fence) by biome, set by eye
+KIND_MIX = {
+    "informal_settlement": (0.35, 0.15, 0.5),
+    "khartoum": (0.6, 0.3, 0.1),
+    "dense_urban": (0.55, 0.3, 0.15),
+}
+DEFAULT_KIND_MIX = (0.6, 0.25, 0.15)
+KINDS = ("block", "piered", "sheet")
+PIER_SPACING_M, PIER_M = 3.5, 0.45
+YARD_TREE_SHARE = 0.3
 INSET_M = 0.4  # the wall stands inside the parcel edge
 THICKNESS_M = 0.22
+SHEET_THICKNESS_M = 0.05
 GATE_M = 3.0
 MIN_AREA_M2 = 120.0
 
@@ -47,9 +62,11 @@ def build(
     size_m: float,
     seed: int,
     share: float,
+    biome: str = "",
 ) -> list[dict[str, Any]]:
-    """Compounds as dicts: ``id``, ``height_m``, ``material`` and ``segments`` ([x0, y0, x1, y1] in
-    tile metres). The three layers are GeoDataFrames in the tile's CRS."""
+    """Compounds as dicts: ``id``, ``kind``, ``height_m``, ``material``, ``segments`` (each
+    [x0, y0, x1, y1] in tile metres) and ``yard`` (a free point inside, or None). The three layers
+    are GeoDataFrames in the tile's CRS."""
     if share <= 0 or len(parcels) == 0:
         return []
     from shapely.geometry import box
@@ -63,6 +80,7 @@ def build(
         rng = substream(seed, f"compound:{parcel.id}")
         roll, height = float(rng.uniform()), float(rng.uniform(1.8, 2.4))
         material = WALL_MATERIALS[int(rng.integers(0, len(WALL_MATERIALS)))]
+        kind_roll, sheet_pick = float(rng.uniform()), int(rng.integers(0, len(SHEET_MATERIALS)))
         if roll >= share or str(parcel.id) not in built:
             continue
         inner = parcel.geometry.buffer(-INSET_M, join_style="mitre")
@@ -88,12 +106,26 @@ def build(
             u, m = (b - a) / length, (a + b) / 2
             segments.append(_seg(a, m - u * gap / 2, origin))
             segments.append(_seg(m + u * gap / 2, b, origin))
+        mix = KIND_MIX.get(biome, DEFAULT_KIND_MIX)
+        kind = KINDS[0 if kind_roll < mix[0] else 1 if kind_roll < mix[0] + mix[1] else 2]
+        if kind == "sheet":
+            material, height = SHEET_MATERIALS[sheet_pick], min(height, 2.1)
+        inside = buildings[buildings["parcel_id"].astype(str) == str(parcel.id)] if built else None
+        free = inner.buffer(-1.0)
+        if inside is not None and len(inside):
+            free = free.difference(inside.geometry.union_all().buffer(2.0))
+        yard = None
+        if not free.is_empty and free.area > 25.0:
+            point = free.representative_point()
+            yard = [round(float(point.x - west), 2), round(float(point.y - south), 2)]
         out.append(
             {
                 "id": str(parcel.id),
+                "kind": kind,
                 "height_m": round(height, 2),
                 "material": material,
                 "segments": segments,
+                "yard": yard,
             }
         )
     return out
@@ -129,19 +161,42 @@ def pack(compounds: list[dict[str, Any]]) -> dict[str, Any]:
     owners: list[Array] = []
     offset = 0
     for index, c in enumerate(compounds):
+        material = names.index(c["material"])
+
+        def add(
+            quad: list[tuple[float, float]],
+            top: float,
+            index: int = index,
+            material: int = material,
+        ) -> None:
+            nonlocal offset
+            box = [(x, y, 0.0) for x, y in quad] + [(x, y, top) for x, y in quad]
+            verts.append(np.asarray(box, dtype="float32"))
+            faces.append(_BOX.astype("int32") + offset)
+            mats.append(np.full(len(_BOX), material, dtype="int16"))
+            owners.append(np.full(len(_BOX), index, dtype="int32"))
+            offset += 8
+
         for x0, y0, x1, y1 in c["segments"]:
             length = math.hypot(x1 - x0, y1 - y0)
             if length < 0.05:
                 continue
             ux, uy = (x1 - x0) / length, (y1 - y0) / length
-            nx, ny = -uy * THICKNESS_M / 2, ux * THICKNESS_M / 2
-            quad = [(x0 - nx, y0 - ny), (x1 - nx, y1 - ny), (x1 + nx, y1 + ny), (x0 + nx, y0 + ny)]
-            box = [(x, y, 0.0) for x, y in quad] + [(x, y, c["height_m"]) for x, y in quad]
-            verts.append(np.asarray(box, dtype="float32"))
-            faces.append(_BOX.astype("int32") + offset)
-            mats.append(np.full(len(_BOX), names.index(c["material"]), dtype="int16"))
-            owners.append(np.full(len(_BOX), index, dtype="int32"))
-            offset += 8
+            thick = SHEET_THICKNESS_M if c.get("kind") == "sheet" else THICKNESS_M
+            nx, ny = -uy * thick / 2, ux * thick / 2
+            add(
+                [(x0 - nx, y0 - ny), (x1 - nx, y1 - ny), (x1 + nx, y1 + ny), (x0 + nx, y0 + ny)],
+                c["height_m"],
+            )
+            if c.get("kind") == "piered":  # a post at each end and every few metres between
+                steps = max(1, round(length / PIER_SPACING_M))
+                for k in range(steps + 1):
+                    px, py = x0 + ux * length * k / steps, y0 + uy * length * k / steps
+                    h = PIER_M / 2
+                    add(
+                        [(px - h, py - h), (px + h, py - h), (px + h, py + h), (px - h, py + h)],
+                        c["height_m"] + 0.25,
+                    )
     if not verts:
         return {
             "vertices": np.zeros((0, 3), "float32"), "faces": np.zeros((0, 3), "int32"),
