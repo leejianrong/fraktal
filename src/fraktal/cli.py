@@ -449,6 +449,7 @@ def _render3d(args: argparse.Namespace) -> Result:
             labels=not args.no_labels,
             height_profile=args.height_profile,
             prop_density=args.prop_density,
+            wall_share=args.wall_share,
         )
     except (OSError, ValueError, render3d.RenderError) as err:
         raise CliError(ExitCode.FAILURE, "render3d_failed", str(err)) from err
@@ -481,6 +482,7 @@ def _render3d_batch(args: argparse.Namespace) -> Result:
             timeout_s=args.timeout_s,
             assets_dir=args.assets,
             prop_density=args.prop_density,
+            wall_share=args.wall_share,
         )
     except (OSError, ValueError) as err:
         raise CliError(ExitCode.FAILURE, "render3d_batch_failed", str(err)) from err
@@ -688,6 +690,12 @@ def _render3d_batch_args(parser: argparse.ArgumentParser) -> None:
         help="props (stalls, containers, tanks, signs, tuk-tuks) per km2; 0 for none",
     )
     parser.add_argument(
+        "--wall-share",
+        type=float,
+        default=None,
+        help="share of built parcels with a compound wall (default: the biome's)",
+    )
+    parser.add_argument(
         "--sensor", action="store_true", help="also write sensor.png (tropical grade, blur, noise)"
     )
 
@@ -749,6 +757,12 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
         type=float,
         default=60.0,
         help="props (stalls, containers, tanks, signs, tuk-tuks) per km2; 0 for none",
+    )
+    parser.add_argument(
+        "--wall-share",
+        type=float,
+        default=None,
+        help="share of built parcels with a compound wall (default: the biome's)",
     )
     parser.add_argument(
         "--height-profile",

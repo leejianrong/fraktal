@@ -259,6 +259,11 @@ def read_buildings(world_dir: Path) -> Any:
     return world.read_layer(world_dir / "buildings.parquet", "building")
 
 
+def read_parcels(world_dir: Path) -> Any:
+    """The parcel layer of a procedural world directory."""
+    return world.read_layer(world_dir / "parcels.parquet", "parcel")
+
+
 def read_roads(world_dir: Path) -> Any:
     """The road layer of a procedural world directory."""
     return world.read_layer(world_dir / "roads.parquet", "road")
@@ -272,5 +277,6 @@ __all__ = [
     "generate_world",
     "read_buildings",
     "read_fields",
+    "read_parcels",
     "read_roads",
 ]

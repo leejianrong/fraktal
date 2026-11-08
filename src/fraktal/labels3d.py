@@ -21,7 +21,8 @@ CLASSES = {
     "pole": 5,
     "person": 6,
     "drone": 7,
-    "yard_object": 9,  # 8 is reserved for ``wall`` (FRK-106); classes are append-only
+    "wall": 8,  # compound walls (FRK-106); classes are append-only
+    "yard_object": 9,
 }
 MAX_INSTANCES = 65534
 PROP_INSTANCE_BASE = 20000  # props are numbered from here + 1 (same value in blender_scene.py)
@@ -62,6 +63,7 @@ def meta(
     people: int = 0,
     drones: int = 0,
     props: int = 0,
+    walls: int = 0,
 ) -> dict[str, Any]:
     """The ``labels`` block of ``render.json``."""
     return {
@@ -74,6 +76,7 @@ def meta(
         "people": people,
         "drones": drones,
         "props": props,
+        "walls": walls,
         "props_first_instance": PROP_INSTANCE_BASE + 1,
     }
 
