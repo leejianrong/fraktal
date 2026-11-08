@@ -38,7 +38,7 @@ def test_classes_come_from_the_catalogue() -> None:
     surface, mask, road = _world()
     for p in props_scene.sample(surface, mask, road, GSD, SIDE, 2000.0, 5):
         assert p["class"] == labels3d.CLASSES[props_scene.PROP_CLASS[p["kind"]]]
-    assert labels3d.CLASSES["yard_object"] == 9 and 8 not in labels3d.CLASSES.values()
+    assert labels3d.CLASSES["yard_object"] == 9 and labels3d.CLASSES["wall"] == 8
 
 
 def test_no_roads_means_no_tuk_tuks_and_zero_density_means_none() -> None:
