@@ -241,7 +241,7 @@ Details in the ADR-0012 addendum 2.
   instance in `labels.png`, gate gaps visible. Not done: courtyards and outbuildings inside compounds, wall
   colour or material variety beyond four flat colours, trees and props are not kept out of walls, and the
   informal-settlement run at 200 m tiles failed with `landcover.tif does not cover the render region` (not
-  caused by the walls: it rendered at 120 to 300 m earlier; not investigated). Jian has not yet looked at a
+  caused by the walls; fixed 2026-11-09, see the tile-size note below). Jian has not yet looked at a
   before and after strip next to a reference chip, which the card asks for.
 - **Side by side with real chips (2026-11-08):** two of our Khartoum tiles at 0.3 m next to Maxar Sudan chips (the
   sheet is `data/eval/side-by-side-khartoum-v1.jpg`, git-ignored: it holds real pixels). The Sudan chips are rural,
@@ -323,3 +323,11 @@ Details in the ADR-0012 addendum 2.
   dispersion, size mix, no trees on buildings or walls. Not done: the other biomes keep the old ground (bare ground
   stays cream there), wall-edge hedges ignore which side is the yard, trees still show hard crisp shadows, and
   buildings and roads have no real reference in the rural chips.
+- **Tile-size bug behind the landcover failure (2026-11-09):** reproduced locally. Two causes. (1) A tile size that is
+  not a whole number of pixels (200 m at 0.15 m is 1333.3) was rounded down, so `region_grid` counted two tiles
+  and rendered a region twice as wide, past the world's edge; 120 m and 300 m at 0.15 m divide evenly, which is why
+  those runs worked. `render.tile_px_for` now rounds up. (2) A tile centred within a pixel of the world's edge
+  snapped outward past the raster; `render3d_batch.plan` now keeps `EDGE_SLACK_PX` (3) pixels inside, moving only
+  centres that would have landed in that strip, so other plans are unchanged. Tests: one tile for odd sizes, and
+  no planned tile past the raster edge (it fails with the slack set to 0). Image sizes change by one pixel for
+  sizes that used to round down.

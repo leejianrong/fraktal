@@ -30,7 +30,7 @@ from fraktal import randomise, render3d
 from fraktal.ids import substream
 from fraktal.log import emit
 from fraktal.procedural import read_buildings
-from fraktal.render import RenderConfig
+from fraktal.render import RenderConfig, tile_px_for
 
 SCHEMA = 1
 SUN_AZIMUTH_DEG = (
@@ -45,6 +45,9 @@ SENSOR_NAME = "sensor.png"
 
 class BatchError(ValueError):
     pass
+
+
+EDGE_SLACK_PX = 3  # pixels kept between a tile and the world's edge
 
 
 def plan(
@@ -64,7 +67,8 @@ def plan(
     manifest = json.loads((world_dir / "world.json").read_text())
     west, south, east, north = manifest["bounds"]
     half = size_m / 2
-    if east - west < size_m or north - south < size_m:
+    slack = EDGE_SLACK_PX * gsd_m  # the render grid snaps outward by up to a pixel on each side
+    if east - west < size_m + 2 * slack or north - south < size_m + 2 * slack:
         raise BatchError(f"the world is smaller than one {size_m:.0f} m tile")
     buildings = read_buildings(world_dir)
     index = buildings.sindex
@@ -74,16 +78,10 @@ def plan(
         rng = substream(seed, f"batch:tile:{i}")
         x = y = 0.0
         for _ in range(CENTRE_TRIES):
-            x = (
-                float(rng.uniform(west + half, east - half))
-                if east - west > size_m
-                else west + half
-            )
-            y = (
-                float(rng.uniform(south + half, north - half))
-                if north - south > size_m
-                else south + half
-            )
+            x = float(rng.uniform(west + half, east - half))
+            y = float(rng.uniform(south + half, north - half))
+            x = min(max(x, west + half + slack), east - half - slack)  # only an edge draw moves
+            y = min(max(y, south + half + slack), north - half - slack)
             hits = index.query(_window(x, y, half))
             if len(hits) >= min_buildings:
                 break
@@ -110,7 +108,7 @@ def _draw_sensor(
     seed: int, index: int, size_m: float, gsd_m: float, sun_elevation: float, biome: str = ""
 ) -> dict[str, Any]:
     """Haze, tone, contrast, blur and noise for one tile, from the biome or tropical ranges."""
-    base = RenderConfig(gsd_m=gsd_m, tile_px=round(size_m / gsd_m), size_m=size_m, seed=0)
+    base = RenderConfig(gsd_m=gsd_m, tile_px=tile_px_for(size_m, gsd_m), size_m=size_m, seed=0)
     drawn = randomise.sample_config(
         base, randomise.BIOME_RANGES.get(biome, randomise.TROPICAL), seed, index
     )

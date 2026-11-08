@@ -136,6 +136,12 @@ def utm_epsg(lon: float, lat: float) -> int:
     return (32600 if lat >= 0 else 32700) + zone
 
 
+def tile_px_for(size_m: float, gsd_m: float) -> int:
+    """Pixels across a one-tile region of ``size_m``. Rounded up: rounding down (200 m at 0.15 m
+    gives 1333.3) made ``region_grid`` count a second tile and render a region twice as wide."""
+    return max(1, math.ceil(size_m / gsd_m - 1e-6))
+
+
 def region_grid(
     center_lonlat: tuple[float, float], config: RenderConfig
 ) -> tuple[int, Affine, tuple[int, int]]:

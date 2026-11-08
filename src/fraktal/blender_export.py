@@ -44,6 +44,7 @@ from fraktal.render import (
     _warp,
     region_grid,
     texture_field,
+    tile_px_for,
 )
 
 SCHEMA = 1
@@ -254,7 +255,7 @@ def export_scene(
     The ground carries the 2.5D renderer's fractal texture (``texture`` is its strength, 0 for flat
     colour) and ``trees`` are thickets and loners, placed by ``trees3d.scatter``.
     """
-    px = max(1, round(size_m / gsd_m))
+    px = tile_px_for(size_m, gsd_m)
     config = RenderConfig(gsd_m=gsd_m, tile_px=px, size_m=size_m)
     epsg, transform, (_, side) = region_grid(center_lonlat, config)
     west, north = transform.c, transform.f
