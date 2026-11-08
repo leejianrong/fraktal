@@ -232,3 +232,14 @@ Details in the ADR-0012 addendum 2.
   effect is real but subtle under this soft lighting. Not done: the card's first goal, new diffusion textures made
   with their own maps (this derives maps for the existing ones), a comparison with a learned estimator, and a
   look under a low sun, where relief shows most.
+- **FRK-106 (walled compounds, 2026-11-08):** `compounds.build` puts a wall (0.22 m thick, 1.8 to 2.4 m high, set 0.4 m
+  inside the parcel edge) round a per-biome share of the parcels that hold a building (khartoum 55, dense urban
+  40, informal settlement 25 percent, set by eye), with a 3 m gate gap on the edge nearest the road. Derived from
+  the parcel, building and road layers at export, so worlds and ids do not change. Label class `wall` is 8, one
+  instance per compound; the gate is a gap. `--wall-share` overrides the share on `render3d` and `render3d-batch`.
+  Pod check on two Khartoum tiles at 0.15 m (`docs/img/compound-walls.jpg`): 15 and 32 compounds, each a separate
+  instance in `labels.png`, gate gaps visible. Not done: courtyards and outbuildings inside compounds, wall
+  colour or material variety beyond four flat colours, trees and props are not kept out of walls, and the
+  informal-settlement run at 200 m tiles failed with `landcover.tif does not cover the render region` (not
+  caused by the walls: it rendered at 120 to 300 m earlier; not investigated). Jian has not yet looked at a
+  before and after strip next to a reference chip, which the card asks for.
