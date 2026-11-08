@@ -8,5 +8,7 @@
     1.0,
     1.0
   ],
-  "roughness": 0.9
+  "roughness": 0.9,
+  "normal": "textures/concrete034-normal.jpg",
+  "roughness_map": "textures/concrete034-rough.jpg"
 }

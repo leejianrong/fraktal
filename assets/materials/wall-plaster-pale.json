@@ -8,5 +8,7 @@
     0.97,
     0.92
   ],
-  "roughness": 0.9
+  "roughness": 0.9,
+  "normal": "textures/plaster001-normal.jpg",
+  "roughness_map": "textures/plaster001-rough.jpg"
 }

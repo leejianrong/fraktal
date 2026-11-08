@@ -11,5 +11,7 @@
   "roughness": 0.55,
   "ribs_m": 0.1,
   "rib_strength": 0.6,
-  "rust": 0.18
+  "rust": 0.18,
+  "normal": "textures/corrugatedsteel007a-normal.jpg",
+  "roughness_map": "textures/corrugatedsteel007a-rough.jpg"
 }
