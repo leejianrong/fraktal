@@ -8,5 +8,7 @@
     0.75,
     0.72
   ],
-  "roughness": 0.8
+  "roughness": 0.8,
+  "normal": "textures/corrugatedsteel007a-normal.jpg",
+  "roughness_map": "textures/corrugatedsteel007a-rough.jpg"
 }

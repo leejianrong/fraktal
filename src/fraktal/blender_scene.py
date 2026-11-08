@@ -189,12 +189,31 @@ def load_material(name: str, assets: Path):
     links.new(mapping.outputs["Vector"], tex.inputs["Vector"])
     links.new(tex.outputs["Color"], tint.inputs[6])
     links.new(tint.outputs[2], bsdf.inputs["Base Color"])
+
+    def data_map(key: str):  # a normal or roughness map: raw numbers, same world-metre mapping
+        image = bpy.data.images.load(str(assets / spec[key]))
+        image.colorspace_settings.name = "Non-Color"
+        node = nodes.new("ShaderNodeTexImage")
+        node.image = image
+        node.projection = "BOX"
+        node.projection_blend = 0.2
+        links.new(mapping.outputs["Vector"], node.inputs["Vector"])
+        return node
+
+    normal_out = None
+    if "normal" in spec:  # derived relief (FRK-126, fraktal.pbr), OpenGL convention
+        normal_map = nodes.new("ShaderNodeNormalMap")
+        links.new(data_map("normal").outputs["Color"], normal_map.inputs["Color"])
+        links.new(normal_map.outputs["Normal"], bsdf.inputs["Normal"])
+        normal_out = normal_map.outputs["Normal"]
+    if "roughness_map" in spec:
+        links.new(data_map("roughness_map").outputs["Color"], bsdf.inputs["Roughness"])
     if "ribs_m" in spec:  # corrugated metal: ribs, rust and stains (FRK-109), all procedural
-        add_corrugation(mat, spec, coords, bsdf, tint)
+        add_corrugation(mat, spec, coords, bsdf, tint, normal_out)
     return mat
 
 
-def add_corrugation(mat, spec: dict, coords, bsdf, tint) -> None:
+def add_corrugation(mat, spec: dict, coords, bsdf, tint, normal_in=None) -> None:
     """Ribs as a bump (rib direction random per ~14 m cell), plus rust patches and a worn tone.
 
     The rib pitch is real (about 0.1 m), so ribs show at drone scale and wash out at 0.5 m GSD.
@@ -231,6 +250,8 @@ def add_corrugation(mat, spec: dict, coords, bsdf, tint) -> None:
     links.new(wave_y.outputs["Fac"], ribs.inputs[3])
     bump = node("ShaderNodeBump", Strength=spec.get("rib_strength", 0.6), Distance=0.02)
     links.new(ribs.outputs[0], bump.inputs["Height"])
+    if normal_in is not None:  # the ribs ride on top of the derived relief
+        links.new(normal_in, bump.inputs["Normal"])
     links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
     # rust and wear: noise patches blend the tinted texture toward a rust brown
     patches = node("ShaderNodeTexNoise", Scale=1.0 / 2.5, Detail=6.0, Roughness=0.6)
