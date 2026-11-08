@@ -198,3 +198,9 @@ Details in the ADR-0012 addendum 2.
   the humid-tropics tone. The 2.5D benchmark path keeps `KHARTOUM_TONE`, and `palette.json` and world ids are
   untouched. Ground colour before and after: `docs/img/khartoum-tan-before-after.jpg`. The standing water in the
   generated world still looks odd in a dry biome; that is the world generator, not this card.
+- **FRK-109 (corrugated roofs, 2026-11-08):** the four tin roof materials now carry procedural ribs (a 0.1 m
+  pitch, rib direction chosen per ~14 m cell), rust patches and a warm neutral tone in place of the pale blue
+  (`add_corrugation` in `blender_scene.py`; the manifest hashes were updated). `docs/img/roofs-drone-scale.jpg` is
+  two informal-settlement tiles at 3 cm per pixel: ribs are faint but visible and rust spots show; at 0.1 m per
+  pixel (one rib is about one pixel) they wash out, as intended. Weak spots: rib contrast is low, the clay-tile roofs
+  show a dimple pattern from their texture, and the ground looks soft at 3 cm because its colour map is not that fine.
