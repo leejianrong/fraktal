@@ -243,3 +243,28 @@ Details in the ADR-0012 addendum 2.
   informal-settlement run at 200 m tiles failed with `landcover.tif does not cover the render region` (not
   caused by the walls: it rendered at 120 to 300 m earlier; not investigated). Jian has not yet looked at a
   before and after strip next to a reference chip, which the card asks for.
+- **Side by side with real chips (2026-11-08):** two of our Khartoum tiles at 0.3 m next to Maxar Sudan chips (the
+  sheet is `data/eval/side-by-side-khartoum-v1.jpg`, git-ignored: it holds real pixels). The Sudan chips are rural,
+  so this judges ground, trees and colour, not buildings. Findings: our ground was a pale cream (the brightest 60
+  percent of pixels averaged about 195, 185, 153 against about 148 to 164, 123 to 136, 111 to 122 in the three
+  dry-season chips), where the real earth is a red-brown; our trees are bigger, rounder, darker and sparser than the
+  real scrub; our soil patches have smooth blob edges and no fine speckle. Only the colour was acted on (below). The
+  numbers were used to see the gap; the new colour was chosen by eye and judged by looking, not fitted to them.
+- **FRK-120 follow-up (earth colour, 2026-11-08):** `ground_soil.TAN` is now a red-brown (150, 108, 86 to 172, 128,
+  102) instead of the pale cream. Under a low sun in a Khartoum tile it reads as earth. Still wrong: the muted
+  green between the soil patches looks like camouflage, and the patch shapes are too smooth.
+- **FRK-126 follow-up (ribs under a low sun, 2026-11-08):** `render3d-batch --sun-elevation-range LOW HIGH` draws the
+  sun elevation from a range. At 2 cm per pixel and a 10 to 18 degree sun the tin ribs were not visible, and three
+  separate render changes left tiles pixel-identical. Causes, found with a flat-sheet probe
+  (`scripts/props/material_probe.py`, run by `scripts/runpod/probe_run.sh`): (1) the Wave texture band is
+  `2 pi / 20 = 0.314 m` at scale 1, so a scale of `1 / ribs_m` made the ribs 3 cm apart, not 10 cm; (2) the
+  sawtooth profile has a constant slope, which shades uniformly, so it is now a sine; (3) the bump depth was fixed,
+  and is now `rib_depth_m` (1 cm in the eight ribbed tin materials); (4) the rib direction was random per 14 m
+  cell, so ribs ran along the ridge on some roofs, and now follows each face's normal and runs down the slope
+  (flat faces keep the random direction). The probe measures a 0.100 m stripe period. In the scene
+  (`docs/img/tin-ribs-low-sun.jpg`, informal-settlement tiles at 2 cm, top row the probe, bottom row before and
+  after the direction fix) the ribs show on red and blue roofs, and are faint under the sensor blur and sky fill.
+  The grey roof in one tile shows none, probably the sun running parallel to its ribs; not checked. The Khartoum
+  roofs I first looked at were flat concrete and terracotta, so they had no ribs to show. Still not done on this
+  card: diffusion textures with their own maps and a learned-estimator comparison. The derived normal map gives
+  rusty steel a leathery grain at 2 cm, which is worth a second look.
