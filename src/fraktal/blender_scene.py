@@ -551,10 +551,14 @@ def use_depth_look(sc, unit_m: float) -> None:
 
 
 FOLIAGE = [
-    (0.15, 0.31, 0.13), (0.19, 0.36, 0.14), (0.12, 0.26, 0.12),
-    (0.22, 0.38, 0.12), (0.17, 0.30, 0.16), (0.26, 0.40, 0.15),
-]  # fmt: skip
-CROWN_LUMP = 0.22  # radial bumpiness of a crown, so it is not a smooth ball
+    (0.24, 0.30, 0.17),
+    (0.28, 0.33, 0.20),
+    (0.21, 0.27, 0.16),
+    (0.30, 0.33, 0.21),
+    (0.25, 0.29, 0.19),
+    (0.33, 0.35, 0.24),
+]  # fmt: skip  (olive and grey-green, set by eye against the dry-land reference chips)
+CROWN_LUMP = 0.30  # radial bumpiness of a crown, so it is not a smooth ball
 
 
 TREE_OWNER: list[int] = []  # the tree (index into scene["trees"]) each tree-mesh face belongs to

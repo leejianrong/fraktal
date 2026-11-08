@@ -252,7 +252,7 @@ def export_scene(
     """Write the tile around ``center_lonlat`` and return the scene description.
 
     The ground carries the 2.5D renderer's fractal texture (``texture`` is its strength, 0 for flat
-    colour) and ``trees`` are the 2.5D renderer's scattered trees, same seed and same places.
+    colour) and ``trees`` are thickets and loners, placed by ``trees3d.scatter``.
     """
     px = max(1, round(size_m / gsd_m))
     config = RenderConfig(gsd_m=gsd_m, tile_px=px, size_m=size_m)
@@ -312,21 +312,14 @@ def export_scene(
             amp[code] = value
         modulation = texture * texture_field(seed, (side, side), gsd_m) * amp[surface]
         ground = np.clip(ground * (1.0 + modulation)[..., None], 0.0, 1.0).astype("float32")
-    trees = []
+    walls = compounds.build(
+        read_parcels(world_dir).to_crs(epsg), local, roads, (west, south), side * gsd_m, seed,
+        compounds.share_for(biome) if wall_share is None else wall_share,
+    )  # fmt: skip
+    trees: list[list[Any]] = []
     if tree_density > 0:
-        shapes, heights, _ = place(surface, mask, gsd_m, tree_density, seed)
-        for (row, col, radius, *_rest, is_car), height in zip(shapes, heights, strict=True):
-            if is_car == 0:  # trees come first and have no car flag
-                tx, ty = round((col + 0.5) * gsd_m, 2), round((side - row - 0.5) * gsd_m, 2)
-                trees.append(
-                    [
-                        tx,
-                        ty,
-                        round(radius * gsd_m, 2),
-                        round(float(height), 2),
-                        trees3d.species_for(biome, tx, ty, float(height), seed),
-                    ]
-                )
+        segments = [seg for c in walls for seg in c["segments"]]
+        trees = trees3d.scatter(surface, mask, gsd_m, tree_density, seed, biome, segments)
     if field_palms is not None:  # planted rows: every palm of an oil-palm field
         palm_shapes, palm_heights, _ = field_palms
         for (row, col, radius, *_rest), height in zip(palm_shapes, palm_heights, strict=True):
@@ -336,10 +329,6 @@ def export_scene(
     vehicles = _vehicles(surface, road, mask, gsd_m, side, vehicle_density, seed)
     poles = _poles(roads, mask, west, south, gsd_m, side)
     props = props_scene.sample(surface, mask, road, gsd_m, side, prop_density, seed)
-    walls = compounds.build(
-        read_parcels(world_dir).to_crs(epsg), local, roads, (west, south), side * gsd_m, seed,
-        compounds.share_for(biome) if wall_share is None else wall_share,
-    )  # fmt: skip
     buildings = []
     for row in local.itertuples():
         if row.geometry.is_empty or not row.geometry.intersects(
