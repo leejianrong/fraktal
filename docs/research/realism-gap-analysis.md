@@ -331,3 +331,15 @@ Details in the ADR-0012 addendum 2.
   centres that would have landed in that strip, so other plans are unchanged. Tests: one tile for odd sizes, and
   no planned tile past the raster edge (it fails with the slack set to 0). Image sizes change by one pixel for
   sizes that used to round down.
+- **FRK-106 leftovers: wall kinds, yard trees, props off walls (2026-11-09):** `compounds.build` now picks a kind per
+  compound from a per-biome mix: a block wall, a block wall with piers (a 0.45 m post at each end and every 3.5 m,
+  0.25 m taller) or a thin sheet-metal fence (zinc, rust or blue, at most 2.1 m, 5 cm thick). Informal
+  settlement leans to sheet fences (50 percent), Khartoum to block walls (90 percent). Block walls draw from seven
+  colours instead of four. `build` also returns a free point inside each compound (`yard`, 2 m clear of the
+  building); `trees3d.yard_trees` puts a shade tree there in 30 percent of compounds, and `props_scene.sample` takes
+  the wall segments and keeps props off them (placements are unchanged when there are no walls). Pod check, 200 m
+  tiles at 0.15 m: `docs/img/realism/walls-kinds-yard.jpg` (two Khartoum tiles, our render only). The informal
+  settlement tiles rendered at 200 m too, which confirms the tile-size fix above. Not done: outbuildings and
+  courtyards as buildings of their own, wall texture (colours are still flat), and the informal-settlement,
+  dense-urban and other biomes still have the old cream, salmon and bright-green ground, which looks worse than
+  Khartoum's now; that is the next slice.
