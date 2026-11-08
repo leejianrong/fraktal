@@ -268,3 +268,18 @@ Details in the ADR-0012 addendum 2.
   roofs I first looked at were flat concrete and terracotta, so they had no ribs to show. Still not done on this
   card: diffusion textures with their own maps and a learned-estimator comparison. The derived normal map gives
   rusty steel a leathery grain at 2 cm, which is worth a second look.
+- **FRK-104 (organic road networks, 2026-11-08):** `roads.build_roads` can now grow local streets that bend
+  (`local_wander_deg`, `local_curl_deg`), side streets that branch off them and dead-end (`branch_rate`,
+  `branch_length_m`), and footpaths (new road class `footpath`, 1.6 m wide, `footpath_rate`). Arterials are never
+  touched, branches and footpaths start on their parent's final line and share its vertex, and each kind draws from
+  its own sub-stream (`roads:wander`, `roads:branch`, `roads:foot`) that is only used above zero, so with the
+  defaults every older world, id and geometry is unchanged (the new fields join `LATER_FIELDS`). Biomes: informal
+  settlement winds, branches and gets footpaths most (about 570 streets and 520 footpaths in a 1.5 km world, from
+  345 straight streets); dense urban stays a close grid with gentle bends and a few short alleys; the three rural
+  biomes get loose bends, spurs and a few footpaths. **Khartoum is left straight on purpose**: its config is the
+  default, which the benchmark worlds use. `docs/img/organic-roads.jpg` is plan views of all six biomes, top row
+  straight (the old generator, settings zeroed), bottom row new. Traffic and people route on the graph of streets:
+  footpaths are left out of it (too narrow for a car), and they paint as the laterite track surface, so no tuk-tuk
+  or parked car is placed on one (`test_cars_and_people_still_route_on_an_organic_informal_settlement`). Not done:
+  people walking along footpaths, junction geometry (out of scope), and parcels and walls ignore footpaths. The
+  bend test uses a strong setting; at the biome settings the curves are gentle and the plan view is the real check.

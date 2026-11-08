@@ -43,6 +43,13 @@ LATER_FIELDS = (
     ("parcels", "skew_deg"),
     ("parcels", "blocks"),
     ("parcels", "block_depth_m"),
+    ("roads", "local_wander_deg"),
+    ("roads", "local_curl_deg"),
+    ("roads", "branch_rate"),
+    ("roads", "branch_length_m"),
+    ("roads", "footpath_rate"),
+    ("roads", "footpath_length_m"),
+    ("roads", "footpath_width_m"),
 )
 
 

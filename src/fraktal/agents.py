@@ -212,8 +212,8 @@ def build_graph(
     lines: list[LineString] = []
     meta: list[tuple[str, float]] = []
     for _, row in roads.iterrows():
-        if float(row.get("bridge", 0.0) or 0.0) > 0:
-            continue
+        if float(row.get("bridge", 0.0) or 0.0) > 0 or row["road_class"] == "footpath":
+            continue  # bridges are left out for now, and footpaths are too narrow for a car
         for part in _line_parts(row.geometry.intersection(clip)):
             if part.length >= config.min_edge_m:
                 lines.append(part)
