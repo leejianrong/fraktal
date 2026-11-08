@@ -46,7 +46,7 @@ def species_for(biome: str, x: float, y: float, height_m: float, seed: int) -> s
 # Scrub placement (FRK-111). Real dry-land cover is mostly small shrubs in thickets with a few big
 # shade trees, not evenly spread round crowns. Numbers are set by eye against the reference board.
 PER_HA = {  # trees and shrubs per hectare before ``density``
-    "khartoum": 70.0,
+    "khartoum": 110.0,
     "dense_urban": 30.0,
     "informal_settlement": 40.0,
     "oil_palm_plantation": 25.0,
@@ -57,9 +57,9 @@ DEFAULT_PER_HA = 40.0
 CLUSTER_SHARE = 0.6  # of the trees stand in thickets, the rest alone
 THICKET_M = (3.0, 7.0, 18.0)  # spread (min, median, max) of a thicket, metres
 MEAN_PER_THICKET = 14.0
-RADIUS_MEDIAN_M, RADIUS_SIGMA = 1.3, 0.45
+RADIUS_MEDIAN_M, RADIUS_SIGMA = 1.3, 0.4
 RADIUS_MIN_M, RADIUS_MAX_M = 0.5, 4.5
-BIG_TREE_SHARE = 0.04  # shade trees: crowns of 3 to 5 m
+BIG_TREE_SHARE = 0.02  # shade trees: crowns of 3 to 5 m
 HEDGE_SHARE = 0.2  # of the compounds get a hedge along one wall
 HEDGE_SPACING_M = 1.2
 HEDGE_OFFSET_M = 0.9
