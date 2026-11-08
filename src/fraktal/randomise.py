@@ -58,6 +58,18 @@ TROPICAL = Ranges(
     base_tone=TROPICAL_TONE,
 )
 
+# Dry Sahelian light (FRK-120): high sun, little haze, no cloud, a near-neutral tone so tan ground
+# stays tan. The benchmark chips keep KHARTOUM_TONE through the default ``Ranges``.
+ARID = Ranges(
+    sun_elevation_deg=(55.0, 85.0),
+    haze=(0.05, 0.15),
+    ambient=(0.30, 0.45),
+    contrast=(0.95, 1.2),
+    bright_roofs=(0.05, 0.2),
+    base_tone=(1.0, 0.98, 0.94),
+)
+BIOME_RANGES: dict[str, Ranges] = {"khartoum": ARID}
+
 COMPONENTS = (
     "sun_azimuth_deg",
     "sun_elevation_deg",

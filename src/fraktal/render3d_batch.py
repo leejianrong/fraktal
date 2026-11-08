@@ -100,17 +100,19 @@ def plan(
             "seed": int(rng.integers(0, 2**31 - 1)),
         }
         if sensor:
-            spec["sensor"] = _draw_sensor(seed, i, size_m, gsd_m, sun[1])
+            spec["sensor"] = _draw_sensor(seed, i, size_m, gsd_m, sun[1], manifest.get("biome", ""))
         specs.append(spec)
     return specs
 
 
 def _draw_sensor(
-    seed: int, index: int, size_m: float, gsd_m: float, sun_elevation: float
+    seed: int, index: int, size_m: float, gsd_m: float, sun_elevation: float, biome: str = ""
 ) -> dict[str, Any]:
-    """Haze, tone, contrast, blur and noise for one tile, from the tropical ranges."""
+    """Haze, tone, contrast, blur and noise for one tile, from the biome or tropical ranges."""
     base = RenderConfig(gsd_m=gsd_m, tile_px=round(size_m / gsd_m), size_m=size_m, seed=0)
-    drawn = randomise.sample_config(base, randomise.TROPICAL, seed, index)
+    drawn = randomise.sample_config(
+        base, randomise.BIOME_RANGES.get(biome, randomise.TROPICAL), seed, index
+    )
     return {
         "haze": round(drawn.haze, 4),
         "sun_elevation_deg": sun_elevation,
