@@ -21,9 +21,8 @@ import numpy as np
 
 VARIANTS = {
     "off": {"rib_strength": 0.0, "rust": 0.0},
-    "current": {},
-    "deep": {"rib_strength": 1.0, "rib_depth_m": 0.05},
-    "deeper": {"rib_strength": 1.0, "rib_depth_m": 0.2},
+    "mild": {"rib_strength": 0.6, "rib_depth_m": 0.02, "rust": 0.0},
+    "deep": {"rib_strength": 1.0, "rib_depth_m": 0.05, "rust": 0.0},
 }
 AZIMUTHS = (0.0, 90.0)
 
@@ -85,7 +84,18 @@ def main() -> None:
             bpy.ops.render.render(write_still=True)
             img = bpy.data.images.load(sc.render.filepath)
             px = np.array(img.pixels[:]).reshape(args.px, args.px, 4)[..., :3].mean(-1)
-            stats[f"{name}_az{int(az)}"] = {"mean": float(px.mean()), "std": float(px.std())}
+            periods = {}
+            for axis, label in ((0, "along_y"), (1, "along_x")):
+                profile = px.mean(axis=axis)
+                spec_ = np.abs(np.fft.rfft(profile - profile.mean()))
+                k = int(np.argmax(spec_[2:]) + 2)  # skip the slow lighting trend
+                periods[label] = round(args.px * args.gsd / k, 4)
+            stats[f"{name}_az{int(az)}"] = {
+                "mean": float(px.mean()),
+                "std": float(px.std()),
+                "stripe_period_m": periods,
+            }
+            print(f"PROBE periods {name} az={az} {periods}", flush=True)
             print(f"PROBE {name} az={az} mean={px.mean():.4f} std={px.std():.4f}", flush=True)
     (args.out / "stats.json").write_text(json.dumps(stats, indent=2))
     shutil.rmtree(tmp, ignore_errors=True)
