@@ -193,3 +193,8 @@ Details in the ADR-0012 addendum 2.
   before and after, from `fraktal scene`: `docs/img/soil-ground-before-after.jpg`. Not yet looked at as a full
   Blender render beside the real chips; paddy and mangrove tiles change little because their classes are not
   soil-capable. The 2.5D benchmark path is untouched.
+- **FRK-120 (Khartoum tan, 2026-11-08):** the `khartoum` biome now gets a tan soil style (80% of its soil-capable
+  ground) and, in the 3D batch path only, near-neutral `ARID` sensor ranges (`randomise.BIOME_RANGES`) instead of
+  the humid-tropics tone. The 2.5D benchmark path keeps `KHARTOUM_TONE`, and `palette.json` and world ids are
+  untouched. Ground colour before and after: `docs/img/khartoum-tan-before-after.jpg`. The standing water in the
+  generated world still looks odd in a dry biome; that is the world generator, not this card.

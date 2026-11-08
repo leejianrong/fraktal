@@ -51,3 +51,10 @@ def test_edges_are_crisp_not_blurred() -> None:
 def test_every_biome_has_a_style_and_unknown_falls_back() -> None:
     assert all(0 < s.share < 1 for s in BIOME_SOIL.values())
     assert soil_style("no-such-biome") is DEFAULT_SOIL
+
+
+def test_khartoum_is_tan_and_mostly_soil() -> None:
+    style = soil_style("khartoum")
+    r, g, b = style.soil_a
+    assert r > g > b and r > 0.75 and b > 0.45  # light tan, not red laterite
+    assert style.share >= 0.7
