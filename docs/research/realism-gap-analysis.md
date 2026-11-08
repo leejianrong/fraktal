@@ -311,3 +311,15 @@ Details in the ADR-0012 addendum 2.
   60 per km2 the stats were 5 props, 4 shapes, so a shape repeat rate of 0.2 and a look repeat rate of 0.0.
   Golden test: `test_golden_sampler_output`. A scaled prop can reach up to 8 percent past its clearance box, which
   is a few centimetres to 0.25 m for a container; the clearance test was left as it was so placements stay the same.
+- **FRK-111 trees and the Khartoum ground (2026-11-09):** the side-by-side sheet showed our trees too big, round,
+  dark and evenly spread, and our ground cream with smooth blobs and bright green ribbons. The 3D path now places trees
+  with `trees3d.scatter` (the 2.5D renderer keeps `objects.place`): thickets (a Gaussian cloud round a parent, 60
+  percent of trees) plus loners, a log-normal crown radius (median 1.3 m, clamped 0.5 to 4.5 m) with 2 percent
+  shade trees of 3 to 5 m, heights from the radius, 110 per hectare in Khartoum, none on a building or within a
+  crown of a wall, and hedges of small shrubs along one wall of 20 percent of compounds. Foliage is olive and
+  grey-green, set by eye. The Khartoum soil style now also colours bare ground and mutes tree-cover ground,
+  patch edges are ragged (a fourth, 2.5 m octave) and fine dark tufts sit in zones. Evidence, our renders only,
+  before above and after below: `docs/img/realism/trees-ground-before-after.jpg`. Tests: clustering by the index of
+  dispersion, size mix, no trees on buildings or walls. Not done: the other biomes keep the old ground (bare ground
+  stays cream there), wall-edge hedges ignore which side is the yard, trees still show hard crisp shadows, and
+  buildings and roads have no real reference in the rural chips.
