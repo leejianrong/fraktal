@@ -66,7 +66,7 @@ HEDGE_OFFSET_M = 0.9
 TREE_CLASSES = (10, 20, 30, 40, 50, 60, 95)  # trees stand on vegetation and bare or built-up ground
 
 
-def _wall_distance(x: Array, y: Array, walls: Array) -> Array:
+def wall_distance(x: Array, y: Array, walls: Array) -> Array:
     """Distance from each point to the nearest wall segment (``walls`` is n x 4: x0 y0 x1 y1)."""
     if len(walls) == 0:
         return np.full(len(x), np.inf)
@@ -134,7 +134,7 @@ def scatter(
         ok &= mask[row, col] == 0
         if ox == 0 and oy == 0:
             ok &= np.isin(surface[row, col], TREE_CLASSES)
-    ok &= (_wall_distance(x, y, wall_arr) > radius * 0.6 + 0.25) | (radius < 0.3)
+    ok &= (wall_distance(x, y, wall_arr) > radius * 0.6 + 0.25) | (radius < 0.3)
     trees: list[list[Any]] = []
     for tx, ty, r, h in zip(x[ok], y[ok], radius[ok], height[ok], strict=True):
         tx, ty = round(float(tx), 2), round(float(ty), 2)
@@ -147,6 +147,22 @@ def scatter(
                 species_for(biome, tx, ty, float(h), seed),
             ]
         )
+    return trees
+
+
+def yard_trees(
+    compounds: list[dict[str, Any]], seed: int, biome: str, share: float
+) -> list[list[Any]]:
+    """One shade tree in the yard of some walled compounds, at the free point ``build`` found."""
+    trees: list[list[Any]] = []
+    for c in compounds:
+        rng = substream(seed, f"trees:yard:{c['id']}")
+        roll, radius = float(rng.uniform()), float(rng.uniform(2.0, 3.4))
+        if c.get("yard") is None or roll >= share:
+            continue
+        x, y = c["yard"]
+        height = round(1.5 + 1.9 * radius**0.9, 2)
+        trees.append([x, y, round(radius, 2), height, species_for(biome, x, y, height, seed)])
     return trees
 
 
@@ -181,4 +197,13 @@ def _hedges(walls: Array, mask: Array, gsd_m: float, size_m: float, rng: Any) ->
     return np.asarray(rows, dtype="float64").reshape(-1, 4)
 
 
-__all__ = ["DEFAULT_MIX", "MIX", "SPECIES", "SHRUB_BELOW_M", "scatter", "species_for"]
+__all__ = [
+    "DEFAULT_MIX",
+    "MIX",
+    "SPECIES",
+    "SHRUB_BELOW_M",
+    "scatter",
+    "species_for",
+    "wall_distance",
+    "yard_trees",
+]

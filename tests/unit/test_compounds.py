@@ -1,3 +1,5 @@
+from typing import Any
+
 import geopandas as gpd
 import numpy as np
 from shapely.geometry import LineString, box
@@ -75,3 +77,51 @@ def test_wall_is_label_class_8_and_every_biome_has_a_share() -> None:
     assert labels3d.CLASSES["wall"] == 8 and labels3d.CLASSES["yard_object"] == 9
     assert compounds.share_for("khartoum") > compounds.share_for("paddy_terraces")
     assert compounds.share_for("unknown") == compounds.DEFAULT_SHARE
+
+
+def _many(biome: str) -> list[dict[str, Any]]:
+    parcels, buildings, roads = _layers(6)
+    out: list[dict[str, Any]] = []
+    for seed in range(40):  # different seeds stand in for different tiles
+        out += compounds.build(parcels, buildings, roads, (0.0, 0.0), 400.0, seed, 1.0, biome)
+    return out
+
+
+def test_wall_kinds_follow_the_biome_and_sheet_fences_are_thin_and_metal() -> None:
+    informal, khartoum = _many("informal_settlement"), _many("khartoum")
+
+    def sheet(cs: list[dict[str, Any]]) -> float:
+        return sum(c["kind"] == "sheet" for c in cs) / len(cs)
+
+    assert sheet(informal) > 0.4 > 0.2 > sheet(khartoum) > 0.0
+    assert {c["kind"] for c in informal + khartoum} == set(compounds.KINDS)
+    for c in informal:
+        assert (c["material"] in compounds.SHEET_MATERIALS) == (c["kind"] == "sheet")
+    assert (
+        len({c["material"] for c in khartoum if c["kind"] != "sheet"}) >= 5
+    )  # more than 4 colours
+
+
+def test_piered_walls_add_posts_and_sheet_walls_are_thinner() -> None:
+    parcels, buildings, roads = _layers(1)
+    base = compounds.build(parcels, buildings, roads, (0.0, 0.0), 400.0, 1, 1.0)[0]
+    sizes = {}
+    for kind in compounds.KINDS:
+        sizes[kind] = len(compounds.pack([{**base, "kind": kind}])["faces"])
+    assert sizes["piered"] > sizes["block"] == sizes["sheet"]
+    thin = compounds.pack([{**base, "kind": "sheet"}])["vertices"]
+    thick = compounds.pack([{**base, "kind": "block"}])["vertices"]
+    assert np.ptp(thin[:8], axis=0).min() < np.ptp(thick[:8], axis=0).min()
+
+
+def test_the_yard_point_is_inside_the_compound_and_clear_of_the_building() -> None:
+    parcels, buildings, roads = _layers(6)
+    for c in compounds.build(parcels, buildings, roads, (0.0, 0.0), 400.0, 1, 1.0):
+        i = int(c["id"][1:])
+        x, y = c["yard"]
+        assert 10 + i * 40 < x < 40 + i * 40 and 4 < y < 34
+        assert (
+            not box(15 + i * 40, 10, 30 + i * 40, 25)
+            .buffer(1.9)
+            .contains(__import__("shapely.geometry", fromlist=["Point"]).Point(x, y))
+        )

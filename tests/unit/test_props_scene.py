@@ -123,3 +123,13 @@ def test_pack_applies_scale_and_looks() -> None:
         [{**base, "scale": 1.0, "tint": 0, "wear": 0}, {**base, "scale": 1.0, "tint": 3, "wear": 1}]
     )
     assert len({m[0] for m in two["materials"]}) == len(two["materials"])  # no duplicates
+
+
+def test_props_keep_off_compound_walls() -> None:
+    surface = np.full((400, 400), 60, dtype="uint8")
+    mask = np.zeros((400, 400), dtype="uint8")
+    wall = [[20.0, 100.0, 180.0, 100.0]]
+    plain = props_scene.sample(surface, mask, None, 0.5, 400, 4000.0, 3)
+    walled = props_scene.sample(surface, mask, None, 0.5, 400, 4000.0, 3, walls=wall)
+    assert any(abs(p["y"] - 100.0) < 1.0 and 20 < p["x"] < 180 for p in plain)
+    assert not any(abs(p["y"] - 100.0) < 0.6 and 20 < p["x"] < 180 for p in walled)

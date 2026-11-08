@@ -17,6 +17,7 @@ from fraktal.ids import substream
 from fraktal.labels3d import CLASSES
 from fraktal.propgen import GENERATORS, MATERIALS
 from fraktal.render import ROAD_ARTERIAL, ROAD_LOCAL
+from fraktal.trees3d import wall_distance
 
 Array = np.ndarray[Any, Any]
 
@@ -64,8 +65,10 @@ def sample(
     density_per_km2: float,
     seed: int,
     street_codes: tuple[int, ...] = STREET,
+    walls: list[list[float]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Props as dicts (kind, variant, x, y, yaw, class). ``mask`` > 0 is a building footprint."""
+    """Props as dicts (kind, variant, x, y, yaw, class). ``mask`` > 0 is a building footprint;
+    ``walls`` (segments x0 y0 x1 y1 in tile metres) keep props from standing in a compound wall."""
     size_m = side * gsd_m
     n = int(round(density_per_km2 * size_m * size_m / 1e6))
     if n <= 0:
@@ -103,6 +106,9 @@ def sample(
         ok &= ~sel | clear
         if kind == "tuk_tuk" and road is None:
             ok &= ~sel
+    if walls:
+        reach = np.array([max(HALF_EXTENT[k]) for k in kinds])[kind_idx] + 0.3
+        ok &= wall_distance(xs, ys, np.asarray(walls, dtype="float64").reshape(-1, 4)) > reach
     vary = substream(seed, "props:vary")  # its own stream, so placement draws are unchanged
     scales = np.clip(np.exp(vary.normal(0.0, SCALE_SIGMA, count)), *SCALE_LIMITS)
     tints = vary.integers(0, len(TINT), count)
