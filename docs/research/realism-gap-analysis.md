@@ -204,3 +204,10 @@ Details in the ADR-0012 addendum 2.
   two informal-settlement tiles at 3 cm per pixel: ribs are faint but visible and rust spots show; at 0.1 m per
   pixel (one rib is about one pixel) they wash out, as intended. Weak spots: rib contrast is low, the clay-tile roofs
   show a dimple pattern from their texture, and the ground looks soft at 3 cm because its colour map is not that fine.
+- **FRK-110 (roof colours and clutter, 2026-11-08):** tin roofs now draw from a per-biome mix of eight colours
+  (silver, red, rust, dark, plus blue, green, white and pink; `building_grammar.TIN_MIXES`, shares set by eye from
+  the board), and the silver and dark tints no longer read teal (the texture is blue-grey, so the tint divides it
+  out). Flat roofs get solar panels, brick stacks and black or blue tanks beside the existing tank, on their own
+  random stream so earlier draws are unchanged (`_more_clutter`; shares are assumed, 20, 15 and 20 percent).
+  `docs/img/roof-colours-clutter.jpg` is dense-urban and informal-settlement tiles at 0.12 m per pixel. Not done:
+  clutter on tin and tile roofs, laundry, and checking the shares against the board by counting.
