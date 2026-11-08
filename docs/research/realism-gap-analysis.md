@@ -221,3 +221,14 @@ Details in the ADR-0012 addendum 2.
   Not done: meshes from the image-to-3D route are not imported (their QA lives in `scripts/props/meshqa.py`), the
   props are one merged mesh, not Blender instances (per-instance labels need per-face colours), and placement is a
   plain scatter, not tied to parcels or roads beyond the tuk-tuks (FRK-128).
+- **FRK-126 (normal and roughness maps, 2026-11-08):** `fraktal.pbr` derives a tangent-space normal map and a
+  roughness map from each tileable colour texture (height is lightness minus its slow variation, the normal from
+  the height's slope, the roughness from brightness), every step wrapping at the edge so tiles stay seamless.
+  `scripts/textures/derive_pbr.py` wrote 18 JPEG maps (2.1 MB) for the nine textures, added `normal` and
+  `roughness_map` to the materials that use them and a manifest row per map (licence and generator copied from the
+  source row). Blender reads them in `load_material`; the procedural tin ribs ride on top of the derived relief.
+  A/B on a pod, same two informal-settlement tiles at 4 cm per pixel (`docs/img/pbr-ab.jpg`, top row without, bottom
+  with): the maps load without errors and change the buildings by 5 to 9 grey levels of 255 on average, so the
+  effect is real but subtle under this soft lighting. Not done: the card's first goal, new diffusion textures made
+  with their own maps (this derives maps for the existing ones), a comparison with a learned estimator, and a
+  look under a low sun, where relief shows most.
