@@ -100,7 +100,7 @@ generate_world(Path("review/world"), (32.55, 15.64), 3, biomes.resolve(os.enviro
 PY
     stage "batch_$biome"
     T1=$(date +%s)
-    fraktal render3d-batch review/world --out "review/batch_$biome" --count "$COUNT" --size-m "$TILE_M" --gsd-m 0.5 \
+    fraktal render3d-batch review/world --out "review/batch_$biome" --count "$COUNT" --size-m "$TILE_M" --gsd-m ${GSD:-0.5} \
       --samples "${SAMPLES%% *}" --threads "$(nproc)" --seed $((10 + n)) $SENSOR_FLAG \
       2> >(tee "review/batch_$biome.err" | grep --line-buffered render3d_batch_tile) > "review/batch_$biome.out" \
       || echo "ERROR render3d-batch $biome exited non-zero"
@@ -152,7 +152,7 @@ PY
   [ "${TRAFFIC:-0}" = 1 ] || EXTRA="--altitude-m 150 --off-nadir 40 --fps 12 --depth"
   [ "${FLOW:-0}" = 1 ] && EXTRA="$EXTRA --flow"
   [ -n "${FOLLOW:-}" ] && EXTRA="$EXTRA --follow $FOLLOW --fps 10 --duration-s ${DURATION:-24}"  # ride on a car or person
-  fraktal render3d review/world --out review/fly --center $(cat review/center.txt) --size-m 800 --gsd-m 0.5 \
+  fraktal render3d review/world --out review/fly --center $(cat review/center.txt) --size-m 800 --gsd-m ${GSD:-0.5} \
     --path review/path.json --fov 60 --frame-px 512 $EXTRA \
     --samples "${SAMPLES%% *}" --seed 7 --threads "$(nproc)" --video > review/fly.out 2> review/fly.err \
     || { echo "ERROR fly failed"; tail -n 20 review/fly.err; }
@@ -251,7 +251,7 @@ generate_world(Path("review/world"), (32.55, 15.64), 3, biomes.resolve("dense_ur
 PY
   for run in a b; do
     stage "render3d_$run"
-    fraktal render3d review/world --out "review/r$run" --center 32.55 15.64 --size-m 300 --gsd-m 0.5 \
+    fraktal render3d review/world --out "review/r$run" --center 32.55 15.64 --size-m 300 --gsd-m ${GSD:-0.5} \
       --samples 16 --seed 7 --threads "$(nproc)" > "review/r$run.out" 2> "review/r$run.err" \
       || { echo "ERROR render3d $run failed"; tail -n 15 "review/r$run.err"; }
     echo "RP_RENDER3D_$run $(tr -d '\n ' < "review/r$run/render.json" 2>/dev/null)"

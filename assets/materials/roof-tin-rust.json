@@ -8,5 +8,8 @@
     0.8,
     0.5
   ],
-  "roughness": 0.78
+  "roughness": 0.78,
+  "ribs_m": 0.1,
+  "rib_strength": 0.6,
+  "rust": 0.4
 }
