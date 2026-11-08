@@ -122,17 +122,20 @@ def test_dense_urban_is_denser_taller_and_gridded(tmp_path: Path) -> None:
     roads = read_roads(tmp_path / "urban")
     arterials = roads[roads["road_class"] == "arterial"]
     streets = roads[roads["road_class"] == "local"]
-    square = 0
+    square = counted = 0
     for street in streets.geometry:
         c = list(street.coords)
         hook = Point(c[0])
         art = min(arterials.geometry, key=hook.distance)
+        if art.distance(hook) > 1e-6:
+            continue  # a side street branches off another street, not an arterial
+        counted += 1
         t = art.project(hook)
         a, b = art.interpolate(max(t - 8, 0)), art.interpolate(min(t + 8, art.length))
         turn = math.degrees(math.atan2(c[1][1] - c[0][1], c[1][0] - c[0][0]))
         turn -= math.degrees(math.atan2(b.y - a.y, b.x - a.x))
         square += abs((turn + 180) % 180 - 90) <= 25
-    assert square / len(streets) >= 0.8  # streets leave the arterials at right angles
+    assert counted > 20 and square / counted >= 0.8  # streets leave arterials at right angles
 
 
 def test_dense_urban_is_byte_identical_per_seed(tmp_path: Path) -> None:

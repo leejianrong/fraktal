@@ -206,7 +206,9 @@ def _road_raster(roads: gpd.GeoDataFrame, transform: Affine, side: int) -> Any:
     """0 off roads, ROAD_LOCAL or ROAD_ARTERIAL on them; wider arterials win at junctions."""
     shapes = []
     for _, road in roads.sort_values(["road_class", "id"], ascending=[False, True]).iterrows():
-        code = {"arterial": ROAD_ARTERIAL, "track": ROAD_TRACK}.get(road.road_class, ROAD_LOCAL)
+        code = {"arterial": ROAD_ARTERIAL, "track": ROAD_TRACK, "footpath": ROAD_TRACK}.get(
+            road.road_class, ROAD_LOCAL
+        )
         shapes.append((road.geometry.buffer(float(road.width_m) / 2, cap_style="flat"), code))
     shapes.sort(key=lambda s: s[1] not in (ROAD_LOCAL, ROAD_TRACK))  # arterials painted last
     if not shapes:

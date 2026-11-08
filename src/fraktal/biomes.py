@@ -53,6 +53,10 @@ BIOMES: dict[str, Biome] = {
                 local_spacing_m=70.0,
                 local_length_m=(150.0, 500.0),
                 local_probability=1.0,
+                local_wander_deg=3.0,  # a close grid: gentle bends, a few short alleys
+                local_curl_deg=4.0,
+                branch_rate=0.3,
+                branch_length_m=(25.0, 70.0),
             ),
             parcels=ParcelConfig(
                 frontage_m=(9.0, 15.0),
@@ -90,6 +94,12 @@ BIOMES: dict[str, Biome] = {
                 local_spacing_m=22.0,
                 local_length_m=(80.0, 300.0),
                 local_probability=1.0,
+                local_wander_deg=18.0,  # self-built lanes: winding, branching, footpaths between
+                local_curl_deg=25.0,
+                branch_rate=1.2,
+                branch_length_m=(20.0, 90.0),
+                footpath_rate=2.0,
+                footpath_length_m=(10.0, 45.0),
             ),
             parcels=ParcelConfig(
                 frontage_m=(5.0, 9.0),
@@ -121,7 +131,15 @@ BIOMES: dict[str, Biome] = {
             biome="oil_palm_plantation",
             relief_m=25.0,
             aridity=0.2,
-            roads=RoadConfig(drive_side="left", centres_per_km2=1.0, local_probability=0.4),
+            roads=RoadConfig(
+                drive_side="left",
+                centres_per_km2=1.0,
+                local_probability=0.4,
+                local_wander_deg=12.0,  # village tracks: loose bends, spurs, a few footpaths
+                local_curl_deg=15.0,
+                branch_rate=0.5,
+                footpath_rate=0.8,
+            ),
             buildings=BuildingConfig(built_probability_core=0.8, built_probability_edge=0.3),
             fields=FieldConfig(palm_count=9),
         ),
@@ -133,7 +151,15 @@ BIOMES: dict[str, Biome] = {
             biome="paddy_terraces",
             relief_m=60.0,
             aridity=0.15,
-            roads=RoadConfig(drive_side="left", centres_per_km2=1.0, local_probability=0.4),
+            roads=RoadConfig(
+                drive_side="left",
+                centres_per_km2=1.0,
+                local_probability=0.4,
+                local_wander_deg=12.0,  # village tracks: loose bends, spurs, a few footpaths
+                local_curl_deg=15.0,
+                branch_rate=0.5,
+                footpath_rate=0.8,
+            ),
             buildings=BuildingConfig(built_probability_core=0.8, built_probability_edge=0.3),
             fields=FieldConfig(paddy_zones=5, paddy_zone_radius_m=550.0, terrace_count=5),
         ),
@@ -145,7 +171,15 @@ BIOMES: dict[str, Biome] = {
             biome="mangrove_coast",
             relief_m=6.0,
             aridity=0.1,
-            roads=RoadConfig(drive_side="left", centres_per_km2=1.0, local_probability=0.5),
+            roads=RoadConfig(
+                drive_side="left",
+                centres_per_km2=1.0,
+                local_probability=0.5,
+                local_wander_deg=12.0,  # village tracks: loose bends, spurs, a few footpaths
+                local_curl_deg=15.0,
+                branch_rate=0.5,
+                footpath_rate=0.8,
+            ),
             buildings=BuildingConfig(built_probability_core=0.8, built_probability_edge=0.35),
             fields=FieldConfig(pond_zones=3),
             coast=CoastConfig(sea_share=0.35),

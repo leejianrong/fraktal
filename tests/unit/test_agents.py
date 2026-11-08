@@ -266,3 +266,35 @@ def test_no_drones_gives_empty_tracks_and_a_bad_count_is_refused() -> None:
     assert agents.simulate_drones(600.0, t, 1, agents.DroneConfig(count=0)).ids == []
     with pytest.raises(agents.AgentError):
         agents.simulate_drones(600.0, t, 1, agents.DroneConfig(count=-1))
+
+
+def test_footpaths_carry_no_cars_and_paint_as_track_surface() -> None:
+    from fraktal import render
+
+    with_path = _roads([
+        ("arterial", 12.0, [(0, 250), (500, 250)]),
+        ("footpath", 1.6, [(250, 250), (250, 400)]),
+    ])  # fmt: skip
+    g = agents.build_graph(with_path, BOUNDS)
+    assert {e.road_class for e in g.edges} == {"arterial"}
+    from affine import Affine
+
+    paint = render._road_raster(
+        with_path.assign(id=["a", "b"]), Affine(1.0, 0, 0, 0, -1.0, 500.0), 500
+    )
+    assert render.ROAD_TRACK in set(np.unique(paint)) and render.ROAD_LOCAL not in set(
+        np.unique(paint)
+    )
+
+
+def test_cars_and_people_still_route_on_an_organic_informal_settlement(tmp_path: Path) -> None:
+    world = tmp_path / "w"
+    generate_world(world, CENTER, 3, biomes.resolve("informal_settlement", {"size_m": 3000.0}))
+    roads, bounds, side = agents.tile_roads(world, CENTER, 1000.0)
+    assert "footpath" in set(roads["road_class"])  # the world has them ...
+    g = agents.build_graph(roads, bounds)
+    assert g.edges and "footpath" not in {e.road_class for e in g.edges}  # ... the graph does not
+    times = np.arange(0.0, 10.0, 0.5)
+    cars = agents.simulate_cars(g, times, 3, agents.TrafficConfig(drive_side=side))
+    people = agents.simulate_people(g, times, 3)
+    assert len(cars.ids) > 5 and len(people.ids) > 5

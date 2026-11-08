@@ -4,7 +4,7 @@ from typing import Any
 import numpy as np
 import pytest
 from affine import Affine
-from shapely.geometry import Point
+from shapely.geometry import LineString, Point
 
 from fraktal.ids import substream
 from fraktal.landcover_gen import WATER
@@ -157,3 +157,62 @@ def test_smoothing_keeps_arterial_end_points() -> None:
         return {(g.coords[0], g.coords[-1]) for g in lines}
 
     assert ends(raw) == ends(fair)
+
+
+ORGANIC = RoadConfig(local_wander_deg=25.0, local_curl_deg=45.0, branch_rate=1.0, footpath_rate=1.5)
+
+
+def _arterials(roads: Any) -> list[str]:
+    return [g.wkt for g in roads[roads.road_class == "arterial"].geometry]
+
+
+def _bow(line: Any) -> float:
+    """How far a street bows away from its chord, as a share of its length."""
+    chord = LineString([line.coords[0], line.coords[-1]])
+    if chord.length == 0:
+        return 0.0
+    return float(max(chord.distance(Point(c)) for c in line.coords) / line.length)
+
+
+def test_organic_streets_curve_branch_and_dead_end_while_arterials_stay_put() -> None:
+    dem, land = gentle(), dry((300, 300))
+    straight, organic = make(dem, land), make(dem, land, config=ORGANIC)
+    assert _arterials(straight) == _arterials(organic)  # growth never touches the arterials
+    assert set(organic["road_class"]) == {"arterial", "local", "footpath"}
+    assert (organic.loc[organic.road_class == "footpath", "width_m"] == 1.6).all()
+    locals_ = organic[organic.road_class == "local"]
+    bend = np.mean([_bow(g) for g in locals_.geometry])
+    flat = np.mean([_bow(g) for g in straight[straight.road_class == "local"].geometry])
+    assert bend > 2 * flat and flat < 0.03  # streets bend where they used to be straight
+    assert len(locals_) > (straight.road_class == "local").sum()  # side streets were added
+
+
+def test_footpaths_and_side_streets_hang_off_the_network_and_one_piece_remains() -> None:
+    organic = make(gentle(), dry((300, 300)), config=ORGANIC)
+    assert components(organic) == 1
+    feet = organic[organic.road_class == "footpath"]
+    assert len(feet) > 3
+    open_ends = 0
+    for i, foot in feet.iterrows():
+        others = organic.drop(index=i).geometry
+        start, end = Point(foot.geometry.coords[0]), Point(foot.geometry.coords[-1])
+        assert others.distance(start).min() < 1e-6  # it starts on a road
+        open_ends += others.distance(end).min() > 1.0  # and most of them stop short: a dead end
+    assert open_ends >= len(feet) // 2
+
+
+def test_organic_growth_is_deterministic_and_seeded() -> None:
+    dem, land = gentle(), dry((300, 300))
+    a = make(dem, land, config=ORGANIC)
+    assert [g.wkt for g in a.geometry] == [g.wkt for g in make(dem, land, config=ORGANIC).geometry]
+    other = make(dem, land, seed=2, config=ORGANIC)
+    assert [g.wkt for g in a.geometry] != [g.wkt for g in other.geometry]
+
+
+def test_defaults_leave_the_world_id_alone_and_biomes_that_grow_change_it() -> None:
+    from fraktal import procedural
+
+    default = procedural._jsonable(procedural.ProceduralConfig())
+    assert not {"local_wander_deg", "branch_rate", "footpath_rate"} & set(default["roads"])
+    grown = procedural._jsonable(procedural.ProceduralConfig(roads=ORGANIC))
+    assert grown["roads"]["branch_rate"] == 1.0
