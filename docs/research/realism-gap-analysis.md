@@ -4,7 +4,7 @@ Written 2026-11-07. Question: why do our renders look fake next to real tropical
 should we build first? Evidence is the review sheets of FRK-101 (our renders beside real chips at the
 same ground size) plus native-pixel crops of both. Real chips are not in the repo (eval only); they are
 named here and can be viewed with `fraktal review` (see [reference-board.md](reference-board.md)). Our own
-renders are in [docs/img/gap-synthetic-native.jpg](../img/gap-synthetic-native.jpg) (dense_urban,
+renders are in [docs/img/realism/gap-synthetic-native.jpg](../img/realism/gap-synthetic-native.jpg) (dense_urban,
 informal_settlement, khartoum and oil_palm_plantation, 250 m each, native pixels).
 
 ## How far to trust this
@@ -190,17 +190,17 @@ Details in the ADR-0012 addendum 2.
 - **FRK-108 (soil ground, 3D path, 2026-11-08):** `src/fraktal/ground_soil.py` turns a per-biome share of
   grass, shrub and crop ground into crisp soil patches (laterite for the wet biomes, ochre elsewhere) and
   mutes the remaining green. Colours are set by eye from the board, not fitted to pixels. Ground-colour
-  before and after, from `fraktal scene`: `docs/img/soil-ground-before-after.jpg`. Not yet looked at as a full
+  before and after, from `fraktal scene`: `docs/img/realism/soil-ground-before-after.jpg`. Not yet looked at as a full
   Blender render beside the real chips; paddy and mangrove tiles change little because their classes are not
   soil-capable. The 2.5D benchmark path is untouched.
 - **FRK-120 (Khartoum tan, 2026-11-08):** the `khartoum` biome now gets a tan soil style (80% of its soil-capable
   ground) and, in the 3D batch path only, near-neutral `ARID` sensor ranges (`randomise.BIOME_RANGES`) instead of
   the humid-tropics tone. The 2.5D benchmark path keeps `KHARTOUM_TONE`, and `palette.json` and world ids are
-  untouched. Ground colour before and after: `docs/img/khartoum-tan-before-after.jpg`. The standing water in the
+  untouched. Ground colour before and after: `docs/img/realism/khartoum-tan-before-after.jpg`. The standing water in the
   generated world still looks odd in a dry biome; that is the world generator, not this card.
 - **FRK-109 (corrugated roofs, 2026-11-08):** the four tin roof materials now carry procedural ribs (a 0.1 m
   pitch, rib direction chosen per ~14 m cell), rust patches and a warm neutral tone in place of the pale blue
-  (`add_corrugation` in `blender_scene.py`; the manifest hashes were updated). `docs/img/roofs-drone-scale.jpg` is
+  (`add_corrugation` in `blender_scene.py`; the manifest hashes were updated). `docs/img/realism/roofs-drone-scale.jpg` is
   two informal-settlement tiles at 3 cm per pixel: ribs are faint but visible and rust spots show; at 0.1 m per
   pixel (one rib is about one pixel) they wash out, as intended. Weak spots: rib contrast is low, the clay-tile roofs
   show a dimple pattern from their texture, and the ground looks soft at 3 cm because its colour map is not that fine.
@@ -209,14 +209,14 @@ Details in the ADR-0012 addendum 2.
   the board), and the silver and dark tints no longer read teal (the texture is blue-grey, so the tint divides it
   out). Flat roofs get solar panels, brick stacks and black or blue tanks beside the existing tank, on their own
   random stream so earlier draws are unchanged (`_more_clutter`; shares are assumed, 20, 15 and 20 percent).
-  `docs/img/roof-colours-clutter.jpg` is dense-urban and informal-settlement tiles at 0.12 m per pixel. Not done:
+  `docs/img/realism/roof-colours-clutter.jpg` is dense-urban and informal-settlement tiles at 0.12 m per pixel. Not done:
   clutter on tin and tile roofs, laundry, and checking the shares against the board by counting.
 - **FRK-124 (props in the Blender scene, 2026-11-08):** the code-written props (`propgen`) are now placed by
   `props_scene.sample` (open ground clear of buildings and roads; tuk-tuks on streets; 60 per km2 by default,
   `--prop-density` on `render3d` and `render3d-batch`), packed as arrays and imported as one mesh. Class comes from
   the catalogue (`yard_object` 9, tuk-tuks `vehicle` 4), and each prop is a labelled instance numbered from 20001 so
   a tuk-tuk never shares an id with a parked car. Checked on a pod at 1500 per km2 and 0.15 m: 135 props, 130 and
-  126 of them visible in the two tiles, with exact class and instance in `labels.png` (`docs/img/props-in-scene.jpg`).
+  126 of them visible in the two tiles, with exact class and instance in `labels.png` (`docs/img/realism/props-in-scene.jpg`).
   Import cost: 0.46 to 0.64 s per 1000 props (the geometry is built once per variant, eight per kind, and copied).
   Not done: meshes from the image-to-3D route are not imported (their QA lives in `scripts/props/meshqa.py`), the
   props are one merged mesh, not Blender instances (per-instance labels need per-face colours), and placement is a
@@ -227,7 +227,7 @@ Details in the ADR-0012 addendum 2.
   `scripts/textures/derive_pbr.py` wrote 18 JPEG maps (2.1 MB) for the nine textures, added `normal` and
   `roughness_map` to the materials that use them and a manifest row per map (licence and generator copied from the
   source row). Blender reads them in `load_material`; the procedural tin ribs ride on top of the derived relief.
-  A/B on a pod, same two informal-settlement tiles at 4 cm per pixel (`docs/img/pbr-ab.jpg`, top row without, bottom
+  A/B on a pod, same two informal-settlement tiles at 4 cm per pixel (`docs/img/realism/pbr-ab.jpg`, top row without, bottom
   with): the maps load without errors and change the buildings by 5 to 9 grey levels of 255 on average, so the
   effect is real but subtle under this soft lighting. Not done: the card's first goal, new diffusion textures made
   with their own maps (this derives maps for the existing ones), a comparison with a learned estimator, and a
@@ -237,7 +237,7 @@ Details in the ADR-0012 addendum 2.
   40, informal settlement 25 percent, set by eye), with a 3 m gate gap on the edge nearest the road. Derived from
   the parcel, building and road layers at export, so worlds and ids do not change. Label class `wall` is 8, one
   instance per compound; the gate is a gap. `--wall-share` overrides the share on `render3d` and `render3d-batch`.
-  Pod check on two Khartoum tiles at 0.15 m (`docs/img/compound-walls.jpg`): 15 and 32 compounds, each a separate
+  Pod check on two Khartoum tiles at 0.15 m (`docs/img/realism/compound-walls.jpg`): 15 and 32 compounds, each a separate
   instance in `labels.png`, gate gaps visible. Not done: courtyards and outbuildings inside compounds, wall
   colour or material variety beyond four flat colours, trees and props are not kept out of walls, and the
   informal-settlement run at 200 m tiles failed with `landcover.tif does not cover the render region` (not
@@ -262,7 +262,7 @@ Details in the ADR-0012 addendum 2.
   and is now `rib_depth_m` (1 cm in the eight ribbed tin materials); (4) the rib direction was random per 14 m
   cell, so ribs ran along the ridge on some roofs, and now follows each face's normal and runs down the slope
   (flat faces keep the random direction). The probe measures a 0.100 m stripe period. In the scene
-  (`docs/img/tin-ribs-low-sun.jpg`, informal-settlement tiles at 2 cm, top row the probe, bottom row before and
+  (`docs/img/realism/tin-ribs-low-sun.jpg`, informal-settlement tiles at 2 cm, top row the probe, bottom row before and
   after the direction fix) the ribs show on red and blue roofs, and are faint under the sensor blur and sky fill.
   The grey roof in one tile shows none, probably the sun running parallel to its ribs; not checked. The Khartoum
   roofs I first looked at were flat concrete and terracotta, so they had no ribs to show. Still not done on this
@@ -277,7 +277,7 @@ Details in the ADR-0012 addendum 2.
   settlement winds, branches and gets footpaths most (about 570 streets and 520 footpaths in a 1.5 km world, from
   345 straight streets); dense urban stays a close grid with gentle bends and a few short alleys; the three rural
   biomes get loose bends, spurs and a few footpaths. **Khartoum is left straight on purpose**: its config is the
-  default, which the benchmark worlds use. `docs/img/organic-roads.jpg` is plan views of all six biomes, top row
+  default, which the benchmark worlds use. `docs/img/realism/organic-roads.jpg` is plan views of all six biomes, top row
   straight (the old generator, settings zeroed), bottom row new. Traffic and people route on the graph of streets:
   footpaths are left out of it (too narrow for a car), and they paint as the laterite track surface, so no tuk-tuk
   or parked car is placed on one (`test_cars_and_people_still_route_on_an_organic_informal_settlement`). Not done:
@@ -286,7 +286,7 @@ Details in the ADR-0012 addendum 2.
 - **FRK-126 follow-up (ground textures and a learned-normal comparison, 2026-11-08):** SDXL base 1.0 on an A40
   (4.6 s per 1024 px image, 16 images, about 75 s of GPU time) made four roles with four seeds each, wrapped with
   circular padding (`scripts/textures/sdxl_ground.py`, `scripts/runpod/ground_textures_run.sh`;
-  `docs/img/ground-textures.jpg`, left: rows are red earth, tan soil, scrub, sand plaster). Results: `soil_red`
+  `docs/img/realism/ground-textures.jpg`, left: rows are red earth, tan soil, scrub, sand plaster). Results: `soil_red`
   seed 0 is plain fine-grained red earth, seeds 1 to 3 are cracked dried mud; `soil_tan` came out as river
   cobbles in all four seeds, so it is rejected; `soil_scrub` ignored the grass tufts and gave earth and cracked mud
   again; `sand plaster` is nearly flat. Seam scores 0.73 to 1.14 (about 1 is seamless); the worst (0.73, a tan

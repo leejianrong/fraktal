@@ -111,7 +111,7 @@ and `fraktal traffic WORLD --center LON LAT --out DIR`, which writes `agents.jso
 2 km tile of the dense_urban world (30.6 km of road, 184 cars, 40 s) the map below shows every car's
 path from its start dot: cars follow the roads, turn at junctions and U-turn at dead ends and tile edges.
 
-![Car paths on a dense_urban tile](../img/traffic-map.jpg)
+![Car paths on a dense_urban tile](../img/moving-agents/traffic-map.jpg)
 
 Known limits, as planned: cars ignore each other, bridges are left out, the generated local roads are
 mostly spurs off arterials so the network is sparse, and the tile centre of a world is not always where
@@ -138,14 +138,14 @@ the label image; zero in both runs. A single car kept the same instance across i
 instance 45, frames 0 to 131 in the dense run). Below: crops around one car in four frames of the
 khartoum flight, a red car driving down a dirt road, with the full frame underneath.
 
-![A tracked car in four frames](../img/traffic-cars.jpg)
+![A tracked car in four frames](../img/moving-agents/traffic-cars.jpg)
 
 In the dense town the streets are narrow canyons in deep shadow, so cars show as dark boxes in the beauty
 frames while the label image shows them exactly (blue, below). The cars are still boxes, they do not
 react to each other (FRK-86). The dense run took about 2.3 s a frame at 512 px for the three passes; the
 cost of the per-frame car update was not timed separately.
 
-![Dense urban frames and their labels](../img/traffic-dense-labels.jpg)
+![Dense urban frames and their labels](../img/moving-agents/traffic-dense-labels.jpg)
 
 ## Status after FRK-86 (2026-11-06)
 
@@ -183,7 +183,7 @@ agents visible in a frame, 0 mismatches between `tracks.json` and a recount from
 one walker in four frames (a crop of the render, the same crop of the labels in orange, and the whole
 frame); the blue block is a car.
 
-![A pedestrian in four frames](../img/people-crops.jpg)
+![A pedestrian in four frames](../img/moving-agents/people-crops.jpg)
 
 Limits: people and cars ignore each other (people walk across the junction link without waiting, and a
 car does not slow for them), there is no walk cycle or crowd behaviour, and the figure is boxes. At the
@@ -207,9 +207,9 @@ Pod checks (16 vCPU, 16 samples, 512 px, 10 fps):
 | Dashcam on car-0049 | dense_urban | 240 (24 s) | 584 s | 13 cars | 0 |
 | Eye level on person-0191 | khartoum | 200 (20 s) | 289 s | 17 people and 7 cars, up to 19 in a frame | 0 |
 
-![A dashcam drive: frames and labels](../img/dashcam.jpg)
+![A dashcam drive: frames and labels](../img/moving-agents/dashcam.jpg)
 
-![Walking at eye level: frames and labels](../img/eyelevel.jpg)
+![Walking at eye level: frames and labels](../img/moving-agents/eyelevel.jpg)
 
 Limits: the ground mesh ends at the tile edge, so a long view shows the edge against a flat sky; the
 dense town is in deep shadow at street level; the walker and the car move at their simulated pace, so
