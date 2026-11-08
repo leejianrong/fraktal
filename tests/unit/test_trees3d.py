@@ -1,4 +1,5 @@
 from collections import Counter
+from typing import Any
 
 import numpy as np
 
@@ -26,7 +27,9 @@ def test_the_mix_follows_the_biome() -> None:
     assert abs(sum(trees3d.DEFAULT_MIX) - 1.0) < 1e-9
 
 
-def _scene(biome: str = "khartoum", walls: list[list[float]] | None = None, density: float = 1.0):
+def _scene(
+    biome: str = "khartoum", walls: list[list[float]] | None = None, density: float = 1.0
+) -> tuple[Any, Any, list[list[Any]]]:
     surface = np.full((400, 400), 60, dtype="uint8")  # bare ground, 0.5 m cells: a 200 m tile
     mask = np.zeros((400, 400), dtype="uint8")
     mask[100:140, 100:140] = 1  # a building
