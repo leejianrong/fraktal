@@ -469,7 +469,7 @@ def _render3d_batch(args: argparse.Namespace) -> Result:
     try:
         specs = render3d_batch.plan(
             args.world, args.count, args.seed, args.size_m, args.gsd_m, args.min_buildings,
-            sensor=args.sensor,
+            sensor=args.sensor, sun_elevation=tuple(args.sun_elevation_range),
         )  # fmt: skip
         record = render3d_batch.run(
             args.world,
@@ -694,6 +694,14 @@ def _render3d_batch_args(parser: argparse.ArgumentParser) -> None:
         type=float,
         default=None,
         help="share of built parcels with a compound wall (default: the biome's)",
+    )
+    parser.add_argument(
+        "--sun-elevation-range",
+        type=float,
+        nargs=2,
+        metavar=("LOW", "HIGH"),
+        default=list(render3d_batch.SUN_ELEVATION_DEG),
+        help="range the sun elevation (degrees) is drawn from; low values show relief",
     )
     parser.add_argument(
         "--sensor", action="store_true", help="also write sensor.png (tropical grade, blur, noise)"

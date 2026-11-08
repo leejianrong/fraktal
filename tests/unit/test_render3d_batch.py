@@ -58,6 +58,14 @@ def test_the_plan_is_deterministic_inside_the_world_and_varies_the_sun(world: Pa
         render3d_batch.plan(world, 1, 0, 50000.0, 1.0)
 
 
+def test_a_low_sun_range_changes_only_the_elevation(world: Path) -> None:
+    a = render3d_batch.plan(world, 4, 5, 200.0, 1.0)
+    b = render3d_batch.plan(world, 4, 5, 200.0, 1.0, sun_elevation=(8.0, 20.0))
+    assert [s["sun"][0] for s in a] == [s["sun"][0] for s in b]
+    assert [s["seed"] for s in a] == [s["seed"] for s in b]
+    assert all(8 <= s["sun"][1] <= 20 for s in b)
+
+
 def test_a_batch_renders_every_tile_slims_them_and_writes_the_record(
     world: Path, tmp_path: Path
 ) -> None:
