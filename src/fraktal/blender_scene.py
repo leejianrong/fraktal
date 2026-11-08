@@ -213,6 +213,11 @@ def load_material(name: str, assets: Path):
     return mat
 
 
+# A Wave texture in BANDS mode computes x * 20 * Scale and repeats every 2 pi of that,
+# so one band is 2 pi / 20 = 0.314 m at Scale 1.
+WAVE_BAND_PERIOD_M = 2 * math.pi / 20.0
+
+
 def add_corrugation(mat, spec: dict, coords, bsdf, tint, normal_in=None) -> None:
     """Ribs as a bump (rib direction random per ~14 m cell), plus rust patches and a worn tone.
 
@@ -229,7 +234,7 @@ def add_corrugation(mat, spec: dict, coords, bsdf, tint, normal_in=None) -> None
     def wave(axis: str):
         w = nodes.new("ShaderNodeTexWave")
         w.wave_type, w.bands_direction, w.wave_profile = "BANDS", axis, "SAW"
-        w.inputs["Scale"].default_value = 1.0 / spec["ribs_m"]
+        w.inputs["Scale"].default_value = WAVE_BAND_PERIOD_M / spec["ribs_m"]
         w.inputs["Distortion"].default_value = 0.0
         links.new(coords.outputs["Object"], w.inputs["Vector"])
         return w
