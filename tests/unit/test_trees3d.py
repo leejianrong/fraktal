@@ -46,13 +46,9 @@ def test_scatter_makes_thickets_small_shrubs_and_a_few_big_trees() -> None:
     assert 0.9 < np.median(radius) < 1.8 and 0.01 < (radius > 3.0).mean() < 0.1
     xy = np.array([[t[0], t[1]] for t in trees])
 
-    # clustering: nearest-neighbour distances are shorter than for the same count spread evenly
-    def mean_nn(points):
-        d = np.hypot(*(points[:, None] - points[None]).transpose(2, 0, 1))
-        return np.sort(d, axis=1)[:, 1].mean()
-
-    even = np.random.default_rng(0).uniform(0, 200, xy.shape)
-    assert mean_nn(xy) < 0.8 * mean_nn(even)
+    # clustering: counts per 20 m cell vary far more than for an even random scatter
+    counts, _, _ = np.histogram2d(xy[:, 0], xy[:, 1], bins=10, range=[[0, 200], [0, 200]])
+    assert counts.var() / counts.mean() > 2.5  # 1.0 for a uniform random scatter
     assert sum(t[4] == "shrub" for t in trees) / len(trees) > 0.2
 
 
