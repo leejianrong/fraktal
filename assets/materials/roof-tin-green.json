@@ -1,0 +1,15 @@
+{
+  "name": "roof-tin-green",
+  "role": "roof",
+  "image": "textures/corrugatedsteel007a-color.jpg",
+  "scale_m": 1.5,
+  "tint": [
+    0.404,
+    0.66,
+    0.39
+  ],
+  "roughness": 0.6,
+  "ribs_m": 0.1,
+  "rib_strength": 0.6,
+  "rust": 0.12
+}

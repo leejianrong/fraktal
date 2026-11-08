@@ -1,0 +1,10 @@
+{
+  "name": "solar-panel",
+  "role": "clutter",
+  "color": [
+    0.05,
+    0.08,
+    0.16
+  ],
+  "roughness": 0.25
+}

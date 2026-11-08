@@ -37,8 +37,29 @@ TIN_ROOFS = (
     "roof-tin-red",
     "roof-tin-rust",
     "roof-tin-dark",
-)  # silver, painted, rusty, dark
-TIN_WEIGHTS = (0.15, 0.35, 0.30, 0.20)
+    "roof-tin-blue",
+    "roof-tin-green",
+    "roof-tin-white",
+    "roof-tin-pink",
+)  # silver, red, rusty, dark, then the painted colours seen on the reference board (FRK-110)
+TIN_WEIGHTS = (
+    0.15,
+    0.35,
+    0.30,
+    0.20,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+)  # the original mix, for a caller with no biome
+# Per-biome mixes in the order of TIN_ROOFS, set by eye from the board: a wide spread of rust, red,
+# blue, green, white and a little pink. Khartoum is drier and plainer.
+TIN_MIXES: dict[str, tuple[float, ...]] = {
+    "khartoum": (0.30, 0.08, 0.38, 0.10, 0.05, 0.0, 0.09, 0.0),
+}
+SOLAR_SHARE, BRICK_SHARE, EXTRA_TANK_SHARE = 0.20, 0.15, 0.20  # of flat roofs, assumed shares
+TIN_MIX_TROPICAL = (0.12, 0.20, 0.22, 0.08, 0.16, 0.08, 0.10, 0.04)
+ROOF_CLUTTER = ("solar-panel", "brick-stack", "tank-black", "tank-blue")
 FLAT_ROOFS = ("roof-flat-concrete", "roof-flat-pale", "roof-flat-terracotta", "roof-flat-bitumen")
 OPENINGS = ("window-glass", "door")
 CLUTTER = ("tank",)
@@ -53,6 +74,7 @@ MATERIALS = (
     *CLUTTER,
     *DETAIL,
     *TIN_ROOFS[1:],
+    *ROOF_CLUTTER,
 )
 STOREY_M = 3.0
 COURTYARD_MIN_AREA_M2 = 140.0
@@ -265,6 +287,11 @@ def _courtyard(
     return mesh
 
 
+def tin_mix(biome: str) -> tuple[float, ...]:
+    """The tin roof colour weights, in the order of ``TIN_ROOFS``, for a biome."""
+    return TIN_MIXES.get(biome, TIN_MIX_TROPICAL)
+
+
 def typology_for(
     building_id: str, poly: Polygon, vertices: int, height: float, roof_material: str | None,
     seed: int,
@@ -286,6 +313,7 @@ def build(
     height_m: float,
     roof_material: str | None,
     seed: int,
+    roof_mix: Sequence[float] | None = None,
 ) -> Mesh:
     """The mesh of one building, in the ring's own (tile) coordinates, ground at z = 0."""
     pts = np.asarray(ring, dtype="float64")
@@ -305,7 +333,10 @@ def build(
         roof_material == "tin"
     ):  # real tin roofs are silver, painted, rusty or dark, not all one grey
         pick = float(substream(seed, f"roofcolour:{building_id}").uniform())
-        roof = TIN_ROOFS[int(np.searchsorted(np.cumsum(TIN_WEIGHTS), pick, side="right"))]
+        weights = np.asarray(roof_mix if roof_mix is not None else TIN_WEIGHTS, dtype="float64")
+        roof = TIN_ROOFS[
+            int(np.searchsorted(np.cumsum(weights / weights.sum()), pick, side="right"))
+        ]
     look = substream(seed, f"surface:{building_id}")  # a separate draw: the ones above keep theirs
     if float(look.uniform()) < GENERATED_WALL_SHARE:
         wall = GENERATED_WALLS[int(look.integers(0, len(GENERATED_WALLS)))]
@@ -356,6 +387,7 @@ def build(
         room = poly.buffer(-1.8)
         minx, miny, maxx, maxy = poly.bounds
         placed = 0
+        spots: list[tuple[float, float]] = []
         for _ in range(30):
             if placed >= 2 or room.is_empty:
                 break
@@ -367,7 +399,45 @@ def build(
             elif floors >= 2:
                 _box(x, y, 2.2, 2.2, top, top + 2.4, mesh, wall)
             placed += 1
+            spots.append((x, y))
+        _more_clutter(poly, room, spots, top, mesh, substream(seed, f"clutter:{building_id}"))
     return mesh
+
+
+def _more_clutter(
+    poly: Polygon, room: Any, spots: list[tuple[float, float]], top: float, mesh: Mesh, rng: Any
+) -> None:
+    """Solar panels, stacked bricks and coloured tanks on a share of flat roofs (FRK-110).
+
+    Its own random stream, so the buildings drawn before this keep their looks. Items keep 3 m
+    from the first clutter and from each other.
+    """
+    if room.is_empty:
+        return
+    minx, miny, maxx, maxy = poly.bounds
+    wanted: list[str] = []
+    if float(rng.uniform()) < SOLAR_SHARE:
+        wanted.append("solar-panel")
+    if float(rng.uniform()) < BRICK_SHARE:
+        wanted.append("brick-stack")
+    if float(rng.uniform()) < EXTRA_TANK_SHARE:
+        wanted.append(("tank-black", "tank-blue")[int(rng.integers(0, 2))])
+    for kind in wanted:
+        for _ in range(20):
+            x, y = float(rng.uniform(minx, maxx)), float(rng.uniform(miny, maxy))
+            if not room.contains(Point(x, y)) or any(
+                math.hypot(x - a, y - b) < 3.0 for a, b in spots
+            ):
+                continue
+            if kind == "solar-panel":  # a panel on a low stand: a thin slab above a short post
+                _box(x, y, 0.15, 0.15, top, top + 0.35, mesh, "wall-concrete")
+                _box(x, y, 2.0, 1.3, top + 0.35, top + 0.45, mesh, kind)
+            elif kind == "brick-stack":
+                _box(x, y, 1.2, 0.7, top, top + 0.55, mesh, kind)
+            else:
+                _prism(x, y, float(rng.uniform(0.45, 0.65)), top, top + 1.1, 10, mesh, kind)
+            spots.append((x, y))
+            break
 
 
 def pack(meshes: Sequence[Mesh]) -> dict[str, Any]:
