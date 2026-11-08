@@ -184,3 +184,12 @@ chosen gaps are closed (ADR-0012). FRK-103 is where Jian reorders, drops or appr
 3. Maxar scenes from before and after the event, both (FRK-118).
 
 Details in the ADR-0012 addendum 2.
+
+## Progress
+
+- **FRK-108 (soil ground, 3D path, 2026-11-08):** `src/fraktal/ground_soil.py` turns a per-biome share of
+  grass, shrub and crop ground into crisp soil patches (laterite for the wet biomes, ochre elsewhere) and
+  mutes the remaining green. Colours are set by eye from the board, not fitted to pixels. Ground-colour
+  before and after, from `fraktal scene`: `docs/img/soil-ground-before-after.jpg`. Not yet looked at as a full
+  Blender render beside the real chips; paddy and mangrove tiles change little because their classes are not
+  soil-capable. The 2.5D benchmark path is untouched.
