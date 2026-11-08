@@ -316,7 +316,11 @@ def paint_labels(scene: dict, scene_dir: Path) -> None:
         paint(bpy.data.objects[name], np.full(len(owner), a["class"]), owner + 1)
     if "props" in bpy.data.objects and PROP_FACE_OWNER:
         owner = np.asarray(PROP_FACE_OWNER, dtype="int64")
-        paint(bpy.data.objects["props"], np.asarray(PROP_FACE_CLASS, dtype="int64"), owner + 1)
+        paint(
+            bpy.data.objects["props"],
+            np.asarray(PROP_FACE_CLASS, dtype="int64"),
+            owner + 1 + PROP_INSTANCE_BASE,
+        )
     for name, klass, faces in (
         ("vehicles", CLASS_VEHICLE, VEHICLE_OWNER),
         ("poles", CLASS_POLE, POLE_OWNER),
@@ -521,6 +525,9 @@ def build_trees(scene: dict) -> int:
 
 
 VEHICLE_OWNER: list[int] = []  # the vehicle each face of the vehicle mesh belongs to
+PROP_INSTANCE_BASE = (
+    20000  # props number from here, so a tuk-tuk never shares an id with a parked car
+)
 PROP_FACE_OWNER: list[int] = []  # the prop each face of the props mesh belongs to
 PROP_FACE_CLASS: list[int] = []  # and the class of that prop (from the catalogue)
 POLE_OWNER: list[int] = []
@@ -583,6 +590,8 @@ def build_props(scene: dict, scene_dir: Path) -> int:
     PROP_FACE_CLASS.clear()
     if not props:
         return 0
+    if PROP_INSTANCE_BASE + len(props) + 1 > 65535:
+        raise SystemExit(f"{len(props)} props do not fit the 16-bit instance label")
     t = time.time()
     verts = np.load(scene_dir / "props_vertices.npy")
     faces = np.load(scene_dir / "props_faces.npy")
