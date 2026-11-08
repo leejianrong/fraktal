@@ -124,7 +124,7 @@
       "licence": "owned",
       "author": "Jian Lee",
       "url": "https://github.com/leejianrong/fraktal",
-      "sha256": "f5454e1c762ac9061b256a4d8fbc8de758d0cb44c49cf5bd1138befbd7281f95",
+      "sha256": "a384a976812ec69298fd38b41d314a829858accb9cc605a7e6a7dd7083c38e6d",
       "verified": true
     },
     {
@@ -278,7 +278,7 @@
       "licence": "owned",
       "author": "Jian Lee",
       "url": "https://github.com/leejianrong/fraktal",
-      "sha256": "b39ebde92fabb6b8a943b2bc841515f7e5a7e3f839082e8fd2f81f09a09057e0",
+      "sha256": "833d19a166e3b03840b59993f0ec6edbd912e01f76559def4c4f8703d25e8223",
       "verified": true
     },
     {
@@ -407,6 +407,94 @@
       "author": "Jian Lee",
       "url": "https://github.com/leejianrong/fraktal",
       "sha256": "471b15f713183330d65dee53649e4365c4121c2741b3746088902f92455b8964",
+      "verified": true
+    },
+    {
+      "id": "mat-roof-tin-blue",
+      "file": "materials/roof-tin-blue.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "7d4a732cd210b9d5a09ea4ff5536f2877d38e6bda76c9250f7deb99f8f40aca2",
+      "verified": true
+    },
+    {
+      "id": "mat-roof-tin-green",
+      "file": "materials/roof-tin-green.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "d88ecb6a5f7357d95e8c244cad8fb6ac16fb0aa43284a944a7a0d2b318cae3d1",
+      "verified": true
+    },
+    {
+      "id": "mat-roof-tin-white",
+      "file": "materials/roof-tin-white.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "67af1fc4061e296e097f356a2f13de3cee69c2d48f55121bcd85890cb6c2364d",
+      "verified": true
+    },
+    {
+      "id": "mat-roof-tin-pink",
+      "file": "materials/roof-tin-pink.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "683195ff9025b9196eebf4691370c9fd643896d095f3d0cd67c3f3347d0dca0a",
+      "verified": true
+    },
+    {
+      "id": "mat-solar-panel",
+      "file": "materials/solar-panel.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "bb7561c23939e71c0616898e2f4132dbf74a4eb2d5e1e6eb63311f900d3882ec",
+      "verified": true
+    },
+    {
+      "id": "mat-brick-stack",
+      "file": "materials/brick-stack.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "74f9c87731831c29c173b68a05a6dc2d231e20a107392bb25019a8f252717348",
+      "verified": true
+    },
+    {
+      "id": "mat-tank-black",
+      "file": "materials/tank-black.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "70bb071e59b95abba8b793a1cde1c440beb277203247591898b1cd619aa41565",
+      "verified": true
+    },
+    {
+      "id": "mat-tank-blue",
+      "file": "materials/tank-blue.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "a0a539ffbaec6ccba72e65b696f29c20b288b108d270ee622e3825fc3ebfbf18",
       "verified": true
     }
   ]

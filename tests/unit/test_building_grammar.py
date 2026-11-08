@@ -188,7 +188,9 @@ def test_tin_roofs_come_in_several_colours_in_the_set_proportions() -> None:
         )
         for i in range(600)
     )
-    assert set(picks) == set(grammar.TIN_ROOFS)
+    assert set(picks) == {
+        r for r, w in zip(grammar.TIN_ROOFS, grammar.TIN_WEIGHTS, strict=True) if w
+    }
     for name, weight in zip(grammar.TIN_ROOFS, grammar.TIN_WEIGHTS, strict=True):
         assert abs(picks[name] / 600 - weight) < 0.07
     assert grammar.build("aaaa1111", RING, 4.0, "tin", 1) == grammar.build(

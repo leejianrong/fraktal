@@ -1,0 +1,15 @@
+{
+  "name": "roof-tin-pink",
+  "role": "roof",
+  "image": "textures/corrugatedsteel007a-color.jpg",
+  "scale_m": 1.5,
+  "tint": [
+    1.496,
+    0.72,
+    0.697
+  ],
+  "roughness": 0.6,
+  "ribs_m": 0.1,
+  "rib_strength": 0.6,
+  "rust": 0.12
+}

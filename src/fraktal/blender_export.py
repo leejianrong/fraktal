@@ -360,7 +360,12 @@ def export_scene(
     for index, b in enumerate(buildings):
         try:
             built = building_grammar.build(
-                b["id"], b["ring"], b["height_m"], b["roof_material"], seed
+                b["id"],
+                b["ring"],
+                b["height_m"],
+                b["roof_material"],
+                seed,
+                roof_mix=building_grammar.tin_mix(biome),
             )
             b["typology"] = built.typology
             meshes.append(built)

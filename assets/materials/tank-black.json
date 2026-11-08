@@ -1,0 +1,10 @@
+{
+  "name": "tank-black",
+  "role": "clutter",
+  "color": [
+    0.06,
+    0.06,
+    0.065
+  ],
+  "roughness": 0.5
+}
