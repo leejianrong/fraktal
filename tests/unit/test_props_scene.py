@@ -70,3 +70,56 @@ def test_prop_instance_base_matches_the_blender_script() -> None:
     found = re.search(r"PROP_INSTANCE_BASE = \(?\s*(\d+)", source)
     assert found and int(found.group(1)) == labels3d.PROP_INSTANCE_BASE
     assert labels3d.meta([], 0, props=3)["props_first_instance"] == labels3d.PROP_INSTANCE_BASE + 1
+
+
+def test_variation_differs_by_seed_and_stays_in_range() -> None:
+    surface, mask, road = _world()
+    a = props_scene.sample(surface, mask, road, GSD, SIDE, 2000.0, 11)
+    b = props_scene.sample(surface, mask, road, GSD, SIDE, 2000.0, 12)
+    assert [p["scale"] for p in a] != [p["scale"] for p in b]
+    assert len({(p["tint"], p["wear"]) for p in a}) > 3
+    lo, hi = props_scene.SCALE_LIMITS
+    for p in a:
+        assert lo <= p["scale"] <= hi
+        assert p["tint"] in range(len(props_scene.TINT)) and p["wear"] in range(3)
+
+
+def test_varying_the_look_does_not_move_a_prop() -> None:
+    """Scale, tint and wear come from their own stream, so where props go is unchanged."""
+    surface, mask, road = _world()
+    a = props_scene.sample(surface, mask, road, GSD, SIDE, 400.0, 7)
+    assert [(p["kind"], p["variant"], p["x"], p["y"], p["yaw"]) for p in a[:3]] == [
+        ("signboard", 0, 60.8, 51.23, 0.6483),
+        ("signboard", 3, 98.95, 22.23, 4.9456),
+        ("market_stall", 3, 46.28, 33.93, 2.5043),
+    ]
+
+
+def test_golden_sampler_output() -> None:
+    surface, mask, road = _world()
+    a = props_scene.sample(surface, mask, road, GSD, SIDE, 400.0, 7)
+    assert len(a) == 16
+    assert a[0] == {
+        "kind": "signboard", "variant": 0, "x": 60.8, "y": 51.23, "yaw": 0.6483,
+        "scale": 0.975, "tint": 3, "wear": 0, "class": 9,
+    }  # fmt: skip
+    assert props_scene.repeat_stats(a) == {
+        "count": 16, "distinct_shapes": 15, "distinct_looks": 16,
+        "shape_repeat_rate": 0.062, "look_repeat_rate": 0.0,
+    }  # fmt: skip
+
+
+def test_pack_applies_scale_and_looks() -> None:
+    base = {"kind": "container", "variant": 0, "x": 0.0, "y": 0.0, "yaw": 0.0, "class": 9}
+    plain = props_scene.pack([{**base, "scale": 1.0, "tint": 2, "wear": 0}])
+    big = props_scene.pack([{**base, "scale": 1.08, "tint": 2, "wear": 0}])
+    assert abs(big["vertices"][:, 0].max() / plain["vertices"][:, 0].max() - 1.08) < 1e-5
+    worn = props_scene.pack([{**base, "scale": 1.0, "tint": 2, "wear": 2}])
+    first_plain, first_worn = plain["materials"][0], worn["materials"][0]
+    assert first_plain[0] != first_worn[0]  # a different look is a different material
+    assert first_worn[2] > first_plain[2]  # rougher
+    assert sum(first_worn[1]) < sum(first_plain[1])  # darker
+    two = props_scene.pack(
+        [{**base, "scale": 1.0, "tint": 0, "wear": 0}, {**base, "scale": 1.0, "tint": 3, "wear": 1}]
+    )
+    assert len({m[0] for m in two["materials"]}) == len(two["materials"])  # no duplicates

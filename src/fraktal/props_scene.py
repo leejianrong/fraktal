@@ -41,6 +41,10 @@ HALF_EXTENT = {  # half length, half width in metres, for the clearance check
 VARIANTS = 8  # distinct shapes per kind, so a tile reuses geometry the way instancing would
 OPEN_GROUND = (20, 30, 40, 60)  # shrub, grass, crop, bare
 STREET = (ROAD_LOCAL, ROAD_ARTERIAL)  # the road raster's local and arterial codes
+SCALE_SIGMA, SCALE_LIMITS = 0.04, (0.92, 1.08)  # a log-normal size jitter, clamped
+TINT = (0.85, 0.95, 1.05, 1.15)  # brightness of every part colour, one step per prop
+WEAR = ((1.0, 0.0), (0.93, 0.12), (0.84, 0.25))  # (colour multiplier, roughness added)
+WEAR_P = (0.5, 0.3, 0.2)
 MIN_SEPARATION_M = 4.0
 CANDIDATES_PER_PROP = 12
 
@@ -99,6 +103,10 @@ def sample(
         ok &= ~sel | clear
         if kind == "tuk_tuk" and road is None:
             ok &= ~sel
+    vary = substream(seed, "props:vary")  # its own stream, so placement draws are unchanged
+    scales = np.clip(np.exp(vary.normal(0.0, SCALE_SIGMA, count)), *SCALE_LIMITS)
+    tints = vary.integers(0, len(TINT), count)
+    wears = vary.choice(len(WEAR), size=count, p=WEAR_P)
     chosen: list[dict[str, Any]] = []
     placed = np.empty((0, 2))
     for i in np.flatnonzero(ok):
@@ -116,10 +124,35 @@ def sample(
                 "x": round(float(xs[i]), 2),
                 "y": round(float(ys[i]), 2),
                 "yaw": round(float(yaw[i]), 4),
+                "scale": round(float(scales[i]), 3),
+                "tint": int(tints[i]),
+                "wear": int(wears[i]),
                 "class": CLASSES[PROP_CLASS[kind]],
             }
         )
     return chosen
+
+
+def repeat_stats(props: list[dict[str, Any]]) -> dict[str, Any]:
+    """How much a tile repeats itself. A rate is the share of props whose shape (kind and variant)
+    or look (shape, tint and wear) was already used by an earlier prop in the tile."""
+    looks = {(p["kind"], p["variant"], p.get("tint", 0), p.get("wear", 0)) for p in props}
+    shapes = {(p["kind"], p["variant"]) for p in props}
+    n = len(props)
+    return {
+        "count": n,
+        "distinct_shapes": len(shapes),
+        "distinct_looks": len(looks),
+        "shape_repeat_rate": round(1.0 - len(shapes) / n, 3) if n else 0.0,
+        "look_repeat_rate": round(1.0 - len(looks) / n, 3) if n else 0.0,
+    }
+
+
+def _look(name: str, tint: int, wear: int) -> tuple[str, list[float], float, float]:
+    rgb, rough, metallic = MATERIALS[name]
+    mult, extra = TINT[tint] * WEAR[wear][0], WEAR[wear][1]
+    colour = [round(min(1.0, c * mult), 4) for c in rgb]
+    return f"{name}~t{tint}w{wear}", colour, round(min(1.0, rough + extra), 3), metallic
 
 
 def pack(props: list[dict[str, Any]]) -> dict[str, Any]:
@@ -127,7 +160,8 @@ def pack(props: list[dict[str, Any]]) -> dict[str, Any]:
     (an index into ``materials``), ``face_owner`` (the prop each face belongs to) and ``materials``
     (``[name, rgb, roughness, metallic]``)."""
     cache: dict[tuple[str, int], Any] = {}
-    names = list(MATERIALS)
+    slots: dict[str, int] = {}  # looks in order of first use
+    looks: list[list[Any]] = []
     verts_out: list[Array] = []
     faces_out: list[Array] = []
     mat_out: list[Array] = []
@@ -138,8 +172,9 @@ def pack(props: list[dict[str, Any]]) -> dict[str, Any]:
         if key not in cache:
             cache[key] = GENERATORS[prop["kind"]](prop["variant"])
         c, s = math.cos(prop["yaw"]), math.sin(prop["yaw"])
+        k = prop.get("scale", 1.0)
         for part in cache[key].parts:
-            v = part.verts
+            v = part.verts * k
             moved = np.column_stack(
                 [
                     prop["x"] + c * v[:, 0] - s * v[:, 1],
@@ -147,9 +182,13 @@ def pack(props: list[dict[str, Any]]) -> dict[str, Any]:
                     v[:, 2],
                 ]
             )
+            look = _look(part.material, prop.get("tint", 2), prop.get("wear", 0))
+            if look[0] not in slots:
+                slots[look[0]] = len(looks)
+                looks.append(list(look))
             verts_out.append(moved.astype("float32"))
             faces_out.append(part.faces.astype("int32") + offset)
-            mat_out.append(np.full(len(part.faces), names.index(part.material), dtype="int16"))
+            mat_out.append(np.full(len(part.faces), slots[look[0]], dtype="int16"))
             owner_out.append(np.full(len(part.faces), index, dtype="int32"))
             offset += len(v)
     if not verts_out:
@@ -164,5 +203,5 @@ def pack(props: list[dict[str, Any]]) -> dict[str, Any]:
         "faces": np.vstack(faces_out),
         "face_material": np.concatenate(mat_out),
         "face_owner": np.concatenate(owner_out),
-        "materials": [[n, list(MATERIALS[n][0]), MATERIALS[n][1], MATERIALS[n][2]] for n in names],
+        "materials": looks,
     }

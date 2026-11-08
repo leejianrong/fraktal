@@ -420,6 +420,7 @@ def export_scene(
         "vehicles": vehicles,
         "poles": poles,
         "props": props,
+        "props_stats": props_scene.repeat_stats(props),
         "prop_materials": packed["materials"],
         "walls": walls,
         "wall_materials": packed_walls["materials"],
