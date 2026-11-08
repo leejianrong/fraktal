@@ -219,7 +219,9 @@ WAVE_BAND_PERIOD_M = 2 * math.pi / 20.0
 
 
 def add_corrugation(mat, spec: dict, coords, bsdf, tint, normal_in=None) -> None:
-    """Ribs as a bump (rib direction random per ~14 m cell), plus rust patches and a worn tone.
+    """Ribs as a bump, plus rust patches and a worn tone.
+
+    Ribs run down a sloped face; a flat face gets a random direction per ~14 m cell.
 
     The rib pitch is real (about 0.1 m), so ribs show at drone scale and wash out at 0.5 m GSD.
     """
@@ -231,12 +233,12 @@ def add_corrugation(mat, spec: dict, coords, bsdf, tint, normal_in=None) -> None
             n.inputs[key].default_value = value
         return n
 
-    def wave(axis: str):
+    def wave(axis: str, vector=None):
         w = nodes.new("ShaderNodeTexWave")
         w.wave_type, w.bands_direction, w.wave_profile = "BANDS", axis, "SIN"
         w.inputs["Scale"].default_value = WAVE_BAND_PERIOD_M / spec["ribs_m"]
         w.inputs["Distortion"].default_value = 0.0
-        links.new(coords.outputs["Object"], w.inputs["Vector"])
+        links.new(vector or coords.outputs["Object"], w.inputs["Vector"])
         return w
 
     wave_x, wave_y = wave("X"), wave("Y")
@@ -253,12 +255,51 @@ def add_corrugation(mat, spec: dict, coords, bsdf, tint, normal_in=None) -> None
     links.new(pick.outputs["Value"], ribs.inputs[0])
     links.new(wave_x.outputs["Fac"], ribs.inputs[2])
     links.new(wave_y.outputs["Fac"], ribs.inputs[3])
+    # On a sloped face the ribs run down the slope: the band coordinate is the position across
+    # the horizontal part of the face normal. A flat face keeps the random direction above.
+    normal = nodes.new("ShaderNodeNewGeometry")
+    sep_n = nodes.new("ShaderNodeSeparateXYZ")
+    links.new(normal.outputs["Normal"], sep_n.inputs["Vector"])
+    flat_n = nodes.new("ShaderNodeCombineXYZ")  # the normal with z dropped
+    links.new(sep_n.outputs["X"], flat_n.inputs["X"])
+    links.new(sep_n.outputs["Y"], flat_n.inputs["Y"])
+    heading = nodes.new("ShaderNodeVectorMath")
+    heading.operation = "NORMALIZE"
+    links.new(flat_n.outputs["Vector"], heading.inputs[0])
+    sep_h = nodes.new("ShaderNodeSeparateXYZ")
+    links.new(heading.outputs["Vector"], sep_h.inputs["Vector"])
+    minus_y = node("ShaderNodeMath")
+    minus_y.operation = "MULTIPLY"
+    minus_y.inputs[1].default_value = -1.0
+    links.new(sep_h.outputs["Y"], minus_y.inputs[0])
+    across = nodes.new("ShaderNodeCombineXYZ")  # perpendicular to the heading
+    links.new(minus_y.outputs["Value"], across.inputs["X"])
+    links.new(sep_h.outputs["X"], across.inputs["Y"])
+    along = nodes.new("ShaderNodeVectorMath")
+    along.operation = "DOT_PRODUCT"
+    links.new(coords.outputs["Object"], along.inputs[0])
+    links.new(across.outputs["Vector"], along.inputs[1])
+    band_pos = nodes.new("ShaderNodeCombineXYZ")
+    links.new(along.outputs["Value"], band_pos.inputs["X"])
+    wave_slope = wave("X", band_pos.outputs["Vector"])
+    steep = nodes.new("ShaderNodeVectorMath")
+    steep.operation = "LENGTH"
+    links.new(flat_n.outputs["Vector"], steep.inputs[0])
+    is_sloped = node("ShaderNodeMath")
+    is_sloped.operation = "GREATER_THAN"
+    is_sloped.inputs[1].default_value = 0.1
+    links.new(steep.outputs["Value"], is_sloped.inputs[0])
+    ribs_final = nodes.new("ShaderNodeMix")
+    ribs_final.data_type = "FLOAT"
+    links.new(is_sloped.outputs["Value"], ribs_final.inputs[0])
+    links.new(ribs.outputs[0], ribs_final.inputs[2])
+    links.new(wave_slope.outputs["Fac"], ribs_final.inputs[3])
     bump = node(
         "ShaderNodeBump",
         Strength=spec.get("rib_strength", 0.6),
         Distance=spec.get("rib_depth_m", 0.02),
     )
-    links.new(ribs.outputs[0], bump.inputs["Height"])
+    links.new(ribs_final.outputs[0], bump.inputs["Height"])
     if normal_in is not None:  # the ribs ride on top of the derived relief
         links.new(normal_in, bump.inputs["Normal"])
     links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
