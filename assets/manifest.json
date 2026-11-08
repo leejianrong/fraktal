@@ -784,6 +784,69 @@
       "sha256": "b358fb0459b1cb94cfa7515969dfc5e58fac2111138747b593d957aef3003f0a",
       "verified": true,
       "note": "colour map only, downscaled from 1K to 512 px; licence read at https://docs.ambientcg.com/license/ on 2026-11-05"
+    },
+    {
+      "id": "tex-gen-soil-red",
+      "file": "textures/gen-soil-red.jpg",
+      "kind": "texture",
+      "source": "generated with SDXL base 1.0 on a RunPod pod (FRK-126)",
+      "licence": "generated-permissive",
+      "author": "Jian Lee (generated)",
+      "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md",
+      "sha256": "eeeb84adb2d12e6ecfa48cf543298c7f6a77f5f80beb1876edf0ee3b8bb0213e",
+      "verified": true,
+      "generator": {
+        "model": "stabilityai/stable-diffusion-xl-base-1.0",
+        "version": "1.0 (diffusers 0.35.1, fp16)",
+        "licence": "CreativeML Open RAIL++-M",
+        "prompt": "dry red laterite earth, fine dust and small gravel, faint cracks, top-down flat orthographic photograph, even lighting, seamless tileable texture, no objects",
+        "negative_prompt": "text, letters, logo, watermark, people, objects, border, frame, perspective, vignette",
+        "seed": 0,
+        "settings": "20 steps, 1024 px then 512 px, default sampler, circular padding for tiling",
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "tex-gen-soil-red-normal",
+      "file": "textures/gen-soil-red-normal.jpg",
+      "kind": "texture",
+      "source": "derived with fraktal.pbr from tex-gen-soil-red (normal map)",
+      "licence": "generated-permissive",
+      "author": "Jian Lee (generated)",
+      "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md",
+      "sha256": "20aacc638296fdf8ed8e546662d211faae7dd36044fb0f106dbc46993b3b31fd",
+      "verified": true,
+      "generator": {
+        "model": "stabilityai/stable-diffusion-xl-base-1.0",
+        "version": "1.0 (diffusers 0.35.1, fp16)",
+        "licence": "CreativeML Open RAIL++-M",
+        "prompt": "dry red laterite earth, fine dust and small gravel, faint cracks, top-down flat orthographic photograph, even lighting, seamless tileable texture, no objects",
+        "negative_prompt": "text, letters, logo, watermark, people, objects, border, frame, perspective, vignette",
+        "seed": 0,
+        "settings": "20 steps, 1024 px then 512 px, default sampler, circular padding for tiling",
+        "date": "2026-11-08"
+      }
+    },
+    {
+      "id": "tex-gen-soil-red-rough",
+      "file": "textures/gen-soil-red-rough.jpg",
+      "kind": "texture",
+      "source": "derived with fraktal.pbr from tex-gen-soil-red (rough map)",
+      "licence": "generated-permissive",
+      "author": "Jian Lee (generated)",
+      "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md",
+      "sha256": "653e4e26587160376941f7ba238c9b8bdedaac0715ad80578d613c99f81d4fcf",
+      "verified": true,
+      "generator": {
+        "model": "stabilityai/stable-diffusion-xl-base-1.0",
+        "version": "1.0 (diffusers 0.35.1, fp16)",
+        "licence": "CreativeML Open RAIL++-M",
+        "prompt": "dry red laterite earth, fine dust and small gravel, faint cracks, top-down flat orthographic photograph, even lighting, seamless tileable texture, no objects",
+        "negative_prompt": "text, letters, logo, watermark, people, objects, border, frame, perspective, vignette",
+        "seed": 0,
+        "settings": "20 steps, 1024 px then 512 px, default sampler, circular padding for tiling",
+        "date": "2026-11-08"
+      }
     }
   ]
 }

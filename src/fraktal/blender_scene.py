@@ -125,7 +125,60 @@ def displaced_plane(size: float, nodes: np.ndarray):
     return obj
 
 
-def build_ground(scene: dict, ground: np.ndarray, rough: np.ndarray | None = None):
+GROUND_DETAIL = "gen-soil-red"  # a generated earth texture (FRK-126), fine grain on every ground
+GROUND_DETAIL_SCALE_M = 2.0
+GROUND_DETAIL_AMOUNT = 0.35  # how far the colour follows the texture's light and dark
+GROUND_DETAIL_BUMP = 0.5
+
+
+def add_ground_detail(mat, bsdf, base_out, assets: Path) -> None:
+    """Fine grain on the ground: the colour is multiplied by the detail texture's lightness around
+    its mean, and its derived normal map tilts the surface. Skipped if the assets are missing."""
+    colour, normal = (assets / "textures" / f"{GROUND_DETAIL}{s}.jpg" for s in ("", "-normal"))
+    if not (colour.exists() and normal.exists()):
+        return
+    nodes, links = mat.node_tree.nodes, mat.node_tree.links
+    where = nodes.new("ShaderNodeNewGeometry")  # world position: the ground plane is scaled
+    mapping = nodes.new("ShaderNodeMapping")
+    mapping.inputs["Scale"].default_value = (1 / GROUND_DETAIL_SCALE_M,) * 3
+    links.new(where.outputs["Position"], mapping.inputs["Vector"])
+
+    def image(path: Path):
+        node = nodes.new("ShaderNodeTexImage")
+        node.image = bpy.data.images.load(str(path))
+        node.image.colorspace_settings.name = "Non-Color"
+        node.extension = "REPEAT"
+        links.new(mapping.outputs["Vector"], node.inputs["Vector"])
+        return node
+
+    tex = image(colour)
+    mean = float(np.asarray(tex.image.pixels[:]).reshape(-1, 4)[:, :3].mean())
+    grey = nodes.new("ShaderNodeRGBToBW")
+    links.new(tex.outputs["Color"], grey.inputs["Color"])
+    relative = nodes.new("ShaderNodeMath")  # lightness over its mean, minus one
+    relative.operation = "DIVIDE"
+    relative.inputs[1].default_value = max(mean, 1e-3)
+    links.new(grey.outputs["Val"], relative.inputs[0])
+    gain = nodes.new("ShaderNodeMath")  # 1 + amount * (relative - 1)
+    gain.operation = "MULTIPLY_ADD"
+    gain.inputs[1].default_value = GROUND_DETAIL_AMOUNT
+    gain.inputs[2].default_value = 1.0 - GROUND_DETAIL_AMOUNT
+    links.new(relative.outputs["Value"], gain.inputs[0])
+    mix = nodes.new("ShaderNodeMix")
+    mix.data_type, mix.blend_type = "RGBA", "MULTIPLY"
+    mix.inputs[0].default_value = 1.0
+    links.new(base_out, mix.inputs[6])
+    links.new(gain.outputs["Value"], mix.inputs[7])
+    links.new(mix.outputs[2], bsdf.inputs["Base Color"])
+    tilt = nodes.new("ShaderNodeNormalMap")
+    tilt.inputs["Strength"].default_value = GROUND_DETAIL_BUMP
+    links.new(image(normal).outputs["Color"], tilt.inputs["Color"])
+    links.new(tilt.outputs["Normal"], bsdf.inputs["Normal"])
+
+
+def build_ground(
+    scene: dict, ground: np.ndarray, rough: np.ndarray | None = None, assets: Path | None = None
+):
     size = scene["size_m"]
     h, w, _ = ground.shape
     path = str(Path(tempfile.gettempdir()) / "fraktal_ground.png")
@@ -147,6 +200,8 @@ def build_ground(scene: dict, ground: np.ndarray, rough: np.ndarray | None = Non
     bsdf = mat.node_tree.nodes["Principled BSDF"]
     bsdf.inputs["Roughness"].default_value = 0.95
     mat.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    if assets is not None:
+        add_ground_detail(mat, bsdf, tex.outputs["Color"], assets)
     if rough is not None:  # water and flooded paddy are glossy, the rest matt
         grey = np.repeat(np.clip(rough, 0.0, 1.0)[..., None], 3, axis=2)
         rpath = str(Path(tempfile.gettempdir()) / "fraktal_ground_rough.png")
@@ -957,7 +1012,7 @@ def main() -> int:
     if terrain:
         TERRAIN["nodes"] = np.load(a.scene_dir / terrain["file"]).astype("float64")
         TERRAIN["cell"] = terrain["cell_m"]
-    build_ground(scene, ground, np.load(rough_file) if rough_file.exists() else None)
+    build_ground(scene, ground, np.load(rough_file) if rough_file.exists() else None, a.assets)
     n = build_buildings(scene, a.scene_dir, a.assets)
     nt = build_trees(scene)
     nv, npoles = build_vehicles(scene), build_poles(scene)
