@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from fraktal.propgen import GENERATORS, MATERIALS
+from fraktal.propgen import GENERATORS, MATERIALS, Part
 
 # (min, max) of the bounding box sides: length x, width y, height z, in metres
 LIMITS = {
@@ -14,7 +14,7 @@ LIMITS = {
 
 
 @pytest.mark.parametrize("kind", sorted(GENERATORS))
-def test_deterministic_and_seeds_differ(kind):
+def test_deterministic_and_seeds_differ(kind: str) -> None:
     a, b = GENERATORS[kind](7), GENERATORS[kind](7)
     assert len(a.parts) == len(b.parts)
     for p, q in zip(a.parts, b.parts, strict=True):
@@ -29,7 +29,7 @@ def test_deterministic_and_seeds_differ(kind):
 
 
 @pytest.mark.parametrize("kind", sorted(GENERATORS))
-def test_size_stands_on_ground_and_mesh_is_valid(kind):
+def test_size_stands_on_ground_and_mesh_is_valid(kind: str) -> None:
     for seed in range(12):
         prop = GENERATORS[kind](seed)
         lo, _ = prop.bounds()
@@ -42,13 +42,13 @@ def test_size_stands_on_ground_and_mesh_is_valid(kind):
             assert part.faces.min() >= 0 and part.faces.max() < len(part.verts)
 
 
-def _signed_volume(part):
+def _signed_volume(part: Part) -> float:
     v, f = part.verts, part.faces
     return float(np.einsum("ij,ij->", v[f[:, 0]], np.cross(v[f[:, 1]], v[f[:, 2]])) / 6)
 
 
 @pytest.mark.parametrize("kind", sorted(GENERATORS))
-def test_parts_face_outwards(kind):
+def test_parts_face_outwards(kind: str) -> None:
     # Blender recalculates normals, but a viewer that culls back faces (the Godot demo) does not
     for part in GENERATORS[kind](3).parts:
         assert _signed_volume(part) > 0, (kind, part.material)
