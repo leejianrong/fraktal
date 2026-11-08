@@ -248,7 +248,11 @@ def add_corrugation(mat, spec: dict, coords, bsdf, tint, normal_in=None) -> None
     links.new(pick.outputs["Value"], ribs.inputs[0])
     links.new(wave_x.outputs["Fac"], ribs.inputs[2])
     links.new(wave_y.outputs["Fac"], ribs.inputs[3])
-    bump = node("ShaderNodeBump", Strength=spec.get("rib_strength", 0.6), Distance=0.02)
+    bump = node(
+        "ShaderNodeBump",
+        Strength=spec.get("rib_strength", 0.6),
+        Distance=spec.get("rib_depth_m", 0.02),
+    )
     links.new(ribs.outputs[0], bump.inputs["Height"])
     if normal_in is not None:  # the ribs ride on top of the derived relief
         links.new(normal_in, bump.inputs["Normal"])
