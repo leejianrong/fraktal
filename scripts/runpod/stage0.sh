@@ -100,7 +100,7 @@ generate_world(Path("review/world"), (32.55, 15.64), 3, biomes.resolve(os.enviro
 PY
     stage "batch_$biome"
     T1=$(date +%s)
-    fraktal render3d-batch review/world --out "review/batch_$biome" --count "$COUNT" --size-m "$TILE_M" --gsd-m ${GSD:-0.5} \
+    fraktal render3d-batch review/world --out "review/batch_$biome" --count "$COUNT" --size-m "$TILE_M" --gsd-m ${GSD:-0.5} --prop-density ${PROPS:-60} \
       --samples "${SAMPLES%% *}" --threads "$(nproc)" --seed $((10 + n)) $SENSOR_FLAG \
       2> >(tee "review/batch_$biome.err" | grep --line-buffered render3d_batch_tile) > "review/batch_$biome.out" \
       || echo "ERROR render3d-batch $biome exited non-zero"
