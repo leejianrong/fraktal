@@ -24,6 +24,7 @@ CLASSES = {
     "yard_object": 9,  # 8 is reserved for ``wall`` (FRK-106); classes are append-only
 }
 MAX_INSTANCES = 65534
+PROP_INSTANCE_BASE = 20000  # props are numbered from here + 1 (same value in blender_scene.py)
 
 
 class LabelError(ValueError):
@@ -73,6 +74,7 @@ def meta(
         "people": people,
         "drones": drones,
         "props": props,
+        "props_first_instance": PROP_INSTANCE_BASE + 1,
     }
 
 

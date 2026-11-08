@@ -59,3 +59,14 @@ def test_pack_gives_consistent_arrays_with_every_face_owned() -> None:
     assert packed["face_material"].max() < len(packed["materials"])
     assert np.array_equal(packed["vertices"], props_scene.pack(props)["vertices"])  # deterministic
     assert props_scene.pack([])["faces"].shape[0] == 0
+
+
+def test_prop_instance_base_matches_the_blender_script() -> None:
+    from pathlib import Path
+
+    source = (Path(__file__).parents[2] / "src/fraktal/blender_scene.py").read_text()
+    import re
+
+    found = re.search(r"PROP_INSTANCE_BASE = \(?\s*(\d+)", source)
+    assert found and int(found.group(1)) == labels3d.PROP_INSTANCE_BASE
+    assert labels3d.meta([], 0, props=3)["props_first_instance"] == labels3d.PROP_INSTANCE_BASE + 1
