@@ -122,6 +122,7 @@ def main() -> int:
         render(args.out / "png" / f"{name}-ground.png", args.px, args.samples)
         for cam in [o for o in bpy.data.objects if o.type == "CAMERA"]:
             bpy.data.objects.remove(cam)
+        bpy.context.scene.view_settings.exposure = -2.3  # roofs face the sun and clip otherwise
         camera((0, 0, 40.0), (0, 0, 0), ortho=max(lx, ly) * 1.5 + 1.0)  # aerial: straight down
         render(args.out / "png" / f"{name}-aerial.png", args.px, args.samples)
         bpy.ops.object.select_all(action="DESELECT")
