@@ -21,3 +21,14 @@ A texture made by a model (FRK-73 and FRK-76: SDXL base 1.0) uses licence `gener
 file), `prompt`, `seed` and `date`; `fraktal assets` fails without them. Say in the row's `source` how it
 was made. Generated images are probably not copyrightable (docs/research/texture-model-spike.md), so we
 do not claim to own them; we can ship them, and so can anyone else.
+
+## Meshes
+
+A row with `kind: mesh` always needs a `generator` object, whether a model or code made it (FRK-125,
+ADR-0013 decision 5): `model`, `version`, `seed`, `date` and `components`, a list of every part of the
+pipeline (`name`, `version`, `licence` each), for example the image model, the background remover and the 3D
+model, or `fraktal.propgen` for a code-written prop. A mesh from a model also takes licence
+`generated-permissive` and the texture generator keys above. `fraktal assets` (and CI) fails on a mesh
+without it, and on any component the ADR excludes (TripoSG, TRELLIS, DINOv3, RMBG, Hunyuan3D, Stable Fast
+3D, Cube 3D, FLUX.1 dev, hosted services such as Meshy or Rodin). The list is `EXCLUDED_COMPONENTS` in
+`src/fraktal/assets.py`; change it when the ADR changes.

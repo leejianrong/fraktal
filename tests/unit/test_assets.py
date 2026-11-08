@@ -79,3 +79,41 @@ def test_a_generated_asset_needs_a_full_generator_block(tmp_path: Path) -> None:
     thin = {k: v for k, v in GENERATOR.items() if k not in ("prompt", "seed")}
     partial = assets.check(make(tmp_path / "p", licence="Generated-Permissive", generator=thin))
     assert any("missing prompt" in p for p in partial) and any("missing seed" in p for p in partial)
+
+
+def mesh_row(root: Path, generator: object) -> Path:
+    make(root)
+    manifest = json.loads((root / "manifest.json").read_text())
+    manifest["assets"][0]["kind"] = "mesh"
+    if generator is not None:
+        manifest["assets"][0]["generator"] = generator
+    (root / "manifest.json").write_text(json.dumps(manifest))
+    return root
+
+
+GOOD_MESH = {
+    "model": "fraktal.propgen.container", "version": "1", "seed": 3, "date": "2026-11-08",
+    "components": [{"name": "fraktal.propgen", "version": "1", "licence": "OWNED"}],
+}  # fmt: skip
+
+
+def test_a_mesh_without_a_generator_block_fails(tmp_path: Path) -> None:
+    assert any("needs a generator block" in p for p in assets.check(mesh_row(tmp_path / "a", None)))
+    assert assets.check(mesh_row(tmp_path / "b", GOOD_MESH)) == []
+
+
+def test_a_mesh_generator_needs_every_key_and_component_fields(tmp_path: Path) -> None:
+    bad = {k: v for k, v in GOOD_MESH.items() if k != "seed"}
+    assert any("missing seed" in p for p in assets.check(mesh_row(tmp_path / "a", bad)))
+    bad = {**GOOD_MESH, "components": [{"name": "x"}]}
+    problems = assets.check(mesh_row(tmp_path / "b", bad))
+    assert any("component is missing version" in p for p in problems)
+    assert any("component is missing licence" in p for p in problems)
+    bad = {**GOOD_MESH, "components": []}
+    assert any("missing components" in p for p in assets.check(mesh_row(tmp_path / "c", bad)))
+
+
+@pytest.mark.parametrize("name", ["TripoSG", "TRELLIS.2", "facebook/dinov3-vitl16", "RMBG-2.0"])
+def test_a_mesh_made_with_an_excluded_component_fails(tmp_path: Path, name: str) -> None:
+    generator = {**GOOD_MESH, "components": [{"name": name, "version": "1", "licence": "MIT"}]}
+    assert any("excluded by ADR-0013" in p for p in assets.check(mesh_row(tmp_path, generator)))

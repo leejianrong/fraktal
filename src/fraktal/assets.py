@@ -22,6 +22,15 @@ ALLOWED_LICENCES = {
 }  # lower case spelling -> canonical
 GENERATED = "generated-permissive"
 GENERATOR_KEYS = ("model", "version", "licence", "prompt", "seed", "date")
+# A mesh, however it was made (a model or code), records how, with every component of the pipeline
+# (ADR-0013 decision 5) so a licence problem found later finds the assets it touched (FRK-125).
+MESH = "mesh"
+MESH_GENERATOR_KEYS = ("model", "version", "seed", "date", "components")
+COMPONENT_KEYS = ("name", "version", "licence")
+EXCLUDED_COMPONENTS = (  # ADR-0013: read and rejected, or not read and held out
+    "triposg", "tripo", "trellis", "dinov3", "rmbg", "hunyuan3d", "stable fast 3d", "stablefast3d",
+    "cube 3d", "flux.1-dev", "flux.1 dev", "meshy", "rodin",
+)  # fmt: skip
 REQUIRED = ("id", "file", "kind", "source", "licence", "author", "url", "sha256", "verified")
 IGNORED = {MANIFEST, "README.md"}
 
@@ -35,6 +44,33 @@ def _rows(root: Path) -> list[dict[str, Any]]:
     if not isinstance(loaded, dict) or not isinstance(loaded.get("assets"), list):
         raise ValueError(f'{MANIFEST} must be an object with an "assets" list')
     return [r for r in loaded["assets"]]
+
+
+def _mesh_problems(name: str, generator: Any) -> list[str]:
+    if not isinstance(generator, dict):
+        return [f"{name}: a mesh needs a generator block (model, version, seed, date, components)"]
+    out = [
+        f"{name}: mesh generator is missing {k}"
+        for k in MESH_GENERATOR_KEYS
+        if generator.get(k) in (None, "", [])
+    ]
+    components = generator.get("components")
+    for component in components if isinstance(components, list) else []:
+        if not isinstance(component, dict):
+            out.append(f"{name}: a generator component is not an object")
+            continue
+        out += [
+            f"{name}: a generator component is missing {k}"
+            for k in COMPONENT_KEYS
+            if component.get(k) in (None, "")
+        ]
+        label = f"{component.get('name', '')} {component.get('version', '')}".lower()
+        out += [
+            f"{name}: component {component.get('name')!r} is excluded by ADR-0013 ({bad})"
+            for bad in EXCLUDED_COMPONENTS
+            if bad in label
+        ]
+    return out
 
 
 def check(root: Path) -> list[str]:
@@ -68,6 +104,8 @@ def check(root: Path) -> list[str]:
                 for key in GENERATOR_KEYS:
                     if generator.get(key) in (None, ""):
                         problems.append(f"{name}: generator is missing {key}")
+        if row.get("kind") == MESH:
+            problems += _mesh_problems(name, row.get("generator"))
         if row.get("verified") is not True:
             problems.append(f"{name}: licence not verified against the source's licence page")
         file = row.get("file")
