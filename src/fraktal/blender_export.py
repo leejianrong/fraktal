@@ -22,6 +22,7 @@ from rasterio.enums import Resampling
 from fraktal import building_grammar, trees3d
 from fraktal import heights as heights_mod
 from fraktal.coast import TIDAL_FLAT
+from fraktal.ground_soil import apply_soil, soil_style
 from fraktal.ids import substream
 from fraktal.kernels.noise import lattice_shape, value_noise
 from fraktal.landcover_gen import WATER
@@ -301,13 +302,14 @@ def export_scene(
     )
     grain = _smooth(seed, "ground:grain", side, GRAIN_CELL_M / gsd_m)[..., None]
     ground = np.where(green, ground * (1.0 + GRAIN_STRENGTH * grain), ground)
+    biome = json.loads((world_dir / "world.json").read_text()).get("biome", "")
+    ground = apply_soil(ground, surface, seed, gsd_m, soil_style(biome))
     if texture > 0:
         amp = np.ones(256, dtype="float32")
         for code, value in TEXTURE_CLASS_AMP.items():
             amp[code] = value
         modulation = texture * texture_field(seed, (side, side), gsd_m) * amp[surface]
         ground = np.clip(ground * (1.0 + modulation)[..., None], 0.0, 1.0).astype("float32")
-    biome = json.loads((world_dir / "world.json").read_text()).get("biome", "")
     trees = []
     if tree_density > 0:
         shapes, heights, _ = place(surface, mask, gsd_m, tree_density, seed)
