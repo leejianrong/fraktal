@@ -134,9 +134,9 @@ def tile_roads(
     from shapely.affinity import translate
 
     from fraktal import procedural
-    from fraktal.render import RenderConfig, region_grid
+    from fraktal.render import RenderConfig, region_grid, tile_px_for
 
-    px = max(1, round(size_m / gsd_m))
+    px = tile_px_for(size_m, gsd_m)
     epsg, transform, (_, side) = region_grid(
         center_lonlat, RenderConfig(gsd_m=gsd_m, tile_px=px, size_m=size_m)
     )

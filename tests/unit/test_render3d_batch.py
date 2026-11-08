@@ -143,3 +143,32 @@ def test_a_sensor_batch_draws_per_tile_and_writes_sensor_png(world: Path, tmp_pa
     (tile / "sensor.png").unlink()
     redo = render3d_batch.run(world, tmp_path / "s", specs, script=fake(tmp_path))
     assert redo["counts"]["rendered"] == 1
+
+
+def test_a_tile_never_reaches_past_the_worlds_raster_edge(world: Path) -> None:
+    """The render grid snaps outward by up to a pixel; a tile at the edge used to fail to render."""
+    from fraktal.render import RenderConfig, region_grid, tile_px_for
+
+    manifest = json.loads((world / "world.json").read_text())
+    west, south, east, north = manifest["bounds"]
+    size = min(east - west, north - south) - 4.0  # nearly the whole world: tiles sit at the edge
+    for spec in render3d_batch.plan(world, 40, 2, size, 0.3):
+        px = tile_px_for(size, 0.3)
+        _, transform, (_, side) = region_grid(
+            tuple(spec["center"]), RenderConfig(gsd_m=0.3, tile_px=px, size_m=size)
+        )
+        x0, y0 = transform.c, transform.f
+        extent = side * 0.3
+        assert west <= x0 and x0 + extent <= east and south <= y0 - extent and y0 <= north
+
+
+def test_a_size_that_is_not_a_whole_number_of_pixels_is_one_tile_not_four() -> None:
+    from fraktal.render import RenderConfig, region_grid, tile_px_for
+
+    for size, gsd in ((200.0, 0.15), (100.0, 0.3), (300.0, 0.7), (250.0, 0.3)):
+        px = tile_px_for(size, gsd)
+        assert px * gsd >= size and (px - 1) * gsd < size
+        _, _, (tiles, side) = region_grid(
+            (32.55, 15.6), RenderConfig(gsd_m=gsd, tile_px=px, size_m=size)
+        )
+        assert tiles == 1 and side == px
