@@ -211,3 +211,13 @@ Details in the ADR-0012 addendum 2.
   random stream so earlier draws are unchanged (`_more_clutter`; shares are assumed, 20, 15 and 20 percent).
   `docs/img/roof-colours-clutter.jpg` is dense-urban and informal-settlement tiles at 0.12 m per pixel. Not done:
   clutter on tin and tile roofs, laundry, and checking the shares against the board by counting.
+- **FRK-124 (props in the Blender scene, 2026-11-08):** the code-written props (`propgen`) are now placed by
+  `props_scene.sample` (open ground clear of buildings and roads; tuk-tuks on streets; 60 per km2 by default,
+  `--prop-density` on `render3d` and `render3d-batch`), packed as arrays and imported as one mesh. Class comes from
+  the catalogue (`yard_object` 9, tuk-tuks `vehicle` 4), and each prop is a labelled instance numbered from 20001 so
+  a tuk-tuk never shares an id with a parked car. Checked on a pod at 1500 per km2 and 0.15 m: 135 props, 130 and
+  126 of them visible in the two tiles, with exact class and instance in `labels.png` (`docs/img/props-in-scene.jpg`).
+  Import cost: 0.46 to 0.64 s per 1000 props (the geometry is built once per variant, eight per kind, and copied).
+  Not done: meshes from the image-to-3D route are not imported (their QA lives in `scripts/props/meshqa.py`), the
+  props are one merged mesh, not Blender instances (per-instance labels need per-face colours), and placement is a
+  plain scatter, not tied to parcels or roads beyond the tuk-tuks (FRK-128).
