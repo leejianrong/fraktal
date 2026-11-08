@@ -21,6 +21,7 @@ CLASSES = {
     "pole": 5,
     "person": 6,
     "drone": 7,
+    "yard_object": 9,  # 8 is reserved for ``wall`` (FRK-106); classes are append-only
 }
 MAX_INSTANCES = 65534
 
@@ -59,6 +60,7 @@ def meta(
     poles: int = 0,
     people: int = 0,
     drones: int = 0,
+    props: int = 0,
 ) -> dict[str, Any]:
     """The ``labels`` block of ``render.json``."""
     return {
@@ -70,6 +72,7 @@ def meta(
         "poles": poles,
         "people": people,
         "drones": drones,
+        "props": props,
     }
 
 

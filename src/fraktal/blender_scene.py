@@ -314,6 +314,9 @@ def paint_labels(scene: dict, scene_dir: Path) -> None:
         per = len(a["boxes"]) * 6
         owner = np.repeat(np.arange(a["n"]) + a["first_instance"], per)
         paint(bpy.data.objects[name], np.full(len(owner), a["class"]), owner + 1)
+    if "props" in bpy.data.objects and PROP_FACE_OWNER:
+        owner = np.asarray(PROP_FACE_OWNER, dtype="int64")
+        paint(bpy.data.objects["props"], np.asarray(PROP_FACE_CLASS, dtype="int64"), owner + 1)
     for name, klass, faces in (
         ("vehicles", CLASS_VEHICLE, VEHICLE_OWNER),
         ("poles", CLASS_POLE, POLE_OWNER),
@@ -338,7 +341,7 @@ def use_label_look(sc) -> None:
     out = nodes.new("ShaderNodeOutputMaterial")
     links.new(colour.outputs["Color"], emit.inputs["Color"])
     links.new(emit.outputs["Emission"], out.inputs["Surface"])
-    for name in ("ground", "buildings", "trees", "vehicles", "poles", *AGENTS):
+    for name in ("ground", "buildings", "trees", "vehicles", "poles", "props", *AGENTS):
         if name in bpy.data.objects:
             mesh = bpy.data.objects[name].data
             mesh.materials.clear()
@@ -394,7 +397,7 @@ def use_depth_look(sc, unit_m: float) -> None:
     out = nodes.new("ShaderNodeOutputMaterial")
     links.new(combine.outputs["Color"], emit.inputs["Color"])
     links.new(emit.outputs["Emission"], out.inputs["Surface"])
-    for name in ("ground", "buildings", "trees", "vehicles", "poles", *AGENTS):
+    for name in ("ground", "buildings", "trees", "vehicles", "poles", "props", *AGENTS):
         if name in bpy.data.objects:
             mesh = bpy.data.objects[name].data
             mesh.materials.clear()
@@ -518,6 +521,8 @@ def build_trees(scene: dict) -> int:
 
 
 VEHICLE_OWNER: list[int] = []  # the vehicle each face of the vehicle mesh belongs to
+PROP_FACE_OWNER: list[int] = []  # the prop each face of the props mesh belongs to
+PROP_FACE_CLASS: list[int] = []  # and the class of that prop (from the catalogue)
 POLE_OWNER: list[int] = []
 CAR_BODY = [(235, 235, 235), (40, 40, 45), (150, 30, 30), (170, 175, 180), (30, 60, 120)]
 
@@ -565,6 +570,48 @@ def build_vehicles(scene: dict) -> int:
     for m in mats:
         mesh.materials.append(m)
     return len(cars)
+
+
+def build_props(scene: dict, scene_dir: Path) -> int:
+    """One mesh for every prop (FRK-124), from the packed ``props_*.npy`` arrays.
+
+    The geometry is generated in ``fraktal.props_scene`` and only read here. Each face keeps its
+    prop's class and instance for the label pass; the cost of the import is printed per 1000 props.
+    """
+    props = scene.get("props", [])
+    PROP_FACE_OWNER.clear()
+    PROP_FACE_CLASS.clear()
+    if not props:
+        return 0
+    t = time.time()
+    verts = np.load(scene_dir / "props_vertices.npy")
+    faces = np.load(scene_dir / "props_faces.npy")
+    face_mat = np.load(scene_dir / "props_face_material.npy")
+    owner = np.load(scene_dir / "props_face_owner.npy").astype("int64")
+    mesh = bpy.data.meshes.new("props")
+    mesh.from_pydata(verts.tolist(), [], faces.tolist())
+    mesh.update()
+    for name, rgb, rough, metal in scene["prop_materials"]:
+        mat = bpy.data.materials.new(f"prop-{name}")
+        mat.use_nodes = True
+        bsdf = mat.node_tree.nodes["Principled BSDF"]
+        bsdf.inputs["Base Color"].default_value = (*rgb, 1.0)
+        bsdf.inputs["Roughness"].default_value = rough
+        bsdf.inputs["Metallic"].default_value = metal
+        mesh.materials.append(mat)
+    mesh.polygons.foreach_set("material_index", face_mat.astype("int32"))
+    mesh.update()
+    obj = bpy.data.objects.new("props", mesh)
+    bpy.context.collection.objects.link(obj)
+    PROP_FACE_OWNER.extend(owner.tolist())
+    classes = np.array([p["class"] for p in props], dtype="int64")
+    PROP_FACE_CLASS.extend(classes[owner].tolist())
+    seconds = time.time() - t
+    say(
+        f"props_imported n={len(props)} faces={len(faces)} seconds={seconds:.3f} "
+        f"per_1000={seconds / len(props) * 1000:.2f}s"
+    )
+    return len(props)
 
 
 CLASS_PERSON = 6
@@ -812,7 +859,8 @@ def main() -> int:
     n = build_buildings(scene, a.scene_dir, a.assets)
     nt = build_trees(scene)
     nv, npoles = build_vehicles(scene), build_poles(scene)
-    for name in ("trees", "vehicles", "poles"):
+    nprops = build_props(scene, a.scene_dir)
+    for name in ("trees", "vehicles", "poles", "props"):
         lift_to_terrain(bpy.data.objects.get(name))
     moving = build_traffic(a.scene_dir, len(scene.get("vehicles", [])))
     walking = build_people(a.scene_dir)
@@ -845,7 +893,7 @@ def main() -> int:
     t1 = time.time()
     say(
         f"scene_built buildings={n} trees={nt} vehicles={nv} moving={moving} people={walking} "
-        f"poles={npoles} "
+        f"poles={npoles} props={nprops} "
         f"seconds={t1 - t0:.1f}"
     )
     if frames:  # OUT is a directory of frame_0000.png, frame_0001.png, ...

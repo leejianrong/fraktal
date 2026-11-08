@@ -192,4 +192,28 @@ def test_label_and_depth_looks_cover_every_moving_agent_type_without_a_name_list
 
     source = (Path(__file__).parents[2] / "src/fraktal/blender_scene.py").read_text()
     assert '"traffic", "people")' not in source
-    assert source.count('"poles", *AGENTS)') == 2
+    assert source.count('"props", *AGENTS)') == 2
+
+
+def test_props_are_exported_as_arrays_with_catalogue_classes(tmp_path: Path) -> None:
+    import numpy as np
+
+    from fraktal import labels3d, props_scene
+
+    world = tmp_path / "khartoum"
+    generate_world(world, CENTER, 3, biomes.resolve("khartoum"))
+    out = tmp_path / "p"
+    scene = export_scene(world, out, CENTER, 400.0, 1.0, prop_density=900.0)
+    props = scene["props"]
+    assert len(props) > 5
+    for prop in props:
+        assert prop["class"] == labels3d.CLASSES[props_scene.PROP_CLASS[prop["kind"]]]
+        assert 0 <= prop["x"] <= 400 and 0 <= prop["y"] <= 400
+    owner = np.load(out / "props_face_owner.npy")
+    assert set(owner.tolist()) == set(range(len(props)))
+    assert np.load(out / "props_faces.npy").max() < len(np.load(out / "props_vertices.npy"))
+    assert (
+        export_scene(world, tmp_path / "p2", CENTER, 400.0, 1.0, prop_density=900.0)["props"]
+        == props
+    )
+    assert export_scene(world, tmp_path / "p3", CENTER, 400.0, 1.0, prop_density=0.0)["props"] == []

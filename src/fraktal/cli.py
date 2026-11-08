@@ -448,6 +448,7 @@ def _render3d(args: argparse.Namespace) -> Result:
             assets_dir=args.assets,
             labels=not args.no_labels,
             height_profile=args.height_profile,
+            prop_density=args.prop_density,
         )
     except (OSError, ValueError, render3d.RenderError) as err:
         raise CliError(ExitCode.FAILURE, "render3d_failed", str(err)) from err
@@ -479,6 +480,7 @@ def _render3d_batch(args: argparse.Namespace) -> Result:
             bpy_python=args.bpy_python or os.environ.get("FRAKTAL_BPY_PYTHON"),
             timeout_s=args.timeout_s,
             assets_dir=args.assets,
+            prop_density=args.prop_density,
         )
     except (OSError, ValueError) as err:
         raise CliError(ExitCode.FAILURE, "render3d_batch_failed", str(err)) from err
@@ -680,6 +682,12 @@ def _render3d_batch_args(parser: argparse.ArgumentParser) -> None:
         "--keep-scene", action="store_true", help="keep each tile's scene and TIFFs"
     )
     parser.add_argument(
+        "--prop-density",
+        type=float,
+        default=60.0,
+        help="props (stalls, containers, tanks, signs, tuk-tuks) per km2; 0 for none",
+    )
+    parser.add_argument(
         "--sensor", action="store_true", help="also write sensor.png (tropical grade, blur, noise)"
     )
 
@@ -736,6 +744,12 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--assets", type=Path, help="assets directory (default $FRAKTAL_ASSETS)")
     parser.add_argument("--frame-px", type=int, default=512, help="frame side for a sequence")
     parser.add_argument("--no-labels", action="store_true", help="skip the label images")
+    parser.add_argument(
+        "--prop-density",
+        type=float,
+        default=60.0,
+        help="props (stalls, containers, tanks, signs, tuk-tuks) per km2; 0 for none",
+    )
     parser.add_argument(
         "--height-profile",
         default="auto",
