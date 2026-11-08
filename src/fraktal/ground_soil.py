@@ -19,7 +19,7 @@ from fraktal.kernels.noise import lattice_shape, value_noise
 
 Array = np.ndarray[Any, Any]
 
-SHRUB, GRASS, CROP, BARE = 20, 30, 40, 60
+TREE_COVER, SHRUB, GRASS, CROP, BARE = 10, 20, 30, 40, 60
 SOIL_CLASSES = (SHRUB, GRASS, CROP)  # ground that can turn to bare soil; trees and water do not
 
 
@@ -32,6 +32,7 @@ class SoilStyle:
     bare_is_soil: bool = (
         False  # bare ground (class 60) takes the soil colour too, not the class cream
     )
+    mute_tree_cover: bool = False  # tree-cover ground (class 10) is muted to dry olive too
     speckle: float = 0.0  # share of the ground under fine dark scrub tufts, 0 for none
 
 
@@ -42,7 +43,9 @@ OCHRE = ((190 / 255, 150 / 255, 104 / 255), (208 / 255, 172 / 255, 124 / 255))
 TAN = ((150 / 255, 108 / 255, 86 / 255), (172 / 255, 128 / 255, 102 / 255))
 
 BIOME_SOIL: dict[str, SoilStyle] = {
-    "khartoum": SoilStyle(*TAN, share=0.9, green_mute=0.8, bare_is_soil=True, speckle=0.22),
+    "khartoum": SoilStyle(
+        *TAN, share=0.9, green_mute=0.8, bare_is_soil=True, mute_tree_cover=True, speckle=0.22
+    ),
     "dense_urban": SoilStyle(*LATERITE, share=0.5),
     "informal_settlement": SoilStyle(*LATERITE, share=0.55),
     "oil_palm_plantation": SoilStyle(*LATERITE, share=0.3),
@@ -91,7 +94,8 @@ def apply_soil(ground: Array, surface: Array, seed: int, gsd_m: float, style: So
     tone = tone * (1.0 + 0.06 * _noise(seed, "soil:grain", side, 0.6, gsd_m)[..., None])
     soil = np.clip(soil * tone, 0.0, 1.0)
     muted = ground * (1 - style.green_mute) + DRY_OLIVE * style.green_mute
-    green = np.where(capable[..., None], muted, ground)
+    mute = capable | (style.mute_tree_cover and (surface == TREE_COVER))
+    green = np.where(mute[..., None], muted, ground)
     out = np.clip(green * (1 - alpha) + soil * alpha, 0.0, 1.0)
     if style.speckle > 0:
         # fine dark tufts, thick in some zones and absent in others, as on dry scrub land
