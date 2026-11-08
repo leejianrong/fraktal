@@ -19,7 +19,7 @@ from fraktal.kernels.noise import lattice_shape, value_noise
 
 Array = np.ndarray[Any, Any]
 
-SHRUB, GRASS, CROP = 20, 30, 40
+SHRUB, GRASS, CROP, BARE = 20, 30, 40, 60
 SOIL_CLASSES = (SHRUB, GRASS, CROP)  # ground that can turn to bare soil; trees and water do not
 
 
@@ -29,6 +29,10 @@ class SoilStyle:
     soil_b: tuple[float, float, float]
     share: float  # fraction of the soil-capable ground that becomes soil
     green_mute: float = 0.5  # how far the remaining green moves toward dry olive, 0..1
+    bare_is_soil: bool = (
+        False  # bare ground (class 60) takes the soil colour too, not the class cream
+    )
+    speckle: float = 0.0  # share of the ground under fine dark scrub tufts, 0 for none
 
 
 LATERITE = ((158 / 255, 92 / 255, 64 / 255), (184 / 255, 116 / 255, 80 / 255))
@@ -38,7 +42,7 @@ OCHRE = ((190 / 255, 150 / 255, 104 / 255), (208 / 255, 172 / 255, 124 / 255))
 TAN = ((150 / 255, 108 / 255, 86 / 255), (172 / 255, 128 / 255, 102 / 255))
 
 BIOME_SOIL: dict[str, SoilStyle] = {
-    "khartoum": SoilStyle(*TAN, share=0.8, green_mute=0.65),
+    "khartoum": SoilStyle(*TAN, share=0.9, green_mute=0.8, bare_is_soil=True, speckle=0.22),
     "dense_urban": SoilStyle(*LATERITE, share=0.5),
     "informal_settlement": SoilStyle(*LATERITE, share=0.55),
     "oil_palm_plantation": SoilStyle(*LATERITE, share=0.3),
@@ -47,8 +51,11 @@ BIOME_SOIL: dict[str, SoilStyle] = {
 }
 DEFAULT_SOIL = SoilStyle(*OCHRE, share=0.4)
 
-DRY_OLIVE = np.array([0.50, 0.48, 0.30], dtype="float32")
-PATCH_CELLS_M = ((70.0, 0.7), (22.0, 0.25), (7.0, 0.05))  # (noise cell, weight) of the patch field
+DRY_OLIVE = np.array([0.46, 0.43, 0.30], dtype="float32")
+TUFT = np.array([0.30, 0.31, 0.21], dtype="float32")  # dark dry scrub, set by eye
+PATCH_CELLS_M = ((70.0, 0.45), (22.0, 0.3), (7.0, 0.15), (2.5, 0.1))  # ragged edges, not blobs
+TUFT_CELLS_M = ((1.6, 0.6), (0.7, 0.4))
+TUFT_ZONE_M = 45.0  # (noise cell, weight) of the patch field
 EDGE = 0.035  # width of the soil edge in field units: crisp, not a blur
 
 
@@ -66,7 +73,7 @@ def soil_style(biome: str) -> SoilStyle:
 def apply_soil(ground: Array, surface: Array, seed: int, gsd_m: float, style: SoilStyle) -> Array:
     """Return ``ground`` with soil patches on the soil-capable classes of ``surface``."""
     side = surface.shape[0]
-    capable = np.isin(surface, SOIL_CLASSES)
+    capable = np.isin(surface, SOIL_CLASSES + ((BARE,) if style.bare_is_soil else ()))
     if not capable.any() or style.share <= 0:
         return ground
     field = np.zeros((side, side), dtype="float32")
@@ -85,4 +92,16 @@ def apply_soil(ground: Array, surface: Array, seed: int, gsd_m: float, style: So
     soil = np.clip(soil * tone, 0.0, 1.0)
     muted = ground * (1 - style.green_mute) + DRY_OLIVE * style.green_mute
     green = np.where(capable[..., None], muted, ground)
-    return np.asarray(np.clip(green * (1 - alpha) + soil * alpha, 0.0, 1.0), dtype="float32")
+    out = np.clip(green * (1 - alpha) + soil * alpha, 0.0, 1.0)
+    if style.speckle > 0:
+        # fine dark tufts, thick in some zones and absent in others, as on dry scrub land
+        tufts = sum(
+            w * _noise(seed, f"soil:tuft{n}", side, c, gsd_m)
+            for n, (c, w) in enumerate(TUFT_CELLS_M)
+        )
+        zone = 0.5 + 0.5 * _noise(seed, "soil:zone", side, TUFT_ZONE_M, gsd_m)
+        cover = style.speckle * (0.3 + 1.4 * zone)
+        hit = np.clip((tufts - (1.0 - 2.0 * cover) * 0.6) / 0.12, 0.0, 1.0)
+        hit = np.where(capable, hit, 0.0).astype("float32")[..., None] * 0.55
+        out = out * (1 - hit) + TUFT * hit
+    return np.asarray(np.clip(out, 0.0, 1.0), dtype="float32")
