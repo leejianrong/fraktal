@@ -233,7 +233,7 @@ def add_corrugation(mat, spec: dict, coords, bsdf, tint, normal_in=None) -> None
 
     def wave(axis: str):
         w = nodes.new("ShaderNodeTexWave")
-        w.wave_type, w.bands_direction, w.wave_profile = "BANDS", axis, "SAW"
+        w.wave_type, w.bands_direction, w.wave_profile = "BANDS", axis, "SIN"
         w.inputs["Scale"].default_value = WAVE_BAND_PERIOD_M / spec["ribs_m"]
         w.inputs["Distortion"].default_value = 0.0
         links.new(coords.outputs["Object"], w.inputs["Vector"])

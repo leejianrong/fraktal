@@ -21,8 +21,9 @@ import numpy as np
 
 VARIANTS = {
     "off": {"rib_strength": 0.0, "rust": 0.0},
-    "mild": {"rib_strength": 0.6, "rib_depth_m": 0.02, "rust": 0.0},
-    "deep": {"rib_strength": 1.0, "rib_depth_m": 0.05, "rust": 0.0},
+    "d01": {"rib_strength": 1.0, "rib_depth_m": 0.01, "rust": 0.0},
+    "d02": {"rib_strength": 1.0, "rib_depth_m": 0.02, "rust": 0.0},
+    "d04": {"rib_strength": 1.0, "rib_depth_m": 0.04, "rust": 0.0},
 }
 AZIMUTHS = (0.0, 90.0)
 
