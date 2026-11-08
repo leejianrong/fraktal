@@ -14,5 +14,5 @@
   "rust": 0.18,
   "normal": "textures/corrugatedsteel007a-normal.jpg",
   "roughness_map": "textures/corrugatedsteel007a-rough.jpg",
-  "rib_depth_m": 0.05
+  "rib_depth_m": 0.01
 }
