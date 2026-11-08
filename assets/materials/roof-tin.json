@@ -4,9 +4,12 @@
   "image": "textures/corrugatedsteel007a-color.jpg",
   "scale_m": 1.5,
   "tint": [
-    1.25,
-    1.25,
-    1.2
+    0.95,
+    0.93,
+    0.88
   ],
-  "roughness": 0.8
+  "roughness": 0.55,
+  "ribs_m": 0.1,
+  "rib_strength": 0.6,
+  "rust": 0.18
 }

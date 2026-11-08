@@ -189,7 +189,67 @@ def load_material(name: str, assets: Path):
     links.new(mapping.outputs["Vector"], tex.inputs["Vector"])
     links.new(tex.outputs["Color"], tint.inputs[6])
     links.new(tint.outputs[2], bsdf.inputs["Base Color"])
+    if "ribs_m" in spec:  # corrugated metal: ribs, rust and stains (FRK-109), all procedural
+        add_corrugation(mat, spec, coords, bsdf, tint)
     return mat
+
+
+def add_corrugation(mat, spec: dict, coords, bsdf, tint) -> None:
+    """Ribs as a bump (rib direction random per ~14 m cell), plus rust patches and a worn tone.
+
+    The rib pitch is real (about 0.1 m), so ribs show at drone scale and wash out at 0.5 m GSD.
+    """
+    nodes, links = mat.node_tree.nodes, mat.node_tree.links
+
+    def node(kind: str, **inputs):
+        n = nodes.new(kind)
+        for key, value in inputs.items():
+            n.inputs[key].default_value = value
+        return n
+
+    def wave(axis: str):
+        w = nodes.new("ShaderNodeTexWave")
+        w.wave_type, w.bands_direction, w.wave_profile = "BANDS", axis, "SAW"
+        w.inputs["Scale"].default_value = 1.0 / spec["ribs_m"]
+        w.inputs["Distortion"].default_value = 0.0
+        links.new(coords.outputs["Object"], w.inputs["Vector"])
+        return w
+
+    wave_x, wave_y = wave("X"), wave("Y")
+    cell = node("ShaderNodeTexVoronoi", Scale=1.0 / 14.0)
+    links.new(coords.outputs["Object"], cell.inputs["Vector"])
+    sep = nodes.new("ShaderNodeSeparateColor")
+    links.new(cell.outputs["Color"], sep.inputs["Color"])
+    pick = node("ShaderNodeMath")
+    pick.operation = "GREATER_THAN"
+    pick.inputs[1].default_value = 0.5
+    links.new(sep.outputs["Red"], pick.inputs[0])
+    ribs = nodes.new("ShaderNodeMix")
+    ribs.data_type = "FLOAT"
+    links.new(pick.outputs["Value"], ribs.inputs[0])
+    links.new(wave_x.outputs["Fac"], ribs.inputs[2])
+    links.new(wave_y.outputs["Fac"], ribs.inputs[3])
+    bump = node("ShaderNodeBump", Strength=spec.get("rib_strength", 0.6), Distance=0.02)
+    links.new(ribs.outputs[0], bump.inputs["Height"])
+    links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+    # rust and wear: noise patches blend the tinted texture toward a rust brown
+    patches = node("ShaderNodeTexNoise", Scale=1.0 / 2.5, Detail=6.0, Roughness=0.6)
+    links.new(coords.outputs["Object"], patches.inputs["Vector"])
+    ramp = nodes.new("ShaderNodeValToRGB")
+    lo = 1.0 - spec.get("rust", 0.25)
+    ramp.color_ramp.elements[0].position, ramp.color_ramp.elements[1].position = (
+        lo,
+        min(lo + 0.12, 1.0),
+    )
+    links.new(patches.outputs["Fac"], ramp.inputs["Fac"])
+    rusted = nodes.new("ShaderNodeMix")
+    rusted.data_type = "RGBA"
+    rusted.inputs[7].default_value = (0.42, 0.2, 0.1, 1.0)
+    links.new(
+        ramp.outputs["Color"], rusted.inputs[0]
+    )  # the ramp is black-to-white: its value is the factor
+    links.new(tint.outputs[2], rusted.inputs[6])
+    links.new(rusted.outputs[2], bsdf.inputs["Base Color"])
 
 
 def build_buildings(scene: dict, scene_dir: Path, assets: Path) -> int:
