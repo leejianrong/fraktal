@@ -55,6 +55,7 @@ def plan(
     gsd_m: float,
     min_buildings: int = 1,
     sensor: bool = False,
+    sun_elevation: tuple[float, float] = SUN_ELEVATION_DEG,
 ) -> list[dict[str, Any]]:
     """``count`` tile specs inside the world, each with at least ``min_buildings`` if it can.
 
@@ -89,7 +90,7 @@ def plan(
         lon, lat = to_lonlat.transform(x, y)
         sun = (
             round(float(rng.uniform(*SUN_AZIMUTH_DEG)), 2),
-            round(float(rng.uniform(*SUN_ELEVATION_DEG)), 2),
+            round(float(rng.uniform(*sun_elevation)), 2),
         )
         spec: dict[str, Any] = {
             "index": i,
