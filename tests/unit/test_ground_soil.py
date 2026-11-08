@@ -56,5 +56,5 @@ def test_every_biome_has_a_style_and_unknown_falls_back() -> None:
 def test_khartoum_is_tan_and_mostly_soil() -> None:
     style = soil_style("khartoum")
     r, g, b = style.soil_a
-    assert r > g > b and r > 0.75 and b > 0.45  # light tan, not red laterite
+    assert r > g > b and 0.5 < r < 0.75 and r - b > 0.2  # red-brown earth, not pale cream
     assert style.share >= 0.7

@@ -34,7 +34,8 @@ class SoilStyle:
 LATERITE = ((158 / 255, 92 / 255, 64 / 255), (184 / 255, 116 / 255, 80 / 255))
 OCHRE = ((190 / 255, 150 / 255, 104 / 255), (208 / 255, 172 / 255, 124 / 255))
 
-TAN = ((214 / 255, 184 / 255, 142 / 255), (226 / 255, 200 / 255, 160 / 255))  # dry Sahelian ground
+# dry Sahelian red-brown earth
+TAN = ((150 / 255, 108 / 255, 86 / 255), (172 / 255, 128 / 255, 102 / 255))
 
 BIOME_SOIL: dict[str, SoilStyle] = {
     "khartoum": SoilStyle(*TAN, share=0.8, green_mute=0.65),
