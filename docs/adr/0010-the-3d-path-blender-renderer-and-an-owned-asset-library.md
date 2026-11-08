@@ -120,7 +120,7 @@ this machine with 6 threads, 32 samples, no denoiser:
 | Blender render | 26.0 | about 156 thread-seconds |
 | 2.5D render | 2.2 | with objects, texture and palette |
 
-![real chip, 2.5D render, Blender render](../img/stage0-strip.png)
+![real chip, 2.5D render, Blender render](../img/pipeline-3d/stage0-strip.png)
 
 Gauge distances (0 is a perfect match). The real sets are tiny and both renders show the same
 dense scene, so read the pattern, not the digits:
@@ -164,7 +164,7 @@ golden tests). The 2.5D renderer calls `grade` on its float radiance, and its ou
 byte-identical to before (checked with every effect on). The Blender path applies `sensor_chain`
 and `add_noise` to its finished 8-bit render with the same settings as the 2.5D variant.
 
-![real chip, 2.5D, Blender, Blender with the sensor kernel](../img/stage0-strip-sensor.png)
+![real chip, 2.5D, Blender, Blender with the sensor kernel](../img/pipeline-3d/stage0-strip-sensor.png)
 
 Same tile, same Khartoum chips, gauge distances (0 is perfect):
 
@@ -189,7 +189,7 @@ per-class amplitude, baked into `ground.npy`) and its scattered trees (`scene.js
 same placement code and seed, so the same places). `blender_scene.py` builds the trees as one mesh of
 low-poly crown ellipsoids and samples the ground image with linear, not nearest, interpolation.
 
-![2.5D and Blender, same 150 m corner of a tile](../img/stage0-ground-trees.png)
+![2.5D and Blender, same 150 m corner of a tile](../img/pipeline-3d/stage0-ground-trees.png)
 
 What the crop shows: the ground is no longer flat colour, the trees are round crowns that cast
 shadows, and they sit where the 2.5D trees do. What it still shows: the 10 m land-cover squares
@@ -290,7 +290,7 @@ path whose view centre leaves the tile margin. `fraktal render3d --trajectory fl
 and writes `frames/frame_NNNN.png`, and `render.json` lists every frame's pose. The poses go into
 `scene/camera.json`, which is part of `scene_sha256`, so the same seed repeats the same sequence.
 
-![six frames of a 2 s oblique flight](../img/oblique-flight.png)
+![six frames of a 2 s oblique flight](../img/pipeline-3d/oblique-flight.png)
 
 A 24-frame, 640 px flight over a 500 m dense_urban tile took 149 s at 16 samples on 4 local
 threads. Limits, as built: the ground is the tile only, so a view that reaches past the tile edge
@@ -316,7 +316,7 @@ CorrugatedSteel007A, RoofingTiles013A; CC0-1.0, licence page read 2026-11-05, do
 and ten owned JSON material definitions that tint and scale them. Each has a manifest row and the CI
 check covers it. Textures are applied by box projection in world metres, so there are no UVs.
 
-![oblique still and nadir corner of one tile](../img/building-grammar.png)
+![oblique still and nadir corner of one tile](../img/pipeline-3d/building-grammar.png)
 
 How it looks, said plainly: it reads as a dense mid-rise city, with believable surfaces, window
 rhythm, parapets and roof clutter, and the nadir view has the roof-colour variety back. I have no real
@@ -343,7 +343,7 @@ added plus or minus one to the ids until I turned it off). Workbench would be ch
 without a GL context, which a pod does not have. Because it is a render, labels are right for any
 camera, occlusion included, and a wall hidden behind another building does not leak.
 
-![oblique frames next to their labels](../img/labels-3d.png)
+![oblique frames next to their labels](../img/pipeline-3d/labels-3d.png)
 
 Checked: on a 120 m nadir tile the building labels match the rasterised footprints with IoU 1.0 (the
 integration test asks for 0.9), and the label image holds exactly one colour per building, per tree and
@@ -362,7 +362,7 @@ and the village biomes use 70/27/3% of 1 to 3; `dense_urban` keeps its world hei
 over the whole world, so a building's height does not depend on the tile window, and `--height-profile
 world` turns it off.
 
-![world heights and the 3D heights per biome](../img/heights-3d.png)
+![world heights and the 3D heights per biome](../img/pipeline-3d/heights-3d.png)
 
 **These mixes are assumptions, not a fit.** The repository has no real height data (SpaceNet and Open
 Cities are footprints), so they come from general knowledge of the building stock and should be
@@ -385,7 +385,7 @@ is a choice, not a measurement. The 2.5D renderer, the default world and its pin
 - **block**: everything else, as before. The block's random draws are unchanged, so a block looks the
   same as it did.
 
-![informal sheds on the left, low-rise Khartoum with two courtyard houses on the right](../img/typologies.png)
+![informal sheds on the left, low-rise Khartoum with two courtyard houses on the right](../img/pipeline-3d/typologies.png)
 
 What it looks like: the informal tile now reads as a settlement of pitched tin and tile roofs instead
 of towers, and Khartoum (with the FRK-62 storey mix) is low flat-roofed blocks with some yard houses.
@@ -404,7 +404,7 @@ species when the tile window changes. Broadleaf is the old round crown, now on a
 thin trunk with eight drooping fronds; a shrub is a wide low mound. The tree labels follow the
 faces (a tree is no longer a fixed number of faces), and a render of 80 trees shows 80 instances.
 
-![dense_urban and informal_settlement, trees by species](../img/tree-species.png)
+![dense_urban and informal_settlement, trees by species](../img/pipeline-3d/tree-species.png)
 
 The mixes (khartoum 85% broadleaf, dense_urban 55/35/10 broadleaf, palm, shrub, and so on) are
 assumptions, not counts. Palms are narrow and read as small from far away; every broadleaf crown is
@@ -421,7 +421,7 @@ writes `ground_rough.npy` (in `scene_sha256`): roughness 0.06 for water, flooded
 reflects the sky. Every palm of an oil-palm field becomes a `palm` tree, at the field's row
 positions (8 to 13 m tall), so the planted rows show.
 
-![mangrove coast, oil-palm plantation and paddy terraces, oblique](../img/surfaces-3d.png)
+![mangrove coast, oil-palm plantation and paddy terraces, oblique](../img/pipeline-3d/surfaces-3d.png)
 
 Honest limits: terraces are colour bands on a **flat** ground, because the 3D ground has no relief
 (the DEM is not used for height), so there are no terrace steps or risers in the geometry; the glossy
@@ -441,7 +441,7 @@ footpaths get none. `--vehicle-density` is not a CLI flag yet; `export_scene(veh
 cars off. Labels gained classes `vehicle` (4) and `pole` (5) with their own instances, and
 `render.json` lists the counts.
 
-![low-rise tile with cars on the arterials and poles along the streets](../img/vehicles-props.png)
+![low-rise tile with cars on the arterials and poles along the streets](../img/pipeline-3d/vehicles-props.png)
 
 Checked: car headings sit within about 11 degrees of the road's direction at the median (a unit test);
 on a 0.5 m nadir tile 29 of 31 cars and 42 of 65 poles show in the labels (the rest are hidden
@@ -460,7 +460,7 @@ at floor level with a solid rail on three sides). Three owned material definitio
 concrete maps). Balconies and the rest draw from their own sub-stream, `facade:<id>`, so every window
 and door stays where it was.
 
-![facade detail seen from above and to the side](../img/facade-detail.png)
+![facade detail seen from above and to the side](../img/pipeline-3d/facade-detail.png)
 
 Cost: three faces per window instead of one. On a 300 m dense_urban tile the mesh went from 13.7k to
 41.2k faces and the Cycles render from 4.6 s to 5.4 s at 16 samples (one run each, 4 local threads;
@@ -497,7 +497,7 @@ Blender image is far from real on noise and contrast without the sensor, as expe
 strong-edge gap is poor for both (about 0.6), so neither reproduces the sharp roof edges of the real
 chips there.
 
-![2.5D (left) and 3D with the sensor (right), dense_urban above, informal_settlement below](../img/compare-3d.png)
+![2.5D (left) and 3D with the sensor (right), dense_urban above, informal_settlement below](../img/pipeline-3d/compare-3d.png)
 
 **What this does not show.** One world seed, one tile per biome, three sensor draws, and the same
 3D render under all three. Open Cities is 4 to 8 cm drone imagery averaged to 0.5 m, so blur and
@@ -523,7 +523,7 @@ map is dark slate, so about 40% of the roofs (tiles and the shadowed slope) came
 - The shed pitch is lowered from 35% to 22% of the half-width (about 12 degrees), so the slope away
   from the sun is not half as bright as the other.
 
-![2.5D (left) and 3D with the sensor (right), informal settlement, after the colour fix](../img/tin-roofs.png)
+![2.5D (left) and 3D with the sensor (right), informal settlement, after the colour fix](../img/pipeline-3d/tin-roofs.png)
 
 Same run as FRK-67 (informal_settlement, 1 km, three sensor draws, 90 real chips), 3D with the
 sensor: colour W1 0.051 to 0.048, edge-energy gap 0.012 to 0.030, noise gap 0.111 to 0.120, contrast
@@ -547,7 +547,7 @@ code is 4 if any failed. To keep a dataset small each tile keeps `image.png`, `l
 `MODE=batch scripts/runpod/stage0_run.sh` runs it on a pod with the same boot check, heartbeat and
 teardown as before; per-tile `render3d_batch_tile` lines reach the pod log.
 
-![six of the 50 tiles](../img/batch-3d.png)
+![six of the 50 tiles](../img/pipeline-3d/batch-3d.png)
 
 **The run** (pre-merge commit 20d7324, `dense_urban` world of 3 km, 50 tiles of 500 m at 0.5 m, 16 samples, one
 16 vCPU CPU pod at $0.48/h): 50 rendered, 0 failed, 50 distinct scene hashes, 717 s in the batch,
@@ -580,7 +580,7 @@ and writes `sensor.png` next to the raw `image.png`; `render.json` records the d
 tropical set are 2.5D parameters and are not applied. `MODE=batch BATCH_BIOME='a b c' SENSOR=1
 scripts/runpod/stage0_run.sh` runs several biomes on one pod, a world each.
 
-![sensor image above, class labels below, one tile per biome](../img/batch-biomes.jpg)
+![sensor image above, class labels below, one tile per biome](../img/pipeline-3d/batch-biomes.jpg)
 
 **Smoke run** (commit c892584, one 16 vCPU CPU pod, 3 km worlds, 4 tiles of 500 m per biome, 16 samples):
 24 of 24 tiles rendered, none failed. Seconds per tile: dense_urban 7.6, informal_settlement 7.5, and
@@ -612,7 +612,7 @@ In the grammar, 25% of buildings take one of the three wall textures instead of 
 of the tile roofs use the clay tile; both shares are assumptions, drawn from a separate sub-stream so
 the existing wall, roof and tin draws of a building do not change.
 
-![oblique orbit frame of dense_urban; the pale blue-grey walls are the peeling paint](../img/generated-walls.png)
+![oblique orbit frame of dense_urban; the pale blue-grey walls are the peeling paint](../img/pipeline-3d/generated-walls.png)
 
 Limits: nadir imagery sees roofs, so the wall textures show up only in oblique views; the paint's blue
 reads as a pale blue-grey in this lighting. One render, one seed.
@@ -631,8 +631,8 @@ was a 5 m square (the 2.5D texture only modulates brightness inside a class). Ch
 - Broadleaf and shrub crowns are finer icospheres with a per-tree radial lump (22%) and six greens
   instead of three.
 
-![informal settlement, 300 m at 0.5 m, after](../img/ground-300m.png)
-![the same tile corner at 0.15 m](../img/ground-close.png)
+![informal settlement, 300 m at 0.5 m, after](../img/pipeline-3d/ground-300m.png)
+![the same tile corner at 0.15 m](../img/pipeline-3d/ground-close.png)
 
 Limits: still a colour image on a flat ground, so no blades or relief; the mottling is noise, not
 mapped vegetation, and I did not run the gauge on it (ground colour moved, so the FRK-67 numbers no
@@ -656,4 +656,4 @@ them inside 18 m of relief, which is subtle in a render. The left panel below is
 heights at 4x vertical exaggeration, the right a frame from the flight. Steeper, taller terraces would
 need a larger `relief_m` or a terrace height in the biome config, which is not done.
 
-![Hillshade of the tile heights and a flight frame](../img/relief-paddy.jpg)
+![Hillshade of the tile heights and a flight frame](../img/pipeline-3d/relief-paddy.jpg)

@@ -120,8 +120,8 @@ how often each asset repeats in a tile, since twenty assets repeated everywhere 
 Stack: SDXL base 1.0 (30 steps, 1024 px), BiRefNet cut-out, Step1X-3D-Geometry-1300m (50 steps, octree 384,
 marching cubes), then our own clean-up and checks. 20 prompted props (motorbikes, tuk-tuks, minibuses, pickups,
 stalls, water tanks, containers, signs) on one RunPod A40 (48 GB, $0.59 an hour). Images:
-[props-trial-images.jpg](../img/props-trial-images.jpg); meshes with the QA verdict:
-[props-trial-meshes.jpg](../img/props-trial-meshes.jpg).
+[props-trial-images.jpg](../img/generative-assets/props-trial-images.jpg); meshes with the QA verdict:
+[props-trial-meshes.jpg](../img/generative-assets/props-trial-meshes.jpg).
 
 | Step | Time | GPU memory |
 |---|---|---|
@@ -189,7 +189,7 @@ with the check, then a look, is the working method.
 `src/fraktal/propgen.py` holds five parametric generators (container, water tank, market stall, signboard,
 tuk-tuk) in plain numpy, seeded through `substream`. `scripts/props/bpy_build.py` builds them in Blender,
 renders a ground and an aerial view with Cycles and exports a GLB each; the contact sheet of ten variants of
-each is `docs/img/propgen-trial.jpg`. I wrote the generators myself in one session, so this measures what an
+each is `docs/img/generative-assets/propgen-trial.jpg`. I wrote the generators myself in one session, so this measures what an
 LLM-authored generator looks like, not an autonomous agent loop (BlenderMCP or LL3M style, not tried).
 
 | | Code route (FRK-130) | Image to 3D (FRK-122) |

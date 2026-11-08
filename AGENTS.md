@@ -38,7 +38,7 @@ make fmt               # apply ruff fixes and formatting
 
 ## Docs
 
-`docs/RUNPOD.md` (GPU runs: launch, watch, tear down), `godot/README.md` (the real-time viewer: export a tile, install Godot, run it on WSL or Windows), `docs/PLAN.md` (scope and shape), `docs/SLICES.md` (build order and acceptance tests),
+`docs/DATA.md` (where images and local data live), `docs/RUNPOD.md` (GPU runs: launch, watch, tear down), `godot/README.md` (the real-time viewer: export a tile, install Godot, run it on WSL or Windows), `docs/PLAN.md` (scope and shape), `docs/SLICES.md` (build order and acceptance tests),
 `docs/adr/` (read the relevant ADR before changing what it covers), `docs/QUESTIONS.md`.
 Later bets (robotics/drone views, SAR, disaster pairs, agent simulation) are in
 `docs/PLAN.md` under "Later bets".

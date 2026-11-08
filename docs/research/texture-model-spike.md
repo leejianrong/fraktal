@@ -65,7 +65,7 @@ Setup: one RunPod A40 (secure cloud, $0.59/h), SDXL base fp16, 20 steps, 1024 px
 padding set to circular in the UNet and VAE so the output wraps, five roles by four seeds
 (`scripts/textures/sdxl_trial.py`, driven by `scripts/runpod/textures_run.sh`).
 
-![20 SDXL textures: rows are plaster wall, rough concrete, corrugated tin, clay roof tile, weathered paint](../img/texture-trial.jpg)
+![20 SDXL textures: rows are plaster wall, rough concrete, corrugated tin, clay roof tile, weathered paint](../img/generative-assets/texture-trial.jpg)
 
 | Measure | Result |
 |---|---|

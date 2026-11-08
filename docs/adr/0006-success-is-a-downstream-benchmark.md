@@ -282,7 +282,7 @@ What is still wrong, from the chip strip:
 Two free checks, both on CPU, nothing trained. Pod costs: one that never started its container
 (terminated after 15 minutes, about $0.14) and one 8-minute run, about $0.10 in all.
 
-**Overview sheet** (`scripts/biome_overview.py`, committed as `docs/img/biome-overview.jpg`): one clear-sky
+**Overview sheet** (`scripts/biome_overview.py`, committed as `docs/img/biomes/biome-overview.jpg`): one clear-sky
 1 km window per biome, same seed. It shows each generator doing what it was built to do:
 dense_urban has gridded blocks of tall roofs; oil_palm_plantation has staggered palm rows with a
 track and shadows; paddy_terraces has tiled blocks in three states; mangrove_coast has sea, a mud

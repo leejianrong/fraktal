@@ -137,7 +137,7 @@ Building cover over a 2 km tile, seed 3: dense_urban 22.2% to 26.9% (depth 30 m)
 from 7,518 to 18,620. Cover depends on tile size and seed (a 1 km tile gave lower numbers), so these
 are one seed, one size. The effect on edge energy and contrast against the 5 real chips was **not
 re-measured**; the earlier table above is from before blocks. The overview sheet
-(`docs/img/biome-overview.jpg`) is regenerated.
+(`docs/img/biomes/biome-overview.jpg`) is regenerated.
 
 ### After FRK-70 (ten evaluation scenes)
 
