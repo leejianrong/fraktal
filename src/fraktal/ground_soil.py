@@ -56,15 +56,16 @@ BIOME_SOIL: dict[str, SoilStyle] = {
         *LATERITE, share=0.85, green_mute=0.9, bare_is_soil=True, mute_tree_cover=True, speckle=0.2
     ),
     "oil_palm_plantation": SoilStyle(  # earth between the palm rows and tracks, a little scrub
-        *LATERITE, share=0.55, green_mute=0.6, bare_is_soil=True, speckle=0.08
+        *LATERITE, share=0.8, green_mute=0.85, bare_is_soil=True, speckle=0.08
     ),
-    "paddy_terraces": SoilStyle(*MUD, share=0.45, green_mute=0.3, bare_is_soil=True),
-    "mangrove_coast": SoilStyle(*MUD_DARK, share=0.35, green_mute=0.4, bare_is_soil=True),
+    "paddy_terraces": SoilStyle(*MUD, share=0.6, green_mute=0.8, bare_is_soil=True),
+    "mangrove_coast": SoilStyle(*MUD_DARK, share=0.5, green_mute=0.8, bare_is_soil=True),
 }
 DEFAULT_SOIL = SoilStyle(*OCHRE, share=0.4)
 
 # Other earth tones a tile may draw instead of the biome's base one (FRK-134), set by eye.
-PALE_SAND = ((184 / 255, 152 / 255, 118 / 255), (204 / 255, 174 / 255, 138 / 255))
+# Keep red under 180: with the sky fill a lighter sand clips to white
+PALE_SAND = ((158 / 255, 122 / 255, 98 / 255), (178 / 255, 140 / 255, 112 / 255))
 DEEP_RED = ((128 / 255, 80 / 255, 62 / 255), (150 / 255, 98 / 255, 76 / 255))
 GREY_BROWN = ((130 / 255, 112 / 255, 96 / 255), (150 / 255, 130 / 255, 112 / 255))
 TONES = (None, PALE_SAND, DEEP_RED, GREY_BROWN)  # None keeps the base colours of the biome
