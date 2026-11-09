@@ -68,6 +68,54 @@ def add_gaussian_noise(tile: Any, sigma: float, rng: Any) -> Any:
     return np.clip(np.rint(tile.astype("float32") + noise), 0, 255).astype("uint8")
 
 
+def _radius(h: int, w: int) -> Any:
+    """Distance from the centre, 1 at the corners, as an (H, W) array."""
+    y, x = np.indices((h, w), dtype="float32")
+    cy, cx = (h - 1) / 2, (w - 1) / 2
+    return np.hypot(y - cy, x - cx) / max(float(np.hypot(cy, cx)), 1e-6)
+
+
+def _scaled(channel: Any, factor: float) -> Any:
+    """``channel`` resampled so the picture is ``factor`` times larger about the centre."""
+    h, w = channel.shape
+    cy, cx = (h - 1) / 2, (w - 1) / 2
+    y, x = np.indices((h, w), dtype="float32")
+    sy, sx = np.clip(cy + (y - cy) / factor, 0, h - 1), np.clip(cx + (x - cx) / factor, 0, w - 1)
+    y0, x0 = np.floor(sy).astype(int), np.floor(sx).astype(int)
+    y1, x1 = np.minimum(y0 + 1, h - 1), np.minimum(x0 + 1, w - 1)
+    fy, fx = sy - y0, sx - x0
+    top = channel[y0, x0] * (1 - fx) + channel[y0, x1] * fx
+    bottom = channel[y1, x0] * (1 - fx) + channel[y1, x1] * fx
+    return top * (1 - fy) + bottom * fy
+
+
+def lens_effects(rgb: Any, vignette: float = 0.0, ca_px: float = 0.0, jpeg_quality: int = 0) -> Any:
+    """Drone-lens effects on a (3, H, W) uint8 image; each one is off at 0.
+
+    ``ca_px`` is the red-blue fringe at the corner, in pixels (red is magnified, blue shrunk);
+    ``vignette`` darkens the corners by that share; ``jpeg_quality`` (1 to 95) is a JPEG round trip.
+    """
+    out = rgb
+    if ca_px > 0:
+        half_diag = float(np.hypot(*out.shape[1:])) / 2
+        k = ca_px / max(half_diag, 1.0)
+        planes = out.astype("float32")
+        planes[0], planes[2] = _scaled(planes[0], 1 + k), _scaled(planes[2], 1 - k)
+        out = np.clip(np.rint(planes), 0, 255).astype("uint8")
+    if vignette > 0:
+        falloff = 1.0 - vignette * _radius(*out.shape[1:]) ** 2
+        out = np.clip(np.rint(out.astype("float32") * falloff), 0, 255).astype("uint8")
+    if jpeg_quality > 0:
+        import io
+
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.fromarray(np.moveaxis(out, 0, -1)).save(buf, "JPEG", quality=int(jpeg_quality))
+        out = np.moveaxis(np.asarray(Image.open(buf).convert("RGB")), -1, 0).copy()
+    return out
+
+
 def sensor_chain(
     rgb: Any,
     *,
@@ -88,6 +136,7 @@ __all__ = [
     "apply_haze",
     "apply_psf",
     "grade",
+    "lens_effects",
     "sensor_chain",
     "transmittance",
 ]

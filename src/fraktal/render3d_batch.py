@@ -59,10 +59,12 @@ def plan(
     min_buildings: int = 1,
     sensor: bool = False,
     sun_elevation: tuple[float, float] = SUN_ELEVATION_DEG,
+    lens: tuple[str, ...] = (),
 ) -> list[dict[str, Any]]:
     """``count`` tile specs inside the world, each with at least ``min_buildings`` if it can.
 
-    With ``sensor`` each spec gets a ``sensor`` block drawn from the tropical ranges.
+    With ``sensor`` each spec gets a ``sensor`` block drawn from the tropical ranges. ``lens`` names
+    drone-lens effects to add on top (any of ``LENS_EFFECTS``); the others stay off.
     """
     manifest = json.loads((world_dir / "world.json").read_text())
     west, south, east, north = manifest["bounds"]
@@ -100,8 +102,27 @@ def plan(
         }
         if sensor:
             spec["sensor"] = _draw_sensor(seed, i, size_m, gsd_m, sun[1], manifest.get("biome", ""))
+            if lens:
+                spec["sensor"]["lens"] = draw_lens(seed, i, lens)
         specs.append(spec)
     return specs
+
+
+LENS_EFFECTS = ("vignette", "chromatic", "compression")
+
+
+def draw_lens(seed: int, index: int, effects: tuple[str, ...]) -> dict[str, Any]:
+    """Vignette, chromatic aberration and JPEG quality for one tile; an effect left out is off."""
+    unknown = set(effects) - set(LENS_EFFECTS)
+    if unknown:
+        raise BatchError(f"unknown lens effects {sorted(unknown)}; choose from {LENS_EFFECTS}")
+    rng = substream(seed, f"batch:lens:{index}")
+    vignette, fringe, quality = rng.uniform(0.15, 0.45), rng.uniform(0.4, 1.6), rng.integers(55, 86)
+    return {  # every effect is drawn, so switching one off never moves the others
+        "vignette": round(float(vignette), 4) if "vignette" in effects else 0.0,
+        "ca_px": round(float(fringe), 4) if "chromatic" in effects else 0.0,
+        "jpeg_quality": int(quality) if "compression" in effects else 0,
+    }
 
 
 def _draw_sensor(
@@ -140,6 +161,10 @@ def apply_sensor(tile_dir: Path, sensor: dict[str, Any]) -> None:
         psf_sigma_px=sensor["psf_sigma_px"],
     )
     out = add_noise(graded, sensor["noise_sigma"], sensor["noise_seed"], "batch")
+    if sensor.get("lens"):
+        from fraktal.kernels.sensor import lens_effects
+
+        out = lens_effects(out, **sensor["lens"])
     with rasterio.open(
         tile_dir / SENSOR_NAME, "w", driver="PNG", width=out.shape[2], height=out.shape[1],
         count=3, dtype="uint8",

@@ -470,6 +470,7 @@ def _render3d_batch(args: argparse.Namespace) -> Result:
         specs = render3d_batch.plan(
             args.world, args.count, args.seed, args.size_m, args.gsd_m, args.min_buildings,
             sensor=args.sensor, sun_elevation=tuple(args.sun_elevation_range),
+            lens=tuple(args.lens or render3d_batch.LENS_EFFECTS) if args.lens is not None else (),
         )  # fmt: skip
         record = render3d_batch.run(
             args.world,
@@ -706,6 +707,11 @@ def _render3d_batch_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--sensor", action="store_true", help="also write sensor.png (tropical grade, blur, noise)"
     )
+    parser.add_argument(
+        "--lens", nargs="*", default=None, choices=list(render3d_batch.LENS_EFFECTS),
+        metavar="EFFECT",
+        help="drone-lens effects on sensor.png (with --sensor); bare --lens turns on all three",
+    )  # fmt: skip
 
 
 def _render3d_args(parser: argparse.ArgumentParser) -> None:
