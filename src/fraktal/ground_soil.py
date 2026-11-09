@@ -64,10 +64,10 @@ BIOME_SOIL: dict[str, SoilStyle] = {
 DEFAULT_SOIL = SoilStyle(*OCHRE, share=0.4)
 
 # Other earth tones a tile may draw instead of the biome's base one (FRK-134), set by eye.
-# Keep red under 180: with the sky fill a lighter sand clips to white
-PALE_SAND = ((158 / 255, 122 / 255, 98 / 255), (178 / 255, 140 / 255, 112 / 255))
+# Keep these close to TAN: the sky fill makes anything lighter clip white or turn grey-lavender
+PALE_SAND = ((150 / 255, 116 / 255, 90 / 255), (168 / 255, 134 / 255, 104 / 255))
 DEEP_RED = ((128 / 255, 80 / 255, 62 / 255), (150 / 255, 98 / 255, 76 / 255))
-GREY_BROWN = ((130 / 255, 112 / 255, 96 / 255), (150 / 255, 130 / 255, 112 / 255))
+GREY_BROWN = ((118 / 255, 94 / 255, 76 / 255), (136 / 255, 110 / 255, 90 / 255))
 TONES = (None, PALE_SAND, DEEP_RED, GREY_BROWN)  # None keeps the base colours of the biome
 TONE_MIX: dict[str, tuple[float, float, float, float]] = {  # the shares of TONES, by biome
     "khartoum": (0.5, 0.25, 0.10, 0.15),
