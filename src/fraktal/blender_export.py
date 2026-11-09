@@ -340,6 +340,8 @@ def export_scene(
         seed,
         walls=[s for c in walls for s in c["segments"]],
     )
+    yards = _yard_sites(read_parcels(world_dir).to_crs(epsg), local, west, south)
+    props += props_scene.yard_props(yards, seed)
     buildings = []
     for row in local.itertuples():
         if row.geometry.is_empty or not row.geometry.intersects(
@@ -429,6 +431,27 @@ def export_scene(
         scene["terrain"] = terrain
     (out_dir / "scene.json").write_text(json.dumps(scene) + "\n")
     return scene
+
+
+def _yard_sites(parcels: Any, buildings: Any, west: float, south: float) -> list[dict[str, Any]]:
+    """Industrial sites as tile-metre yards: the lot less its halls, pulled in from the fence."""
+    from shapely import affinity
+
+    if "land_use" not in parcels:
+        return []
+    sites = []
+    for row in parcels[parcels["land_use"] == "industrial"].itertuples():
+        owned = None
+        if "parcel_id" in buildings:
+            owned = buildings["parcel_id"].astype(str) == str(row.id)
+        yard = row.geometry.buffer(-2.5)
+        if owned is not None:
+            for hall in buildings[owned].geometry:
+                yard = yard.difference(hall.buffer(3.0))
+        yard = affinity.translate(yard, -west, -south)
+        (x0, y0), (x1, y1) = list(row.geometry.exterior.coords)[:2]
+        sites.append({"id": row.id, "yard": yard, "yaw": math.atan2(y1 - y0, x1 - x0)})
+    return sites
 
 
 def _box(x0: float, y0: float, x1: float, y1: float) -> Any:

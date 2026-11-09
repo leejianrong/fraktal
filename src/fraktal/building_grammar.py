@@ -80,6 +80,8 @@ STOREY_M = 3.0
 COURTYARD_MIN_AREA_M2 = 140.0
 COURTYARD_MAX_HEIGHT_M = 7.5
 COURTYARD_SHARE = 0.35
+HALL_MIN_AREA_M2 = 400.0  # a long, large flat-footed building is an industrial hall
+HALL_MIN_ASPECT = 1.8
 PARAPET_M = (0.35, 0.7)
 PARAPET_THICKNESS_M = 0.18
 WINDOW_M = (1.1, 1.3)  # width, height
@@ -299,6 +301,11 @@ def typology_for(
     """``shed`` for a recorded tin or tile roof, a ``courtyard`` for some low roomy rectangles."""
     if roof_material in ROOFS:
         return "shed"
+    if vertices == 4 and poly.area >= HALL_MIN_AREA_M2:
+        rect = np.asarray(poly.minimum_rotated_rectangle.exterior.coords[:4], dtype="float64")
+        a, b = np.hypot(*(rect[1] - rect[0])), np.hypot(*(rect[2] - rect[1]))
+        if max(a, b) / max(min(a, b), 1e-9) >= HALL_MIN_ASPECT:
+            return "industrial_hall"
     roll = float(substream(seed, f"typology:{building_id}").uniform())
     sides = np.hypot(*(np.diff(np.asarray(poly.exterior.coords), axis=0)).T)
     roomy = vertices == 4 and poly.area >= COURTYARD_MIN_AREA_M2 and sides.min() >= 11.0
@@ -350,6 +357,12 @@ def build(
         shed = _gable(poly, pts, height, wall, roof, rng, floors, storey)
         if shed is not None:
             return shed
+    elif typology == "industrial_hall":
+        tin = TIN_ROOFS[int(look.integers(0, 3))]
+        hall = _gable(poly, pts, height, "wall-concrete", tin, rng, 1, height)
+        if hall is not None:
+            hall.typology = "industrial_hall"
+            return hall
     elif typology == "courtyard":
         yard = _courtyard(poly, pts, height, wall, roof, rng, floors, storey)
         if yard is not None:

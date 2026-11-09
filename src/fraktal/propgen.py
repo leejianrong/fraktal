@@ -231,6 +231,25 @@ def water_tank(seed: int) -> Prop:
     return Prop("water_tank", seed, tuple(parts))
 
 
+def silo(seed: int) -> Prop:
+    """A grain or cement silo: a tall steel cylinder with a conical cap, a ladder and a collar."""
+    rng = substream(seed, "propgen.silo")
+    radius = float(rng.uniform(1.4, 2.4))
+    height = float(rng.uniform(6.0, 10.0))
+    colour = _pick(rng, ["sheet-zinc", "sheet-zinc", "paint-grey", "plastic-white"])
+    parts = [cylinder(colour, (0, 0, height / 2), radius, height, sides=32)]
+    cap_h = radius * 0.5
+    ang = np.linspace(0, 2 * math.pi, 32, endpoint=False)
+    ring = np.column_stack([radius * np.cos(ang), radius * np.sin(ang), np.full(32, height)])
+    apex = np.array([[0.0, 0.0, height + cap_h]])
+    faces = [[i, (i + 1) % 32, 32] for i in range(32)]
+    parts.append(Part(colour, np.vstack([ring, apex]), np.array(faces)))
+    collar = cylinder("steel-dark", (0, 0, height * 0.05), radius * 1.04, height * 0.1, sides=32)
+    parts.append(collar)
+    parts.append(box("steel-dark", (radius + 0.05, 0, height / 2), (0.08, 0.5, height)))  # ladder
+    return Prop("silo", seed, tuple(parts))
+
+
 def market_stall(seed: int) -> Prop:
     """A wooden market stall with a tarpaulin roof and goods on the counter."""
     rng = substream(seed, "propgen.market_stall")
@@ -342,4 +361,5 @@ GENERATORS: dict[str, Callable[[int], Prop]] = {
     "market_stall": market_stall,
     "signboard": signboard,
     "tuk_tuk": tuk_tuk,
+    "silo": silo,
 }

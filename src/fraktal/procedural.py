@@ -24,6 +24,8 @@ from rasterio.transform import from_origin
 from fraktal import settlement, world
 from fraktal.coast import UNBUILDABLE, CoastConfig, box_any, paint_coast, shape_coast
 from fraktal.fields import FieldConfig, access_tracks, build_fields, level_paddies
+from fraktal.industrial import LAND_USE as INDUSTRIAL
+from fraktal.industrial import IndustrialConfig, carve
 from fraktal.landcover_gen import generate_landcover
 from fraktal.log import emit
 from fraktal.render import _warp, utm_epsg
@@ -66,6 +68,7 @@ class ProceduralConfig:
     roads: RoadConfig = field(default_factory=RoadConfig)
     parcels: settlement.ParcelConfig = field(default_factory=settlement.ParcelConfig)
     buildings: settlement.BuildingConfig = field(default_factory=settlement.BuildingConfig)
+    industrial: IndustrialConfig = field(default_factory=IndustrialConfig)
     fields: FieldConfig = field(default_factory=FieldConfig)
     coast: CoastConfig = field(default_factory=CoastConfig)
 
@@ -129,13 +132,16 @@ def generate_world(
     emit("generate_stage", stage="terrain_and_landcover_done")
     roads = build_roads(dem, land, config.gsd_m, transform, crs, seed, config.roads, world="roads")
     parcels = settlement.build_parcels(roads, land, transform, seed, config.parcels)
+    parcels, halls = carve(parcels, roads, land, transform, seed, config.industrial)
+    homes = parcels[parcels["land_use"] != INDUSTRIAL]
     lines = {r.id: r.geometry for _, r in roads.iterrows()} if config.parcels.blocks else None
     buildings = settlement.build_buildings(
-        parcels,
+        homes,
         settlement.arterial_centres(roads),
         seed,
         config.buildings,
         road_lines=lines,
+        extra=halls,
     )
     fields = build_fields(
         land,
@@ -208,7 +214,7 @@ def _jsonable(config: ProceduralConfig) -> dict[str, Any]:
     if out["biome"] == DEFAULT_BIOME:
         del out["biome"]  # keeps the ids of worlds made before biomes existed
     default: dict[str, Any] = json.loads(json.dumps(dataclasses.asdict(ProceduralConfig())))
-    for section in ("fields", "coast"):  # whole sections added later: omitted at default
+    for section in ("fields", "coast", "industrial"):  # sections added later: omitted at default
         if out[section] == default[section]:
             del out[section]
     del out["roads"]["drive_side"]  # traffic only: it does not change the world, so not its id

@@ -15,6 +15,7 @@ from typing import Any
 
 from fraktal.coast import CoastConfig
 from fraktal.fields import FieldConfig
+from fraktal.industrial import IndustrialConfig
 from fraktal.procedural import DEFAULT_BIOME, ProceduralConfig
 from fraktal.roads import RoadConfig
 from fraktal.settlement import BuildingConfig, ParcelConfig
@@ -78,6 +79,7 @@ BIOMES: dict[str, Biome] = {
                 shape_mix=(0.12, 0.08, 0.04),
                 size_tail=0.15,
             ),
+            industrial=IndustrialConfig(sites_per_km=1.2),
         ),
     ),
     "informal_settlement": Biome(
