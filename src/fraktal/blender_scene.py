@@ -215,9 +215,11 @@ def build_ground(
     plane.data.materials.append(mat)
 
 
-def load_material(name: str, assets: Path):
+def load_material(name: str, assets: Path, tint: list[float] | None = None):
     """A Blender material from ``assets/materials/<name>.json``: a tinted texture or a colour."""
     spec = json.loads((assets / "materials" / f"{name}.json").read_text())
+    if tint is not None:
+        spec["tint"] = tint
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nodes, links = mat.node_tree.nodes, mat.node_tree.links
@@ -714,7 +716,14 @@ def build_vehicles(scene: dict) -> int:
     return len(cars)
 
 
-def build_packed(name: str, scene_dir: Path, prefix: str, materials: list) -> int:
+def build_packed(
+    name: str,
+    scene_dir: Path,
+    prefix: str,
+    materials: list,
+    textured: dict | None = None,
+    assets: Path | None = None,
+) -> int:
     """One mesh from packed ``<prefix>_*.npy`` arrays (props, compound walls), with a Principled
     material per colour. Returns the number of faces."""
     verts = np.load(scene_dir / f"{prefix}_vertices.npy")
@@ -724,6 +733,10 @@ def build_packed(name: str, scene_dir: Path, prefix: str, materials: list) -> in
     mesh.from_pydata(verts.tolist(), [], faces.tolist())
     mesh.update()
     for mat_name, rgb, rough, metal in materials:
+        if textured and assets is not None and mat_name in textured:
+            base, tint = textured[mat_name]  # plaster or concrete in this wall's colour
+            mesh.materials.append(load_material(base, assets, tint))
+            continue
         mat = bpy.data.materials.new(f"{name}-{mat_name}")
         mat.use_nodes = True
         bsdf = mat.node_tree.nodes["Principled BSDF"]
@@ -764,13 +777,15 @@ def build_props(scene: dict, scene_dir: Path) -> int:
     return len(props)
 
 
-def build_walls(scene: dict, scene_dir: Path) -> int:
+def build_walls(scene: dict, scene_dir: Path, assets: Path | None = None) -> int:
     """One mesh for every compound wall (FRK-106): class ``wall``, one instance per compound."""
     walls = scene.get("walls", [])
     WALL_FACE_OWNER.clear()
     if not walls:
         return 0
-    build_packed("walls", scene_dir, "walls", scene["wall_materials"])
+    build_packed(
+        "walls", scene_dir, "walls", scene["wall_materials"], scene.get("wall_textures"), assets
+    )
     WALL_FACE_OWNER.extend(np.load(scene_dir / "walls_face_owner.npy").astype("int64").tolist())
     return len(walls)
 
@@ -1072,7 +1087,7 @@ def main() -> int:
     n = build_buildings(scene, a.scene_dir, a.assets)
     nt = build_trees(scene)
     nv, npoles = build_vehicles(scene), build_poles(scene)
-    nprops, nwalls = build_props(scene, a.scene_dir), build_walls(scene, a.scene_dir)
+    nprops, nwalls = build_props(scene, a.scene_dir), build_walls(scene, a.scene_dir, a.assets)
     for name in ("trees", "vehicles", "poles", "props", "walls"):
         lift_to_terrain(bpy.data.objects.get(name))
     moving = build_traffic(a.scene_dir, len(scene.get("vehicles", [])))

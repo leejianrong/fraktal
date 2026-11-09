@@ -2,6 +2,7 @@ from typing import Any
 
 import geopandas as gpd
 import numpy as np
+import pytest
 from shapely.geometry import LineString, MultiLineString, box
 
 from fraktal import compounds, labels3d
@@ -110,7 +111,7 @@ def test_piered_walls_add_posts_and_sheet_walls_are_thinner() -> None:
     sizes = {}
     for kind in compounds.KINDS:
         sizes[kind] = len(compounds.pack([{**base, "kind": kind}])["faces"])
-    assert sizes["piered"] > sizes["block"] == sizes["sheet"]
+    assert sizes["piered"] > sizes["block"] > sizes["sheet"]  # posts and a cap on top
     thin = compounds.pack([{**base, "kind": "sheet"}])["vertices"]
     thick = compounds.pack([{**base, "kind": "block"}])["vertices"]
     assert np.ptp(thin[:8], axis=0).min() < np.ptp(thick[:8], axis=0).min()
@@ -177,3 +178,22 @@ def test_some_walls_curve_and_a_curve_is_many_short_runs() -> None:
     ]
     assert max(counts) >= 12 > 5  # a square has five runs; a bowed or rounded wall many more
     assert sum(n > 8 for n in counts) / len(counts) > 0.1
+
+
+def test_wall_colours_map_to_a_texture_with_a_tint_and_sheet_metal_stays_flat() -> None:
+    table = compounds.textures()
+    assert set(table) == set(compounds.TEXTURE_BASE) == set(compounds.WALL_MATERIALS)
+    for name, (base, tint) in table.items():
+        assert base.startswith("wall-") and len(tint) == 3 and max(tint) <= 1.1, name
+    assert not set(table) & set(compounds.SHEET_MATERIALS)
+
+
+def test_block_walls_get_a_coping_stone_and_sheet_fences_do_not() -> None:
+    parcels, buildings, roads = _layers(1)
+    base = compounds.build(parcels, buildings, roads, (0.0, 0.0), 400.0, 1, 1.0, irregular=0.0)[0]
+    faces = {k: len(compounds.pack([{**base, "kind": k}])["faces"]) for k in compounds.KINDS}
+    n_segments = len(base["segments"])
+    assert faces["block"] == 24 * n_segments  # a wall box and a cap box, 12 triangles each
+    assert faces["sheet"] == 12 * n_segments
+    top = compounds.pack([{**base, "kind": "block"}])["vertices"][:, 2].max()
+    assert top == pytest.approx(base["height_m"] + compounds.CAP_M, abs=1e-4)
