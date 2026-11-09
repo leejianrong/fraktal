@@ -46,8 +46,12 @@ BIOME_SOIL: dict[str, SoilStyle] = {
     "khartoum": SoilStyle(
         *TAN, share=0.9, green_mute=0.8, bare_is_soil=True, mute_tree_cover=True, speckle=0.22
     ),
-    "dense_urban": SoilStyle(*LATERITE, share=0.5),
-    "informal_settlement": SoilStyle(*LATERITE, share=0.55),
+    "dense_urban": SoilStyle(
+        *LATERITE, share=0.6, green_mute=0.7, bare_is_soil=True, mute_tree_cover=True, speckle=0.18
+    ),
+    "informal_settlement": SoilStyle(
+        *LATERITE, share=0.8, green_mute=0.75, bare_is_soil=True, mute_tree_cover=True, speckle=0.2
+    ),
     "oil_palm_plantation": SoilStyle(*LATERITE, share=0.3),
     "paddy_terraces": SoilStyle(*OCHRE, share=0.3),
     "mangrove_coast": SoilStyle(*OCHRE, share=0.25),
