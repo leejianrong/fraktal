@@ -79,7 +79,9 @@ BIOMES: dict[str, Biome] = {
                 shape_mix=(0.12, 0.08, 0.04),
                 size_tail=0.15,
             ),
-            industrial=IndustrialConfig(sites_per_km=1.2),
+            industrial=IndustrialConfig(
+                sites_per_km=1.5, frontage_m=(45.0, 90.0), depth_m=(30.0, 46.0)
+            ),
         ),
     ),
     "informal_settlement": Biome(
