@@ -19,7 +19,7 @@ import numpy as np
 import rasterio
 from rasterio.enums import Resampling
 
-from fraktal import building_grammar, compounds, props_scene, trees3d
+from fraktal import building_grammar, compounds, lighting, props_scene, trees3d
 from fraktal import heights as heights_mod
 from fraktal.coast import TIDAL_FLAT
 from fraktal.ground_soil import apply_soil, soil_style
@@ -414,6 +414,7 @@ def export_scene(
         "gsd_m": gsd_m,
         "px": side,
         "sun": {"azimuth_deg": sun[0], "elevation_deg": sun[1]},
+        "sky": lighting.draw(seed, sun[1]),
         "crs": f"EPSG:{epsg}",
         "origin_sw": [west, south],
         "buildings": buildings,
