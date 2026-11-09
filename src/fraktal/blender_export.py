@@ -440,6 +440,7 @@ def export_scene(
         "prop_materials": packed["materials"],
         "walls": walls,
         "wall_materials": packed_walls["materials"],
+        "wall_textures": compounds.textures(),
     }
     if terrain:
         scene["terrain"] = terrain

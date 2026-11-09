@@ -43,6 +43,15 @@ DEFAULT_KIND_MIX = (0.6, 0.25, 0.15)
 KINDS = ("block", "piered", "sheet")
 PIER_SPACING_M, PIER_M = 3.5, 0.45
 YARD_TREE_SHARE = 0.3
+# wall colour -> the plaster or concrete in assets/materials/ that it is tinted onto
+TEXTURE_BASE = {
+    "wall-cream": "wall-plaster-pale", "wall-white": "wall-plaster-pale",
+    "wall-sand": "wall-plaster-sand", "wall-ochre": "wall-plaster-ochre",
+    "wall-grey": "wall-concrete", "wall-brick": "wall-plaster-cracked",
+    "wall-terracotta": "wall-paint-peeling",
+}  # fmt: skip
+TEXTURE_MEAN = 0.75  # about the mean grey of those textures: tint = colour / mean
+CAP_M, CAP_OVERHANG_M = 0.08, 0.05  # the coping stone on a block wall
 INSET_M = 0.4  # the wall stands inside the parcel edge
 THICKNESS_M = 0.22
 SHEET_THICKNESS_M = 0.05
@@ -53,6 +62,15 @@ CUT_COUNTS = (0.1, 0.3, 0.35, 0.25)  # shares that take 0, 1, 2 or 3 cuts
 ROUND_SHARE = 0.35  # of reshaped compounds that also get rounded corners
 ARC_STEPS = 8
 MIN_KEPT_SHARE = 0.55  # of the lot the walls must still enclose
+
+
+def textures() -> dict[str, list[Any]]:
+    """For Blender: wall colour name -> [material file, tint]. Sheet metal stays a flat colour."""
+    out: dict[str, list[Any]] = {}
+    for name, base in TEXTURE_BASE.items():
+        tint = [round(min(c / TEXTURE_MEAN, 1.1), 3) for c in MATERIALS[name][0]]
+        out[name] = [base, tint]
+    return out
 
 
 def share_for(biome: str) -> float:
@@ -255,9 +273,10 @@ def pack(compounds: list[dict[str, Any]]) -> dict[str, Any]:
             top: float,
             index: int = index,
             material: int = material,
+            base: float = 0.0,
         ) -> None:
             nonlocal offset
-            box = [(x, y, 0.0) for x, y in quad] + [(x, y, top) for x, y in quad]
+            box = [(x, y, base) for x, y in quad] + [(x, y, top) for x, y in quad]
             verts.append(np.asarray(box, dtype="float32"))
             faces.append(_BOX.astype("int32") + offset)
             mats.append(np.full(len(_BOX), material, dtype="int16"))
@@ -275,6 +294,19 @@ def pack(compounds: list[dict[str, Any]]) -> dict[str, Any]:
                 [(x0 - nx, y0 - ny), (x1 - nx, y1 - ny), (x1 + nx, y1 + ny), (x0 + nx, y0 + ny)],
                 c["height_m"],
             )
+            if c.get("kind") in ("block", "piered"):  # a coping stone along the top
+                ct = thick + 2 * CAP_OVERHANG_M
+                cx, cy = -uy * ct / 2, ux * ct / 2
+                add(
+                    [
+                        (x0 - cx, y0 - cy),
+                        (x1 - cx, y1 - cy),
+                        (x1 + cx, y1 + cy),
+                        (x0 + cx, y0 + cy),
+                    ],  # fmt: skip
+                    c["height_m"] + CAP_M,
+                    base=c["height_m"],
+                )
             if c.get("kind") == "piered":  # a post at each end and every few metres between
                 if length < 2.0:  # a short run of a curve: no post on every facet
                     continue
