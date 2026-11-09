@@ -36,7 +36,7 @@ class SoilStyle:
     speckle: float = 0.0  # share of the ground under fine dark scrub tufts, 0 for none
 
 
-LATERITE = ((158 / 255, 92 / 255, 64 / 255), (184 / 255, 116 / 255, 80 / 255))
+LATERITE = ((140 / 255, 96 / 255, 74 / 255), (164 / 255, 116 / 255, 88 / 255))
 OCHRE = ((190 / 255, 150 / 255, 104 / 255), (208 / 255, 172 / 255, 124 / 255))
 
 # dry Sahelian red-brown earth
@@ -47,10 +47,10 @@ BIOME_SOIL: dict[str, SoilStyle] = {
         *TAN, share=0.9, green_mute=0.8, bare_is_soil=True, mute_tree_cover=True, speckle=0.22
     ),
     "dense_urban": SoilStyle(
-        *LATERITE, share=0.6, green_mute=0.7, bare_is_soil=True, mute_tree_cover=True, speckle=0.18
+        *LATERITE, share=0.75, green_mute=0.9, bare_is_soil=True, mute_tree_cover=True, speckle=0.18
     ),
     "informal_settlement": SoilStyle(
-        *LATERITE, share=0.8, green_mute=0.75, bare_is_soil=True, mute_tree_cover=True, speckle=0.2
+        *LATERITE, share=0.85, green_mute=0.9, bare_is_soil=True, mute_tree_cover=True, speckle=0.2
     ),
     "oil_palm_plantation": SoilStyle(*LATERITE, share=0.3),
     "paddy_terraces": SoilStyle(*OCHRE, share=0.3),
