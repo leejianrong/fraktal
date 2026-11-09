@@ -165,6 +165,72 @@ def sample(
     return chosen
 
 
+KERB_LANE_M = {"tuk_tuk": 1.2, "motorbike": 0.9, "minibus": 1.5}  # from the carriageway edge
+FOOTPATH_M = 0.9  # a pedestrian stands this far outside the carriageway edge
+ALIGN_JITTER = 0.1  # radians of yaw wobble so a row of parked bikes is not ruled
+
+
+def align_to_roads(
+    props: list[dict[str, Any]],
+    roads: list[tuple[Any, float]],
+    mask: Array,
+    gsd_m: float,
+    side: int,
+    seed: int,
+) -> list[dict[str, Any]]:
+    """Vehicles face along the nearest road and pull in to the kerb; people stand on the footpath.
+
+    ``roads`` are (centreline in tile metres, carriageway width in metres). A person keeps the
+    place they were given when the footpath spot is a building or off the tile. Props that are not
+    on the street, and every other field of a prop, are left as they were.
+    """
+    if not roads or not props:
+        return props
+    from shapely.strtree import STRtree
+
+    tree = STRtree([line for line, _ in roads])
+    rng = substream(seed, "props:align")
+    size_m = side * gsd_m
+    out: list[dict[str, Any]] = []
+    for prop in props:
+        kind = prop["kind"]
+        draw = rng.uniform(-1.0, 1.0, 2)  # drawn for every prop, so one change moves nothing else
+        flip = rng.uniform() < 0.5
+        if kind not in ON_STREET:
+            out.append(prop)
+            continue
+        point = Point(prop["x"], prop["y"])
+        line, width = roads[int(tree.nearest(point))]
+        at = float(line.project(point))
+        a, b = line.interpolate(max(at - 1.0, 0.0)), line.interpolate(min(at + 1.0, line.length))
+        tx, ty = b.x - a.x, b.y - a.y
+        norm = math.hypot(tx, ty)
+        if norm == 0:
+            out.append(prop)
+            continue
+        tx, ty = tx / norm, ty / norm
+        centre = line.interpolate(at)
+        sign = 1.0 if tx * (prop["y"] - centre.y) - ty * (prop["x"] - centre.x) >= 0 else -1.0
+        heading = math.atan2(ty, tx)
+        new = dict(prop)
+        if kind == "pedestrian":
+            reach = width / 2 + FOOTPATH_M
+            x, y = centre.x - ty * sign * reach, centre.y + tx * sign * reach
+            row = int(np.clip(side - 1 - y / gsd_m, 0, side - 1))
+            col = int(np.clip(x / gsd_m, 0, side - 1))
+            if 0 <= x < size_m and 0 <= y < size_m and mask[row, col] == 0:
+                new["x"], new["y"] = round(x, 2), round(y, 2)
+            new["yaw"] = round(heading + (math.pi if flip else 0.0) + draw[0] * 0.5, 4)
+        else:
+            reach = max(width / 2 - KERB_LANE_M[kind], 0.3)
+            x, y = centre.x - ty * sign * reach, centre.y + tx * sign * reach
+            if 0 <= x < size_m and 0 <= y < size_m:
+                new["x"], new["y"] = round(x, 2), round(y, 2)
+            new["yaw"] = round(heading + (math.pi if flip else 0.0) + draw[0] * ALIGN_JITTER, 4)
+        out.append(new)
+    return out
+
+
 def yard_props(sites: list[dict[str, Any]], seed: int) -> list[dict[str, Any]]:
     """Containers, tanks and silos in the yards of industrial sites.
 
