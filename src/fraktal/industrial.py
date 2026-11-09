@@ -34,6 +34,7 @@ class IndustrialConfig:
     height_m: tuple[float, float] = (6.5, 11.0)
     second_hall_share: float = 0.35  # of sites wide enough for two halls
     road_overlap_share: float = 0.03
+    attempts: int = 25  # positions tried for each site before giving up on it
 
 
 def _site(line: Any, half_width: float, s: float, width: float, depth: float, side: float) -> Any:
@@ -81,26 +82,28 @@ def carve(
         rng = substream(seed, f"industrial:{road.id}")
         count = int(rng.poisson(config.sites_per_km * road.geometry.length / 1000.0))
         for _ in range(count):
-            width, depth = rng.uniform(*config.frontage_m), rng.uniform(*config.depth_m)
-            side = 1.0 if rng.uniform() < 0.5 else -1.0
-            yard = float(rng.uniform(*config.yard_share))
-            s = float(rng.uniform(0.0, max(road.geometry.length - width, 0.0)))
-            if s + width > road.geometry.length:
-                continue
-            frame = _site(road.geometry, road.width_m / 2, s, width, depth, side)
-            if frame is None:
-                continue
-            poly = _rect(frame, 0.0, frame[6], 0.0, depth)
-            probes = [*poly.exterior.coords, (poly.centroid.x, poly.centroid.y)]
-            if any(_cell_is_water(landcover, inverse, x, y) for x, y in probes):
-                continue
-            limit = max(1e-6, config.road_overlap_share * poly.area)
-            hits = road_tree.query(poly)
-            if any(poly.intersection(carriageways[j][0]).area > limit for j in hits):
-                continue
-            if any(poly.intersection(other).area > 1e-6 for other, _, _, _ in sites):
-                continue
-            sites.append((poly, str(road.id), frame, yard))
+            for _attempt in range(config.attempts):  # a grid of streets rejects most tries
+                width, depth = rng.uniform(*config.frontage_m), rng.uniform(*config.depth_m)
+                side = 1.0 if rng.uniform() < 0.5 else -1.0
+                yard = float(rng.uniform(*config.yard_share))
+                s = float(rng.uniform(0.0, max(road.geometry.length - width, 0.0)))
+                if s + width > road.geometry.length:
+                    continue
+                frame = _site(road.geometry, road.width_m / 2, s, width, depth, side)
+                if frame is None:
+                    continue
+                poly = _rect(frame, 0.0, frame[6], 0.0, depth)
+                probes = [*poly.exterior.coords, (poly.centroid.x, poly.centroid.y)]
+                if any(_cell_is_water(landcover, inverse, x, y) for x, y in probes):
+                    continue
+                limit = max(1e-6, config.road_overlap_share * poly.area)
+                hits = road_tree.query(poly)
+                if any(poly.intersection(carriageways[j][0]).area > limit for j in hits):
+                    continue
+                if any(poly.intersection(other).area > 1e-6 for other, _, _, _ in sites):
+                    continue
+                sites.append((poly, str(road.id), frame, yard))
+                break
     if not sites:
         return parcels, []
     tree = STRtree([p for p, _, _, _ in sites])
