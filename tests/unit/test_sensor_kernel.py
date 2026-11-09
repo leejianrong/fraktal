@@ -65,5 +65,5 @@ def test_lens_effects_golden_output() -> None:
 
     from fraktal.kernels.sensor import lens_effects
 
-    out = lens_effects(_picture(), vignette=0.3, ca_px=1.2)  # JPEG is libjpeg-dependent: not pinned
-    assert hashlib.sha256(out.tobytes()).hexdigest()[:16] == "d6d4694352e96733"
+    out = lens_effects(_picture(), vignette=0.3, ca_px=1.2, jpeg_quality=70)
+    assert hashlib.sha256(out.tobytes()).hexdigest()[:16] == "5692cd3ec8aa09cf"

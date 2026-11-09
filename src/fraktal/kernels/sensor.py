@@ -89,11 +89,52 @@ def _scaled(channel: Any, factor: float) -> Any:
     return top * (1 - fy) + bottom * fy
 
 
+_DCT = np.array(
+    [[np.sqrt(1 / 8) if u == 0 else np.sqrt(2 / 8) * np.cos((2 * x + 1) * u * np.pi / 16)
+      for x in range(8)] for u in range(8)], dtype="float32"
+)  # fmt: skip
+_QUANT = np.array(  # the standard JPEG luminance table
+    [[16, 11, 10, 16, 24, 40, 51, 61], [12, 12, 14, 19, 26, 58, 60, 55],
+     [14, 13, 16, 24, 40, 57, 69, 56], [14, 17, 22, 29, 51, 87, 80, 62],
+     [18, 22, 37, 56, 68, 109, 103, 77], [24, 35, 55, 64, 81, 104, 113, 92],
+     [49, 64, 78, 87, 103, 121, 120, 101], [72, 92, 95, 98, 112, 100, 103, 99]],
+    dtype="float32",
+)  # fmt: skip
+
+
+def _block_compress(rgb: Any, quality: int) -> Any:
+    """JPEG's loss without the file: 8 x 8 DCT blocks of luma and chroma, quantised and undone.
+
+    Plain numpy, so the result is the same on every machine. ``quality`` is 1 to 95 (JPEG's scale).
+    """
+    q = min(max(quality, 1), 95)
+    scale = 5000 / q if q < 50 else 200 - 2 * q
+    table = np.maximum(np.floor((_QUANT * scale + 50) / 100), 1.0)
+    x = np.moveaxis(rgb.astype("float32"), 0, -1)
+    r, g, b = x[..., 0], x[..., 1], x[..., 2]
+    ycc = np.stack(
+        [0.299 * r + 0.587 * g + 0.114 * b,
+         128 - 0.168736 * r - 0.331264 * g + 0.5 * b,
+         128 + 0.5 * r - 0.418688 * g - 0.081312 * b], axis=-1
+    ) - 128  # fmt: skip
+    h, w = ycc.shape[:2]
+    ph, pw = -h % 8, -w % 8
+    padded = np.pad(ycc, ((0, ph), (0, pw), (0, 0)), mode="edge")
+    blocks = padded.reshape((h + ph) // 8, 8, (w + pw) // 8, 8, 3).transpose(0, 2, 4, 1, 3)
+    coef = _DCT @ blocks @ _DCT.T
+    coef = np.rint(coef / table) * table
+    blocks = _DCT.T @ coef @ _DCT
+    padded = blocks.transpose(0, 3, 1, 4, 2).reshape(h + ph, w + pw, 3)[:h, :w] + 128
+    y, cb, cr = padded[..., 0], padded[..., 1] - 128, padded[..., 2] - 128
+    back = np.stack([y + 1.402 * cr, y - 0.344136 * cb - 0.714136 * cr, y + 1.772 * cb], axis=-1)
+    return np.moveaxis(np.clip(np.rint(back), 0, 255).astype("uint8"), -1, 0)
+
+
 def lens_effects(rgb: Any, vignette: float = 0.0, ca_px: float = 0.0, jpeg_quality: int = 0) -> Any:
     """Drone-lens effects on a (3, H, W) uint8 image; each one is off at 0.
 
     ``ca_px`` is the red-blue fringe at the corner, in pixels (red is magnified, blue shrunk);
-    ``vignette`` darkens the corners by that share; ``jpeg_quality`` (1 to 95) is a JPEG round trip.
+    ``vignette`` darkens the corners by that share; ``jpeg_quality`` (1 to 95) is block loss.
     """
     out = rgb
     if ca_px > 0:
@@ -106,13 +147,7 @@ def lens_effects(rgb: Any, vignette: float = 0.0, ca_px: float = 0.0, jpeg_quali
         falloff = 1.0 - vignette * _radius(*out.shape[1:]) ** 2
         out = np.clip(np.rint(out.astype("float32") * falloff), 0, 255).astype("uint8")
     if jpeg_quality > 0:
-        import io
-
-        from PIL import Image
-
-        buf = io.BytesIO()
-        Image.fromarray(np.moveaxis(out, 0, -1)).save(buf, "JPEG", quality=int(jpeg_quality))
-        out = np.moveaxis(np.asarray(Image.open(buf).convert("RGB")), -1, 0).copy()
+        out = _block_compress(out, int(jpeg_quality))
     return out
 
 
