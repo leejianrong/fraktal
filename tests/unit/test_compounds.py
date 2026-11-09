@@ -2,7 +2,7 @@ from typing import Any
 
 import geopandas as gpd
 import numpy as np
-from shapely.geometry import LineString, box
+from shapely.geometry import LineString, MultiLineString, box
 
 from fraktal import compounds, labels3d
 
@@ -26,7 +26,7 @@ def _layers(n: int = 6) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame, gpd.GeoData
 
 def test_walls_enclose_a_share_of_built_parcels_with_a_gate_gap() -> None:
     parcels, buildings, roads = _layers()
-    out = compounds.build(parcels, buildings, roads, (0.0, 0.0), 400.0, 1, share=1.0)
+    out = compounds.build(parcels, buildings, roads, (0.0, 0.0), 400.0, 1, share=1.0, irregular=0.0)
     assert len(out) == 6
     for c in out:
         total = sum(np.hypot(x1 - x0, y1 - y0) for x0, y0, x1, y1 in c["segments"])
@@ -38,7 +38,9 @@ def test_walls_enclose_a_share_of_built_parcels_with_a_gate_gap() -> None:
 
 def test_the_gate_faces_the_road() -> None:
     parcels, buildings, roads = _layers(1)
-    (c,) = compounds.build(parcels, buildings, roads, (0.0, 0.0), 400.0, 1, share=1.0)
+    (c,) = compounds.build(
+        parcels, buildings, roads, (0.0, 0.0), 400.0, 1, share=1.0, irregular=0.0
+    )
     ends = [(s[0], s[1]) for s in c["segments"]] + [(s[2], s[3]) for s in c["segments"]]
     near = [p for p in ends if abs(p[1] - 4.4) < 0.1]  # the road side: y is the inset parcel edge
     xs = sorted(p[0] for p in near)
@@ -104,7 +106,7 @@ def test_wall_kinds_follow_the_biome_and_sheet_fences_are_thin_and_metal() -> No
 
 def test_piered_walls_add_posts_and_sheet_walls_are_thinner() -> None:
     parcels, buildings, roads = _layers(1)
-    base = compounds.build(parcels, buildings, roads, (0.0, 0.0), 400.0, 1, 1.0)[0]
+    base = compounds.build(parcels, buildings, roads, (0.0, 0.0), 400.0, 1, 1.0, irregular=0.0)[0]
     sizes = {}
     for kind in compounds.KINDS:
         sizes[kind] = len(compounds.pack([{**base, "kind": kind}])["faces"])
@@ -125,3 +127,42 @@ def test_the_yard_point_is_inside_the_compound_and_clear_of_the_building() -> No
             .buffer(1.9)
             .contains(__import__("shapely.geometry", fromlist=["Point"]).Point(x, y))
         )
+
+
+def _angle_set(c: dict[str, Any]) -> set[int]:
+    return {
+        round(np.degrees(np.arctan2(y1 - y0, x1 - x0)) % 90) % 90
+        for x0, y0, x1, y1 in c["segments"]
+        if np.hypot(x1 - x0, y1 - y0) > 1.0
+    }
+
+
+def test_walls_come_in_at_angles_and_not_only_rectangles() -> None:
+    parcels, buildings, roads = _layers(6)
+    crooked = 0
+    total = 0
+    for seed in range(40):
+        for c in compounds.build(parcels, buildings, roads, (0.0, 0.0), 400.0, seed, 1.0):
+            total += 1
+            crooked += len(_angle_set(c) - {0}) > 0
+    assert 0.25 < crooked / total < 0.8  # many walls lean, the rest stay square or notched
+
+
+def test_irregular_walls_stay_inside_the_lot_and_clear_of_the_house() -> None:
+    parcels, buildings, roads = _layers(6)
+    for seed in range(40):
+        for c in compounds.build(parcels, buildings, roads, (0.0, 0.0), 400.0, seed, 1.0):
+            i = int(c["id"][1:])
+            lot, house = box(10 + i * 40, 4, 40 + i * 40, 34), box(15 + i * 40, 10, 30 + i * 40, 25)
+            walls = MultiLineString([[(s[0], s[1]), (s[2], s[3])] for s in c["segments"]])
+            assert lot.buffer(0.01).contains(walls)
+            assert not walls.intersects(house)
+
+
+def test_a_gate_is_still_cut_on_irregular_compounds() -> None:
+    parcels, buildings, roads = _layers(6)
+    for seed in range(20):
+        for c in compounds.build(parcels, buildings, roads, (0.0, 0.0), 400.0, seed, 1.0):
+            starts = {(round(s[0], 1), round(s[1], 1)) for s in c["segments"]}
+            ends = {(round(s[2], 1), round(s[3], 1)) for s in c["segments"]}
+            assert len(starts - ends) == 1  # one wall end is not met by another: the gate

@@ -48,6 +48,9 @@ THICKNESS_M = 0.22
 SHEET_THICKNESS_M = 0.05
 GATE_M = 3.0
 MIN_AREA_M2 = 120.0
+IRREGULAR_SHARE = 0.7  # of compounds that get slanted, chamfered, notched or kinked walls
+CUT_COUNTS = (0.1, 0.3, 0.35, 0.25)  # shares that take 0, 1, 2 or 3 cuts
+MIN_KEPT_SHARE = 0.55  # of the lot the walls must still enclose
 
 
 def share_for(biome: str) -> float:
@@ -63,6 +66,7 @@ def build(
     seed: int,
     share: float,
     biome: str = "",
+    irregular: float = IRREGULAR_SHARE,
 ) -> list[dict[str, Any]]:
     """Compounds as dicts: ``id``, ``kind``, ``height_m``, ``material``, ``segments`` (each
     [x0, y0, x1, y1] in tile metres) and ``yard`` (a free point inside, or None). The three layers
@@ -88,12 +92,22 @@ def build(
             continue
         if not inner.intersects(tile):
             continue
+        inside = buildings[buildings["parcel_id"].astype(str) == str(parcel.id)] if built else None
+        keep = None
+        if inside is not None and len(inside):
+            keep = inside.geometry.union_all().buffer(1.0)
+        shape_rng = substream(seed, f"compound:shape:{parcel.id}")
+        if float(shape_rng.uniform()) < irregular:
+            inner = reshape(inner, keep, shape_rng)
         pts = np.asarray(inner.exterior.coords)
         road = road_lines.get(getattr(parcel, "road_id", None))
         edges = list(zip(pts[:-1], pts[1:], strict=True))
         gate = 0
         if road is not None:
-            gate = int(np.argmin([road.distance(_mid(a, b)) for a, b in edges]))
+            lengths = [float(np.hypot(*(b - a))) for a, b in edges]
+            far = [d if n >= GATE_M / 0.6 else 1e9 for (a, b), n in zip(edges, lengths, strict=True)
+                   for d in [road.distance(_mid(a, b))]]  # fmt: skip
+            gate = int(np.argmin(far))
         segments: list[list[float]] = []
         for i, (a, b) in enumerate(edges):
             length = float(np.hypot(*(b - a)))
@@ -110,7 +124,6 @@ def build(
         kind = KINDS[0 if kind_roll < mix[0] else 1 if kind_roll < mix[0] + mix[1] else 2]
         if kind == "sheet":
             material, height = SHEET_MATERIALS[sheet_pick], min(height, 2.1)
-        inside = buildings[buildings["parcel_id"].astype(str) == str(parcel.id)] if built else None
         free = inner.buffer(-1.0)
         if inside is not None and len(inside):
             free = free.difference(inside.geometry.union_all().buffer(2.0))
@@ -129,6 +142,62 @@ def build(
             }
         )
     return out
+
+
+def reshape(poly: Any, keep: Any, rng: Any) -> Any:
+    """``poly`` with up to three straight cuts taken off, so its walls meet at odd angles.
+
+    Cuts only remove ground, so the result stays inside the lot. A cut that would touch ``keep``
+    (the house, with a margin) or leave under ``MIN_KEPT_SHARE`` of the lot is skipped.
+    """
+    from shapely.geometry import Polygon
+
+    count = int(rng.choice(len(CUT_COUNTS), p=CUT_COUNTS))
+    shape, start, done = poly, poly.area, 0
+    for _ in range(count * 4):  # a few tries per cut: many fall on the house or a short side
+        if done == count:
+            break
+        pts = np.asarray(shape.exterior.coords)[:-1]
+        n, i = len(pts), int(rng.integers(0, len(pts)))
+        v, nxt, prev = pts[i], pts[(i + 1) % n], pts[i - 1]
+        to_next, to_prev = nxt - v, prev - v
+        ln, lp = float(np.hypot(*to_next)), float(np.hypot(*to_prev))
+        if min(ln, lp) < 6.0:
+            continue
+        un, up = to_next / ln, to_prev / lp
+        kind = int(rng.integers(0, 4))
+        d1 = float(rng.uniform(2.0, min(12.0, 0.45 * lp)))
+        d2 = float(rng.uniform(2.0, min(12.0, 0.45 * ln)))
+        if kind == 0:  # a corner cut off at a slant
+            cut = [v, v + up * d1, v + un * d2]
+        elif kind == 1:  # a corner notched out
+            cut = [v, v + up * d1, v + up * d1 + un * d2, v + un * d2]
+        elif kind == 2:  # a whole side leaned over: a trapezoid
+            cut = [v, nxt, v + up * min(d1 + 3.0, 0.45 * lp)]
+        else:  # a wedge pushed into the middle of a side, so the wall bends
+            t, w = float(rng.uniform(0.3, 0.7)), float(rng.uniform(3.0, min(9.0, 0.5 * ln)))
+            mid = v + un * ln * t
+            normal = np.array([-un[1], un[0]])
+            if shape.contains(_pt(mid - normal * 0.3)):
+                normal = -normal
+            if not shape.contains(_pt(mid + normal * 0.3)):
+                continue
+            cut = [mid - un * w / 2, mid + normal * float(rng.uniform(1.5, 4.0)), mid + un * w / 2]
+        trial = shape.difference(Polygon(cut))
+        if trial.geom_type == "MultiPolygon":
+            trial = max(trial.geoms, key=lambda g: g.area)
+        if trial.geom_type != "Polygon" or trial.area < MIN_KEPT_SHARE * start:
+            continue
+        if keep is not None and not trial.contains(keep):
+            continue
+        shape, done = trial.simplify(0.05), done + 1
+    return shape
+
+
+def _pt(p: Array) -> Any:
+    from shapely.geometry import Point
+
+    return Point(float(p[0]), float(p[1]))
 
 
 def _mid(a: Array, b: Array) -> Any:
