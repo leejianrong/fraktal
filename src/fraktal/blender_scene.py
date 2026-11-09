@@ -935,8 +935,10 @@ def build_poles(scene: dict) -> int:
 
 def build_light(scene: dict) -> None:
     az, el = scene["sun"]["azimuth_deg"], scene["sun"]["elevation_deg"]
+    sky = scene.get("sky") or {}  # scenes exported before FRK-113 have none: the old flat light
     sun = bpy.data.lights.new("sun", "SUN")
-    sun.energy = 2.6  # about 0.6 of reflectance for a flat surface at 50 degrees elevation
+    sun.energy = sky.get("sun_strength", 2.6)  # about 0.6 of reflectance at 50 degrees elevation
+    sun.color = sky.get("sun_colour", (1.0, 1.0, 1.0))
     sun.angle = math.radians(0.53)
     obj = bpy.data.objects.new("sun", sun)
     bpy.context.collection.objects.link(obj)
@@ -947,8 +949,58 @@ def build_light(scene: dict) -> None:
     world = bpy.data.worlds.new("sky")
     world.use_nodes = True
     bg = world.node_tree.nodes["Background"]
-    bg.inputs["Color"].default_value = (0.62, 0.72, 0.9, 1.0)  # clear-sky fill light
-    bg.inputs["Strength"].default_value = 0.55
+    if not sky:
+        bg.inputs["Color"].default_value = (0.62, 0.72, 0.9, 1.0)  # clear-sky fill light
+        bg.inputs["Strength"].default_value = 0.55
+        bpy.context.scene.world = world
+        return
+    nodes, links = world.node_tree.nodes, world.node_tree.links
+
+    def node(kind: str, **inputs):
+        n = nodes.new(kind)
+        for key, value in inputs.items():
+            n.inputs[key].default_value = value
+        return n
+
+    direction = nodes.new("ShaderNodeTexCoord")  # in a world shader: the view direction
+    split = nodes.new("ShaderNodeSeparateXYZ")
+    links.new(direction.outputs["Generated"], split.inputs["Vector"])
+    up = nodes.new("ShaderNodeMath")  # 0 at the horizon, 1 at the zenith, eased
+    up.operation, up.use_clamp = "POWER", True
+    up.inputs[1].default_value = 0.6
+    clamp = nodes.new("ShaderNodeMath")
+    clamp.operation, clamp.use_clamp = "MAXIMUM", True
+    clamp.inputs[1].default_value = 0.0
+    links.new(split.outputs["Z"], clamp.inputs[0])
+    links.new(clamp.outputs["Value"], up.inputs[0])
+    gradient = nodes.new("ShaderNodeMixRGB")
+    links.new(up.outputs["Value"], gradient.inputs["Fac"])
+    gradient.inputs["Color1"].default_value = (*sky["horizon"], 1.0)
+    gradient.inputs["Color2"].default_value = (*sky["zenith"], 1.0)
+    towards = node("ShaderNodeCombineXYZ", X=toward_sun.x, Y=toward_sun.y, Z=toward_sun.z)
+    dot = nodes.new("ShaderNodeVectorMath")
+    dot.operation = "DOT_PRODUCT"
+    links.new(direction.outputs["Generated"], dot.inputs[0])
+    links.new(towards.outputs["Vector"], dot.inputs[1])
+    lobe = nodes.new("ShaderNodeMath")  # the warm bloom around the sun
+    lobe.operation, lobe.use_clamp = "POWER", True
+    lobe.inputs[1].default_value = 6.0
+    positive = nodes.new("ShaderNodeMath")
+    positive.operation, positive.use_clamp = "MAXIMUM", True
+    positive.inputs[1].default_value = 0.0
+    links.new(dot.outputs["Value"], positive.inputs[0])
+    links.new(positive.outputs["Value"], lobe.inputs[0])
+    scaled = nodes.new("ShaderNodeMath")
+    scaled.operation = "MULTIPLY"
+    scaled.inputs[1].default_value = sky["glow_amount"]
+    links.new(lobe.outputs["Value"], scaled.inputs[0])
+    glow = nodes.new("ShaderNodeMixRGB")
+    glow.blend_type = "ADD"
+    links.new(scaled.outputs["Value"], glow.inputs["Fac"])
+    links.new(gradient.outputs["Color"], glow.inputs["Color1"])
+    glow.inputs["Color2"].default_value = (*sky["glow"], 1.0)
+    links.new(glow.outputs["Color"], bg.inputs["Color"])
+    bg.inputs["Strength"].default_value = sky["fill"]
     bpy.context.scene.world = world
 
 
