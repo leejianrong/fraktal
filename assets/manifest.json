@@ -847,6 +847,17 @@
         "settings": "20 steps, 1024 px then 512 px, default sampler, circular padding for tiling",
         "date": "2026-11-08"
       }
+    },
+    {
+      "id": "mat-metal-grey",
+      "file": "materials/metal-grey.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "07d5adab6b069bb8cc3a509c3bf4322dae01ff977bc92f30ab76c33ef57769fe",
+      "verified": true
     }
   ]
 }

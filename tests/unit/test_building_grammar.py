@@ -209,3 +209,19 @@ def test_some_walls_and_tile_roofs_use_the_generated_textures() -> None:
     generated = [w for w in walls if w in grammar.GENERATED_WALLS]
     assert 0.1 < len(generated) / len(walls) < 0.45, len(generated) / len(walls)
     assert {"roof-tile", "roof-tile-clay"} <= set(roofs)
+
+
+def test_flat_roofs_get_ac_boxes_dishes_vents_and_stair_huts_in_their_own_stream() -> None:
+    big = [[0, 0], [24, 0], [24, 18], [0, 18], [0, 0]]
+    seen: set[str] = set()
+    plain_roofs = 0
+    for i in range(80):
+        mesh = grammar.build(f"gear{i:04d}", big, 12.0, None, 1)
+        seen |= {m for m in mesh.materials if m == "metal-grey"}
+        plain_roofs += "metal-grey" not in mesh.materials
+    assert seen == {"metal-grey"} and plain_roofs > 20  # some roofs have gear, many stay bare
+    assert "metal-grey" in grammar.MATERIALS
+    # the same building still draws the same walls and openings (the gear has its own stream)
+    a = grammar.build("gear0001", big, 12.0, None, 1)
+    kinds = Counter(a.materials)
+    assert kinds["door"] == 1

@@ -1,0 +1,10 @@
+{
+  "name": "metal-grey",
+  "role": "clutter",
+  "color": [
+    0.5,
+    0.52,
+    0.52
+  ],
+  "roughness": 0.45
+}

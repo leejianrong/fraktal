@@ -44,6 +44,7 @@ LATER_FIELDS = (
     ("buildings", "tin_share"),
     ("buildings", "shape_mix"),
     ("buildings", "size_tail"),
+    ("buildings", "step_share"),
     ("buildings", "shed_height_m"),
     ("parcels", "skew_deg"),
     ("parcels", "blocks"),

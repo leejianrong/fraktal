@@ -60,6 +60,8 @@ TIN_MIXES: dict[str, tuple[float, ...]] = {
 SOLAR_SHARE, BRICK_SHARE, EXTRA_TANK_SHARE = 0.20, 0.15, 0.20  # of flat roofs, assumed shares
 TIN_MIX_TROPICAL = (0.12, 0.20, 0.22, 0.08, 0.16, 0.08, 0.10, 0.04)
 ROOF_CLUTTER = ("solar-panel", "brick-stack", "tank-black", "tank-blue")
+ROOF_GEAR = ("metal-grey",)  # air-conditioner boxes, dishes and vent stacks (code-written shapes)
+AC_SHARE, DISH_SHARE, VENT_SHARE, STAIR_HUT_SHARE = 0.35, 0.2, 0.25, 0.5
 FLAT_ROOFS = ("roof-flat-concrete", "roof-flat-pale", "roof-flat-terracotta", "roof-flat-bitumen")
 OPENINGS = ("window-glass", "door")
 CLUTTER = ("tank",)
@@ -75,6 +77,7 @@ MATERIALS = (
     *DETAIL,
     *TIN_ROOFS[1:],
     *ROOF_CLUTTER,
+    *ROOF_GEAR,
 )
 STOREY_M = 3.0
 COURTYARD_MIN_AREA_M2 = 140.0
@@ -414,6 +417,8 @@ def build(
             placed += 1
             spots.append((x, y))
         _more_clutter(poly, room, spots, top, mesh, substream(seed, f"clutter:{building_id}"))
+        _rooftop_gear(poly, room, spots, top, mesh, substream(seed, f"gear:{building_id}"),
+                      wall, floors)  # fmt: skip
     return mesh
 
 
@@ -449,6 +454,54 @@ def _more_clutter(
                 _box(x, y, 1.2, 0.7, top, top + 0.55, mesh, kind)
             else:
                 _prism(x, y, float(rng.uniform(0.45, 0.65)), top, top + 1.1, 10, mesh, kind)
+            spots.append((x, y))
+            break
+
+
+def _rooftop_gear(
+    poly: Polygon,
+    room: Any,
+    spots: list[tuple[float, float]],
+    top: float,
+    mesh: Mesh,
+    rng: Any,
+    wall: str,
+    floors: int,
+) -> None:
+    """Air-conditioner boxes, a dish on a post, a vent stack and a stair hut on flat roofs.
+
+    A stream of its own, so every building drawn before this keeps its look.
+    """
+    if room.is_empty:
+        return
+    minx, miny, maxx, maxy = poly.bounds
+    wanted: list[str] = []
+    if float(rng.uniform()) < AC_SHARE:
+        wanted += ["ac"] * int(rng.integers(1, 4))
+    if float(rng.uniform()) < DISH_SHARE:
+        wanted.append("dish")
+    if float(rng.uniform()) < VENT_SHARE:
+        wanted.append("vent")
+    if floors >= 3 and float(rng.uniform()) < STAIR_HUT_SHARE:
+        wanted.append("hut")
+    for kind in wanted:
+        for _ in range(20):
+            x, y = float(rng.uniform(minx, maxx)), float(rng.uniform(miny, maxy))
+            gap = 2.0 if kind == "ac" else 3.0
+            near = any(math.hypot(x - a, y - b) < gap for a, b in spots)
+            if not room.contains(Point(x, y)) or near:
+                continue
+            if kind == "ac":
+                _box(x, y, 0.9, 0.55, top, top + 0.7, mesh, "metal-grey")
+            elif kind == "dish":
+                _box(x, y, 0.1, 0.1, top, top + 1.5, mesh, "metal-grey")
+                r = float(rng.uniform(0.4, 0.6))
+                _prism(x, y, r, top + 1.5, top + 1.56, 12, mesh, "metal-grey")
+            elif kind == "vent":
+                height = float(rng.uniform(1.2, 2.0))
+                _prism(x, y, 0.15, top, top + height, 8, mesh, "metal-grey")
+            else:
+                _box(x, y, 2.4, 2.2, top, top + 2.5, mesh, wall)
             spots.append((x, y))
             break
 
