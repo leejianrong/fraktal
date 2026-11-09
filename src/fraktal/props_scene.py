@@ -29,6 +29,12 @@ PROP_CLASS = {
     "signboard": "yard_object",
     "tuk_tuk": "vehicle",
     "silo": "yard_object",
+    "motorbike": "vehicle",
+    "minibus": "vehicle",
+    "dumpster": "yard_object",
+    "barrel_stack": "yard_object",
+    "rubbish_pile": "yard_object",
+    "pedestrian": "person",
 }
 MIX = {
     "container": 0.12,
@@ -37,9 +43,21 @@ MIX = {
     "signboard": 0.18,
     "tuk_tuk": 0.20,
 }
+STREET_MIX = {  # the street pass (FRK-112): vehicles and people on the road, bins and litter by it
+    "motorbike": 0.30,
+    "minibus": 0.08,
+    "pedestrian": 0.22,
+    "dumpster": 0.08,
+    "barrel_stack": 0.12,
+    "rubbish_pile": 0.20,
+}
+STREET_DENSITY_RATIO = 1.5  # street props per km2, as a multiple of the scene prop density
+ON_STREET = ("tuk_tuk", "motorbike", "minibus", "pedestrian")  # these stand on the road raster
 HALF_EXTENT = {  # half length, half width in metres, for the clearance check
     "container": (3.1, 1.3), "water_tank": (0.8, 0.8), "market_stall": (1.5, 1.1),
     "signboard": (1.3, 0.4), "tuk_tuk": (1.5, 0.8), "silo": (2.6, 2.6),
+    "motorbike": (1.05, 0.45), "minibus": (2.75, 1.0), "dumpster": (1.25, 0.8),
+    "barrel_stack": (0.95, 0.65), "rubbish_pile": (1.7, 1.7), "pedestrian": (0.3, 0.35),
 }  # fmt: skip
 VARIANTS = 8  # distinct shapes per kind, so a tile reuses geometry the way instancing would
 OPEN_GROUND = (20, 30, 40, 60)  # shrub, grass, crop, bare
@@ -68,18 +86,24 @@ def sample(
     seed: int,
     street_codes: tuple[int, ...] = STREET,
     walls: list[list[float]] | None = None,
+    mix: dict[str, float] | None = None,
+    stream: str = "props:sample",
+    avoid: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Props as dicts (kind, variant, x, y, yaw, class). ``mask`` > 0 is a building footprint;
-    ``walls`` (segments x0 y0 x1 y1 in tile metres) keep props from standing in a compound wall."""
+    ``walls`` (segments x0 y0 x1 y1 in tile metres) keep props from standing in a compound wall.
+    ``mix`` and ``stream`` pick another kind of prop with its own random draws (the street pass);
+    ``avoid`` are props already placed, which new ones keep their distance from."""
+    mix = MIX if mix is None else mix
     size_m = side * gsd_m
     n = int(round(density_per_km2 * size_m * size_m / 1e6))
     if n <= 0:
         return []
-    rng = substream(seed, "props:sample")
+    rng = substream(seed, stream)
     count = n * CANDIDATES_PER_PROP
-    kinds = list(MIX)
+    kinds = list(mix)
     kind_idx = rng.choice(
-        len(kinds), size=count, p=np.asarray(list(MIX.values())) / sum(MIX.values())
+        len(kinds), size=count, p=np.asarray(list(mix.values())) / sum(mix.values())
     )
     xs, ys = rng.uniform(0, size_m, count), rng.uniform(0, size_m, count)
     yaw = rng.uniform(0, 2 * math.pi, count)
@@ -94,7 +118,7 @@ def sample(
             py = ys + da * hl * np.sin(yaw) + db * hw * np.cos(yaw)
             inside = (px >= 0) & (px < size_m) & (py >= 0) & (py < size_m)
             free = _lookup(mask, gsd_m, side, px, py) == 0
-            if kind == "tuk_tuk":
+            if kind in ON_STREET:
                 where = (
                     np.ones(count, dtype=bool)
                     if road is None
@@ -106,17 +130,17 @@ def sample(
                     where &= _lookup(road, gsd_m, side, px, py) == 0
             clear &= inside & free & where
         ok &= ~sel | clear
-        if kind == "tuk_tuk" and road is None:
+        if kind in ON_STREET and road is None:
             ok &= ~sel
     if walls:
         reach = np.array([max(HALF_EXTENT[k]) for k in kinds])[kind_idx] + 0.3
         ok &= wall_distance(xs, ys, np.asarray(walls, dtype="float64").reshape(-1, 4)) > reach
-    vary = substream(seed, "props:vary")  # its own stream, so placement draws are unchanged
+    vary = substream(seed, "props:vary" if stream == "props:sample" else f"{stream}:vary")
     scales = np.clip(np.exp(vary.normal(0.0, SCALE_SIGMA, count)), *SCALE_LIMITS)
     tints = vary.integers(0, len(TINT), count)
     wears = vary.choice(len(WEAR), size=count, p=WEAR_P)
     chosen: list[dict[str, Any]] = []
-    placed = np.empty((0, 2))
+    placed = np.array([[p["x"], p["y"]] for p in avoid or []]).reshape(-1, 2)
     for i in np.flatnonzero(ok):
         if len(chosen) >= n:
             break

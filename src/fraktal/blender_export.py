@@ -340,6 +340,19 @@ def export_scene(
         seed,
         walls=[s for c in walls for s in c["segments"]],
     )
+    props += props_scene.sample(
+        surface,
+        mask,
+        road,
+        gsd_m,
+        side,
+        prop_density * props_scene.STREET_DENSITY_RATIO,
+        seed,
+        walls=[s for c in walls for s in c["segments"]],
+        mix=props_scene.STREET_MIX,
+        stream="props:street",
+        avoid=props,
+    )
     yards = _yard_sites(read_parcels(world_dir).to_crs(epsg), local, west, south)
     props += props_scene.yard_props(yards, seed)
     buildings = []

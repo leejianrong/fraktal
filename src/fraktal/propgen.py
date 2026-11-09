@@ -52,6 +52,14 @@ MATERIALS: dict[str, tuple[tuple[float, float, float], float, float]] = {
     "fruit-red": ((0.7, 0.1, 0.08), 0.6, 0.0),
     "fruit-yellow": ((0.8, 0.65, 0.1), 0.6, 0.0),
     "fruit-green": ((0.25, 0.5, 0.12), 0.6, 0.0),
+    "paint-white": ((0.72, 0.72, 0.70), 0.55, 0.2),
+    "skin-dark": ((0.22, 0.13, 0.09), 0.7, 0.0),
+    "skin-mid": ((0.4, 0.26, 0.17), 0.7, 0.0),
+    "cloth-white": ((0.7, 0.7, 0.66), 0.9, 0.0),
+    "cloth-blue": ((0.12, 0.2, 0.4), 0.9, 0.0),
+    "cloth-brown": ((0.3, 0.2, 0.12), 0.9, 0.0),
+    "cloth-grey": ((0.35, 0.35, 0.34), 0.9, 0.0),
+    "cloth-red": ((0.5, 0.12, 0.1), 0.9, 0.0),
 }
 
 
@@ -355,6 +363,130 @@ def tuk_tuk(seed: int) -> Prop:
     return Prop("tuk_tuk", seed, tuple(parts))
 
 
+def motorbike(seed: int) -> Prop:
+    """A parked motorbike: two wheels, frame, engine, tank, seat, forks and handlebar."""
+    rng = substream(seed, "propgen.motorbike")
+    body = _pick(rng, ["paint-red", "paint-blue", "paint-grey", "paint-green", "paint-orange"])
+    length = float(rng.uniform(1.85, 2.05))
+    wr = float(rng.uniform(0.28, 0.32))
+    parts: list[Part] = [
+        _wheel("rubber", length / 2 - wr, 0.0, wr, 0.1),
+        _wheel("rubber", -length / 2 + wr, 0.0, wr, 0.11),
+        box(body, (0.0, 0, 0.55), (length * 0.5, 0.2, 0.16)),  # frame
+        box("steel-dark", (0.05, 0, 0.42), (0.35, 0.28, 0.3)),  # engine
+        box(body, (0.25, 0, 0.78), (0.4, 0.26, 0.2)),  # tank
+        box("plastic-black", (-0.2, 0, 0.8), (0.6, 0.28, 0.1)),  # seat
+        box("steel-dark", (length / 2 - wr - 0.05, 0, 0.55), (0.05, 0.07, 0.75), pitch=0.3),  # fork
+        box("steel-dark", (length / 2 - 0.45, 0, 1.03), (0.06, 0.72, 0.05)),  # handlebar
+        box("glass", (length / 2 - 0.36, 0, 0.93), (0.12, 0.16, 0.14)),  # headlight
+        box("plastic-black", (-length / 2 + 0.38, 0, 0.58), (0.5, 0.18, 0.04)),  # rear mudguard
+    ]
+    if rng.random() < 0.3:  # a box of goods strapped on the back
+        parts.append(box(_pick(rng, ["paint-rust", "tarp-blue", "plastic-white"]),
+                         (-length / 2 + 0.3, 0, 0.97), (0.42, 0.42, 0.34)))  # fmt: skip
+    return Prop("motorbike", seed, tuple(parts))
+
+
+def minibus(seed: int) -> Prop:
+    """A passenger van of the shared-taxi kind: a low body, a glazed cabin and a roof rack."""
+    rng = substream(seed, "propgen.minibus")
+    body = _pick(rng, ["paint-white", "paint-yellow", "paint-blue", "paint-green", "paint-red"])
+    length = float(rng.uniform(4.9, 5.4))
+    width = float(rng.uniform(1.82, 1.92))
+    parts: list[Part] = []
+    for x in (length / 2 - 0.95, -length / 2 + 0.95):
+        for sy in (-1, 1):
+            parts.append(_wheel("rubber", x, sy * (width / 2 - 0.12), 0.33, 0.22))
+    parts += [
+        box(body, (0, 0, 0.9), (length, width, 0.9)),  # lower body
+        box(body, (-0.2, 0, 1.75), (length * 0.78, width * 0.96, 0.8)),  # cabin
+        box("paint-white", (-0.2, 0, 2.17), (length * 0.78, width * 0.96, 0.06)),  # roof
+        box("steel-dark", (length / 2 - 0.03, 0, 0.55), (0.1, width * 0.95, 0.2)),  # bumper
+        box("glass", (length / 2 - 0.34, 0, 1.72), (0.03, width * 0.85, 0.6), pitch=-0.35),
+    ]
+    for sy in (-1, 1):
+        parts.append(box("glass", (-0.2, sy * (width * 0.48 + 0.005), 1.75),
+                         (length * 0.7, 0.02, 0.45)))  # fmt: skip
+    if rng.random() < 0.6:
+        parts.append(box("steel-dark", (-0.2, 0, 2.23), (length * 0.6, width * 0.8, 0.05)))
+        if rng.random() < 0.5:  # luggage under a tarp
+            parts.append(box(_pick(rng, ["tarp-blue", "tarp-orange", "tarp-green"]),
+                             (-0.7, 0, 2.38), (1.4, width * 0.7, 0.25)))  # fmt: skip
+    return Prop("minibus", seed, tuple(parts))
+
+
+def dumpster(seed: int) -> Prop:
+    """A wheeled waste bin with a lid, the kind left at a street corner."""
+    rng = substream(seed, "propgen.dumpster")
+    length = float(rng.uniform(1.8, 2.4))
+    width = float(rng.uniform(1.2, 1.5))
+    height = float(rng.uniform(1.15, 1.4))
+    colour = _pick(rng, ["paint-green", "paint-blue", "paint-grey", "paint-rust"])
+    parts: list[Part] = [
+        box(colour, (0, 0, (0.12 + height) / 2), (length, width, height - 0.12)),
+        box("plastic-black", (0, 0, height + 0.03), (length + 0.04, width + 0.04, 0.06)),
+    ]
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            wx, wy = sx * (length / 2 - 0.2), sy * (width / 2 - 0.12)
+            parts.append(_wheel("rubber", wx, wy, 0.1, 0.06))
+    return Prop("dumpster", seed, tuple(parts))
+
+
+def barrel_stack(seed: int) -> Prop:
+    """A group of oil drums standing together."""
+    rng = substream(seed, "propgen.barrel_stack")
+    cols, rows = int(rng.integers(2, 4)), int(rng.integers(1, 3))
+    colour = _pick(rng, ["paint-blue", "paint-rust", "paint-red", "paint-grey", "plastic-blue"])
+    parts: list[Part] = []
+    for i in range(cols):
+        for j in range(rows):
+            x, y = (i - (cols - 1) / 2) * 0.6, (j - (rows - 1) / 2) * 0.6
+            parts.append(cylinder(colour, (x, y, 0.44), 0.29, 0.88, sides=14))
+            parts.append(cylinder("steel-dark", (x, y, 0.89), 0.3, 0.03, sides=14))  # lid ring
+    return Prop("barrel_stack", seed, tuple(parts))
+
+
+def rubbish_pile(seed: int) -> Prop:
+    """A heap of bags, boards and sheeting: many small boxes dropped in a loose patch."""
+    rng = substream(seed, "propgen.rubbish_pile")
+    n = int(rng.integers(7, 16))
+    spread = float(rng.uniform(0.4, 0.9))
+    parts: list[Part] = []
+    for _ in range(n):
+        w, d, h = (float(v) for v in (rng.uniform(0.2, 0.55), rng.uniform(0.2, 0.5),
+                                      rng.uniform(0.08, 0.4)))  # fmt: skip
+        x, y = (float(np.clip(rng.normal(0, spread), -1.3, 1.3)) for _ in range(2))
+        material = _pick(rng, ["plastic-black", "plastic-white", "tarp-blue", "tarp-white",
+                               "paint-rust", "wood-dark", "plastic-black"])  # fmt: skip
+        parts.append(box(material, (x, y, h / 2), (w, d, h), yaw=float(rng.uniform(0, 3.14))))
+        if rng.random() < 0.35:  # a bag on top of another
+            parts.append(box("plastic-black", (x, y, h + 0.08), (w * 0.7, d * 0.7, 0.16),
+                             yaw=float(rng.uniform(0, 3.14))))  # fmt: skip
+    return Prop("rubbish_pile", seed, tuple(parts))
+
+
+def pedestrian(seed: int) -> Prop:
+    """A standing person, built from boxes: legs, torso, arms and head, in a few clothes."""
+    rng = substream(seed, "propgen.pedestrian")
+    height = float(rng.uniform(1.65, 1.95))
+    skin = _pick(rng, ["skin-dark", "skin-mid"])
+    top = _pick(rng, ["cloth-white", "cloth-blue", "cloth-brown", "cloth-grey", "cloth-red"])
+    bottom = _pick(rng, ["cloth-blue", "cloth-brown", "cloth-grey", "cloth-white"])
+    leg, torso, head = 0.47 * height, 0.31 * height, 0.13 * height
+    parts: list[Part] = []
+    for sy in (-1, 1):
+        parts.append(box(bottom, (0, sy * 0.1, leg / 2), (0.15, 0.15, leg)))
+        parts.append(box(top, (0, sy * 0.27, leg + torso * 0.55), (0.11, 0.1, torso * 0.8)))
+        parts.append(box(skin, (0, sy * 0.27, leg + torso * 0.1), (0.1, 0.09, 0.1)))  # hands
+    parts.append(box(top, (0, 0, leg + torso / 2), (0.22, 0.4, torso)))
+    parts.append(box(skin, (0, 0, leg + torso + head / 2 + 0.03), (0.2, 0.18, head)))
+    if rng.random() < 0.4:  # a sack on the head or a bag on the back
+        parts.append(box(_pick(rng, ["cloth-white", "tarp-orange", "paint-rust"]),
+                         (-0.14, 0, leg + torso * 0.6), (0.14, 0.3, 0.3)))  # fmt: skip
+    return Prop("pedestrian", seed, tuple(parts))
+
+
 GENERATORS: dict[str, Callable[[int], Prop]] = {
     "container": container,
     "water_tank": water_tank,
@@ -362,4 +494,10 @@ GENERATORS: dict[str, Callable[[int], Prop]] = {
     "signboard": signboard,
     "tuk_tuk": tuk_tuk,
     "silo": silo,
+    "motorbike": motorbike,
+    "minibus": minibus,
+    "dumpster": dumpster,
+    "barrel_stack": barrel_stack,
+    "rubbish_pile": rubbish_pile,
+    "pedestrian": pedestrian,
 }
