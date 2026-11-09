@@ -225,8 +225,12 @@ def build_buildings(
     config: BuildingConfig | None = None,
     world: str = "buildings",
     road_lines: dict[str, Any] | None = None,
+    extra: list[dict[str, Any]] | None = None,
 ) -> gpd.GeoDataFrame:
-    """A ``building`` layer with one footprint inside each chosen parcel, facing its road."""
+    """A ``building`` layer with one footprint inside each chosen parcel, facing its road.
+
+    ``extra`` are ready-made features (industrial halls) added to the layer as they are.
+    """
     config = config or BuildingConfig()
     features: list[dict[str, Any]] = []
     for _, parcel in parcels.sort_values("id").iterrows():
@@ -280,6 +284,7 @@ def build_buildings(
                 {**feature, "geometry": shed, "height_m": shape.shed_height, "roof_type": "flat",
                  "land_use": "residential"}
             )  # fmt: skip
+    features += extra or []
     if not features:
         raise ValueError("no buildings were placed")
     return make_layer("building", world, features, str(parcels.crs))

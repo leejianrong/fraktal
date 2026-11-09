@@ -12,6 +12,7 @@ import math
 from typing import Any
 
 import numpy as np
+from shapely.geometry import Point
 
 from fraktal.ids import substream
 from fraktal.labels3d import CLASSES
@@ -27,6 +28,7 @@ PROP_CLASS = {
     "market_stall": "yard_object",
     "signboard": "yard_object",
     "tuk_tuk": "vehicle",
+    "silo": "yard_object",
 }
 MIX = {
     "container": 0.12,
@@ -37,7 +39,7 @@ MIX = {
 }
 HALF_EXTENT = {  # half length, half width in metres, for the clearance check
     "container": (3.1, 1.3), "water_tank": (0.8, 0.8), "market_stall": (1.5, 1.1),
-    "signboard": (1.3, 0.4), "tuk_tuk": (1.5, 0.8),
+    "signboard": (1.3, 0.4), "tuk_tuk": (1.5, 0.8), "silo": (2.6, 2.6),
 }  # fmt: skip
 VARIANTS = 8  # distinct shapes per kind, so a tile reuses geometry the way instancing would
 OPEN_GROUND = (20, 30, 40, 60)  # shrub, grass, crop, bare
@@ -137,6 +139,56 @@ def sample(
             }
         )
     return chosen
+
+
+def yard_props(sites: list[dict[str, Any]], seed: int) -> list[dict[str, Any]]:
+    """Containers, tanks and silos in the yards of industrial sites.
+
+    Each site is ``{"id", "yard": Polygon, "yaw"}``: the free apron in tile metres, clear of the
+    halls, and the angle of the road it fronts. Containers stand along that angle. Props come
+    from a stream per site, so one site never moves another's.
+    """
+    out: list[dict[str, Any]] = []
+    vary = substream(seed, "props:yard:vary")
+    for site in sorted(sites, key=lambda s: str(s["id"])):
+        rng = substream(seed, f"props:yard:{site['id']}")
+        yard = site["yard"]
+        if yard.is_empty:
+            continue
+        x0, y0, x1, y1 = yard.bounds
+        want = int(yard.area / 55.0)  # one object per ~55 m2 of apron
+        placed: list[tuple[float, float, float]] = []
+        for _ in range(want * 10):
+            if len(placed) >= want:
+                break
+            kind = ("container", "container", "container", "water_tank", "silo")[
+                int(rng.integers(0, 5))
+            ]
+            r = max(HALF_EXTENT[kind])
+            x, y = float(rng.uniform(x0, x1)), float(rng.uniform(y0, y1))
+            if not yard.buffer(-r).contains(Point(x, y)):
+                continue
+            if any(math.hypot(x - px, y - py) < r + pr + 1.2 for px, py, pr in placed):
+                continue
+            placed.append((x, y, r))
+            turn = math.pi / 2 if rng.uniform() < 0.3 else 0.0
+            spin = float(rng.uniform(0, 6.28))
+            yaw = float(site.get("yaw", 0.0)) + turn if kind == "container" else spin
+            scale = float(np.clip(np.exp(vary.normal(0, SCALE_SIGMA)), *SCALE_LIMITS))
+            out.append(
+                {
+                    "kind": kind,
+                    "variant": int(rng.integers(0, VARIANTS)),
+                    "x": round(x, 2),
+                    "y": round(y, 2),
+                    "yaw": round(yaw, 4),
+                    "scale": round(scale, 3),
+                    "tint": int(vary.integers(0, len(TINT))),
+                    "wear": int(vary.choice(len(WEAR), p=WEAR_P)),
+                    "class": CLASSES[PROP_CLASS[kind]],
+                }
+            )
+    return out
 
 
 def repeat_stats(props: list[dict[str, Any]]) -> dict[str, Any]:
