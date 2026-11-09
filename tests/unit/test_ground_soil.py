@@ -69,3 +69,15 @@ def test_a_seeded_tile_may_draw_another_earth_tone_and_no_seed_keeps_the_base() 
         drawn = soil_style("khartoum", seed)
         assert drawn.share == base.share and drawn.speckle == base.speckle  # only the colour moves
         assert drawn == soil_style("khartoum", seed)
+
+
+def test_oil_palm_paddy_and_mangrove_each_have_their_own_ground() -> None:
+    palm, paddy, coast = (
+        soil_style(b) for b in ("oil_palm_plantation", "paddy_terraces", "mangrove_coast")
+    )
+    assert palm.bare_is_soil and paddy.bare_is_soil and coast.bare_is_soil
+    assert len({palm.soil_a, paddy.soil_a, coast.soil_a}) == 3
+    for seed in range(30):  # mud stays mud: no tone draw for the wet biomes
+        assert soil_style("paddy_terraces", seed).soil_a == paddy.soil_a
+        assert soil_style("mangrove_coast", seed).soil_a == coast.soil_a
+    assert sum(soil_style("paddy_terraces", 1).soil_a) < sum(palm.soil_a)  # darker than the earth

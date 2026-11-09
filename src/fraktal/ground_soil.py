@@ -39,6 +39,9 @@ class SoilStyle:
 LATERITE = ((140 / 255, 96 / 255, 74 / 255), (164 / 255, 116 / 255, 88 / 255))
 OCHRE = ((190 / 255, 150 / 255, 104 / 255), (208 / 255, 172 / 255, 124 / 255))
 
+MUD = ((98 / 255, 80 / 255, 60 / 255), (120 / 255, 98 / 255, 74 / 255))  # wet paddy earth
+MUD_DARK = ((84 / 255, 72 / 255, 58 / 255), (104 / 255, 90 / 255, 72 / 255))  # tidal mud
+
 # dry Sahelian red-brown earth
 TAN = ((150 / 255, 108 / 255, 86 / 255), (172 / 255, 128 / 255, 102 / 255))
 
@@ -52,9 +55,11 @@ BIOME_SOIL: dict[str, SoilStyle] = {
     "informal_settlement": SoilStyle(
         *LATERITE, share=0.85, green_mute=0.9, bare_is_soil=True, mute_tree_cover=True, speckle=0.2
     ),
-    "oil_palm_plantation": SoilStyle(*LATERITE, share=0.3),
-    "paddy_terraces": SoilStyle(*OCHRE, share=0.3),
-    "mangrove_coast": SoilStyle(*OCHRE, share=0.25),
+    "oil_palm_plantation": SoilStyle(  # earth between the palm rows and tracks, a little scrub
+        *LATERITE, share=0.55, green_mute=0.6, bare_is_soil=True, speckle=0.08
+    ),
+    "paddy_terraces": SoilStyle(*MUD, share=0.45, green_mute=0.3, bare_is_soil=True),
+    "mangrove_coast": SoilStyle(*MUD_DARK, share=0.35, green_mute=0.4, bare_is_soil=True),
 }
 DEFAULT_SOIL = SoilStyle(*OCHRE, share=0.4)
 
@@ -67,6 +72,8 @@ TONE_MIX: dict[str, tuple[float, float, float, float]] = {  # the shares of TONE
     "khartoum": (0.5, 0.25, 0.10, 0.15),
     "dense_urban": (0.5, 0.15, 0.2, 0.15),
     "informal_settlement": (0.5, 0.1, 0.3, 0.1),
+    "paddy_terraces": (1.0, 0.0, 0.0, 0.0),  # mud stays mud
+    "mangrove_coast": (1.0, 0.0, 0.0, 0.0),
 }
 DEFAULT_TONE_MIX = (0.7, 0.1, 0.1, 0.1)
 
