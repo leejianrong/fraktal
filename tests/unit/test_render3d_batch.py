@@ -172,3 +172,22 @@ def test_a_size_that_is_not_a_whole_number_of_pixels_is_one_tile_not_four() -> N
             (32.55, 15.6), RenderConfig(gsd_m=gsd, tile_px=px, size_m=size)
         )
         assert tiles == 1 and side == px
+
+
+def test_lens_effects_are_drawn_per_tile_and_each_can_be_left_out(world: Path) -> None:
+    every = render3d_batch.LENS_EFFECTS
+    both = render3d_batch.plan(world, 3, 4, 150.0, 1.0, sensor=True, lens=every)
+    assert both == render3d_batch.plan(
+        world, 3, 4, 150.0, 1.0, sensor=True, lens=render3d_batch.LENS_EFFECTS
+    )
+    plain = render3d_batch.plan(world, 3, 4, 150.0, 1.0, sensor=True)
+    assert all("lens" not in s["sensor"] for s in plain)
+    lenses = [s["sensor"]["lens"] for s in both]
+    assert len({lens["vignette"] for lens in lenses}) == 3
+    assert all(0.15 <= lens["vignette"] <= 0.45 and lens["jpeg_quality"] >= 55 for lens in lenses)
+    only = render3d_batch.plan(world, 3, 4, 150.0, 1.0, sensor=True, lens=("vignette",))
+    for a, b in zip(both, only, strict=True):
+        assert b["sensor"]["lens"] == {"vignette": a["sensor"]["lens"]["vignette"],
+                                       "ca_px": 0.0, "jpeg_quality": 0}  # fmt: skip
+    with pytest.raises(render3d_batch.BatchError):
+        render3d_batch.plan(world, 1, 4, 150.0, 1.0, sensor=True, lens=("bokeh",))

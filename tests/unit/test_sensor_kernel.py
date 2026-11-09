@@ -35,3 +35,35 @@ def test_neutral_settings_change_nothing() -> None:
     assert np.array_equal(sensor_chain(image), image)
     radiance = np.moveaxis(image.astype("float32"), 0, -1)
     assert np.array_equal(grade(radiance), radiance)
+
+
+def _picture() -> np.ndarray:
+    rng = np.random.default_rng(5)
+    base = np.full((3, 64, 96), 140, dtype="uint8")
+    base[:, 20:44, 30:66] = rng.integers(40, 230, (3, 24, 36), dtype="uint8")
+    return base
+
+
+def test_each_lens_effect_is_off_at_zero_and_does_what_it_says() -> None:
+    from fraktal.kernels.sensor import lens_effects
+
+    img = _picture()
+    assert np.array_equal(lens_effects(img), img)
+    dark = lens_effects(img, vignette=0.4)
+    assert dark[:, 32, 48].tolist() == img[:, 32, 48].tolist()  # the centre is untouched
+    assert dark[:, 0, 0].mean() < 0.65 * img[:, 0, 0].mean() and (dark <= img).all()
+    fringed = lens_effects(img, ca_px=2.0)
+    assert np.array_equal(fringed[1], img[1])  # green stays put
+    assert not np.array_equal(fringed[0], img[0]) and not np.array_equal(fringed[2], img[2])
+    assert np.abs(fringed[:, 32, 48].astype(int) - img[:, 32, 48]).max() <= 2  # centre: little
+    squeezed = lens_effects(img, jpeg_quality=40)
+    assert squeezed.shape == img.shape and 0 < np.abs(squeezed.astype(int) - img).mean() < 25
+
+
+def test_lens_effects_golden_output() -> None:
+    import hashlib
+
+    from fraktal.kernels.sensor import lens_effects
+
+    out = lens_effects(_picture(), vignette=0.3, ca_px=1.2)  # JPEG is libjpeg-dependent: not pinned
+    assert hashlib.sha256(out.tobytes()).hexdigest()[:16] == "d6d4694352e96733"
