@@ -343,3 +343,5 @@ Details in the ADR-0012 addendum 2.
   courtyards as buildings of their own, wall texture (colours are still flat), and the informal-settlement,
   dense-urban and other biomes still have the old cream, salmon and bright-green ground, which looks worse than
   Khartoum's now; that is the next slice.
+
+- **Ground for the urban biomes** (informal settlement, dense urban): they now use the Khartoum treatment (bare land as red-brown laterite, muted greens, dark tufts, ragged patch edges), with the earth set browner and the greens more olive by eye. See `docs/img/realism/ground-urban-biomes.jpg` (top: informal settlement, bottom: dense urban). Oil palm, paddy and mangrove keep the old ground, since they have real vegetation to show; the real reference chips are all rural Sudan, so they cannot judge these colours.
