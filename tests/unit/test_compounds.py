@@ -166,3 +166,14 @@ def test_a_gate_is_still_cut_on_irregular_compounds() -> None:
             starts = {(round(s[0], 1), round(s[1], 1)) for s in c["segments"]}
             ends = {(round(s[2], 1), round(s[3], 1)) for s in c["segments"]}
             assert len(starts - ends) == 1  # one wall end is not met by another: the gate
+
+
+def test_some_walls_curve_and_a_curve_is_many_short_runs() -> None:
+    parcels, buildings, roads = _layers(6)
+    counts = [
+        len(c["segments"])
+        for seed in range(40)
+        for c in compounds.build(parcels, buildings, roads, (0.0, 0.0), 400.0, seed, 1.0)
+    ]
+    assert max(counts) >= 12 > 5  # a square has five runs; a bowed or rounded wall many more
+    assert sum(n > 8 for n in counts) / len(counts) > 0.1
