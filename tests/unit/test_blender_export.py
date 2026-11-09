@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from fraktal import biomes
+from fraktal import biomes, trees3d
 from fraktal.blender_export import export_scene
 from fraktal.procedural import generate_world
 
@@ -36,7 +36,8 @@ def test_export_has_textured_ground_and_trees_in_tile(tmp_path: Path) -> None:
     assert scene["trees"], "dense_urban tiles still have some trees"
     for x, y, radius, height, species in scene["trees"]:
         assert 0 <= x <= 200 and 0 <= y <= 200 and 0 < radius < 6 and 1 < height < 12
-        assert species in {"broadleaf", "palm", "shrub"} and (height >= 3.5 or species == "shrub")
+        known = {"broadleaf", "palm", "shrub", *trees3d.VARIETIES}
+        assert species in known and (height >= 3.5 or species == "shrub")
     flat = export_scene(world, tmp_path / "f", CENTER, 200.0, 1.0, texture=0.0, tree_density=0.0)
     assert flat["trees"] == []
     textured = np.load(tmp_path / "t" / "ground.npy")

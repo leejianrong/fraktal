@@ -43,6 +43,31 @@ def species_for(biome: str, x: float, y: float, height_m: float, seed: int) -> s
     return "palm" if roll < broadleaf + palm else "shrub"
 
 
+VARIETIES = ("acacia", "neem", "date_palm")  # refinements of broadleaf and palm (FRK-134)
+# Per biome: the share of broadleaf trees that are acacia and neem, and of palms that are date palms
+VARIETY_MIX: dict[str, tuple[float, float, float]] = {
+    "khartoum": (0.40, 0.40, 0.7),
+    "dense_urban": (0.10, 0.30, 0.2),
+    "informal_settlement": (0.20, 0.30, 0.1),
+    "oil_palm_plantation": (0.0, 0.05, 0.0),
+    "paddy_terraces": (0.0, 0.10, 0.0),
+    "mangrove_coast": (0.0, 0.0, 0.0),
+}
+DEFAULT_VARIETY_MIX = (0.1, 0.1, 0.1)
+
+
+def variety_for(biome: str, species: str, x: float, y: float, seed: int) -> str:
+    """A broadleaf may be an acacia (a flat umbrella crown) or a neem (a dense dark dome), and a
+    palm a date palm (tall, a full head of fronds). Its own stream: ``species_for`` is unchanged."""
+    if species not in ("broadleaf", "palm"):
+        return species
+    acacia, neem, date = VARIETY_MIX.get(biome, DEFAULT_VARIETY_MIX)
+    roll = float(substream(seed, f"tree:variety:{round(x, 1)}:{round(y, 1)}").uniform())
+    if species == "palm":
+        return "date_palm" if roll < date else "palm"
+    return "acacia" if roll < acacia else "neem" if roll < acacia + neem else "broadleaf"
+
+
 # Scrub placement (FRK-111). Real dry-land cover is mostly small shrubs in thickets with a few big
 # shade trees, not evenly spread round crowns. Numbers are set by eye against the reference board.
 PER_HA = {  # trees and shrubs per hectare before ``density``
@@ -144,7 +169,7 @@ def scatter(
                 ty,
                 round(float(r), 2),
                 round(float(h), 2),
-                species_for(biome, tx, ty, float(h), seed),
+                variety_for(biome, species_for(biome, tx, ty, float(h), seed), tx, ty, seed),
             ]
         )
     return trees
@@ -162,7 +187,8 @@ def yard_trees(
             continue
         x, y = c["yard"]
         height = round(1.5 + 1.9 * radius**0.9, 2)
-        trees.append([x, y, round(radius, 2), height, species_for(biome, x, y, height, seed)])
+        species = variety_for(biome, species_for(biome, x, y, height, seed), x, y, seed)
+        trees.append([x, y, round(radius, 2), height, species])
     return trees
 
 
@@ -204,6 +230,8 @@ __all__ = [
     "SHRUB_BELOW_M",
     "scatter",
     "species_for",
+    "variety_for",
+    "VARIETIES",
     "wall_distance",
     "yard_trees",
 ]

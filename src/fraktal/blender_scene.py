@@ -599,7 +599,10 @@ def build_trees(scene: dict) -> int:
     mats = [material(f"leaf{i}", c, 0.8, 20 + i) for i, c in enumerate(FOLIAGE)]
     mats.append(material("bark", (0.24, 0.17, 0.11), 0.9, 40))
     mats.append(material("frond", (0.2, 0.4, 0.14), 0.7, 41))
+    mats.append(material("neem", (0.09, 0.26, 0.1), 0.8, 42))
+    mats.append(material("acacia", (0.33, 0.38, 0.14), 0.8, 43))
     bark, frond = len(FOLIAGE), len(FOLIAGE) + 1
+    neem_mat, acacia_mat = len(FOLIAGE) + 2, len(FOLIAGE) + 3
     bm = bmesh.new()
 
     def blob(k, x, y, zc, rx, rz, mat):
@@ -622,12 +625,14 @@ def build_trees(scene: dict) -> int:
     for k, tree in enumerate(trees):
         x, y, radius, height = tree[:4]
         species = tree[4] if len(tree) > 4 else "broadleaf"
-        if species == "palm":
-            top = height * 0.9
-            _prism(bm, k, x, y, max(0.14, radius * 0.06), 0.0, top, bark)
-            length = max(radius, 1.8)
-            for j in range(8):
-                a = 2 * math.pi * (j + 0.3 * (k % 3)) / 8
+        if species in ("palm", "date_palm"):
+            date = species == "date_palm"  # taller, a thicker trunk and a fuller head
+            top = height * (0.94 if date else 0.9)
+            _prism(bm, k, x, y, max(0.14, radius * 0.06) * (1.5 if date else 1.0), 0.0, top, bark)
+            length = max(radius, 2.2 if date else 1.8)
+            fronds = 12 if date else 8
+            for j in range(fronds):
+                a = 2 * math.pi * (j + 0.3 * (k % 3)) / fronds
                 dx, dy = math.cos(a), math.sin(a)
                 px, py = -dy * length * 0.22, dx * length * 0.22
                 pts = [
@@ -638,6 +643,16 @@ def build_trees(scene: dict) -> int:
                 ]  # fmt: skip
                 bm.faces.new([bm.verts.new(p) for p in pts]).material_index = frond
                 TREE_OWNER.append(k)
+        elif species == "acacia":  # a thin trunk and a flat, wide umbrella of leaves
+            top = max(height * 0.8, 2.0)
+            _prism(bm, k, x, y, max(0.1, radius * 0.05), 0.0, top, bark)
+            blob(k, x, y, top, radius * 1.3, max(0.35, radius * 0.28), acacia_mat)
+        elif species == "neem":  # a short trunk under a broad dense dome
+            half = max(radius * 1.0, height * 0.35)
+            zc = max(half, height - half)
+            if zc - half > 0.3:
+                _prism(bm, k, x, y, max(0.15, radius * 0.08), 0.0, zc - half * 0.5, bark)
+            blob(k, x, y, zc, radius * 1.1, half, neem_mat)
         elif species == "shrub":
             rz = max(0.4, min(height, radius * 1.4) * 0.5)
             blob(k, x, y, rz * 0.8, radius * 1.15, rz, (k * 5 + 1) % len(FOLIAGE))

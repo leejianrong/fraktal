@@ -58,3 +58,14 @@ def test_khartoum_is_tan_and_mostly_soil() -> None:
     r, g, b = style.soil_a
     assert r > g > b and 0.5 < r < 0.75 and r - b > 0.2  # red-brown earth, not pale cream
     assert style.share >= 0.7
+
+
+def test_a_seeded_tile_may_draw_another_earth_tone_and_no_seed_keeps_the_base() -> None:
+    base = soil_style("khartoum")
+    assert soil_style("khartoum", None) is base
+    tones = {soil_style("khartoum", seed).soil_a for seed in range(80)}
+    assert base.soil_a in tones and len(tones) >= 3  # the base and at least two others
+    for seed in range(20):
+        drawn = soil_style("khartoum", seed)
+        assert drawn.share == base.share and drawn.speckle == base.speckle  # only the colour moves
+        assert drawn == soil_style("khartoum", seed)

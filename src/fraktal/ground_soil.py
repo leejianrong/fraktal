@@ -9,7 +9,7 @@ nothing is fitted to real pixels (the board is evaluation only, ADR-0012). Rando
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -58,6 +58,18 @@ BIOME_SOIL: dict[str, SoilStyle] = {
 }
 DEFAULT_SOIL = SoilStyle(*OCHRE, share=0.4)
 
+# Other earth tones a tile may draw instead of the biome's base one (FRK-134), set by eye.
+PALE_SAND = ((184 / 255, 152 / 255, 118 / 255), (204 / 255, 174 / 255, 138 / 255))
+DEEP_RED = ((128 / 255, 80 / 255, 62 / 255), (150 / 255, 98 / 255, 76 / 255))
+GREY_BROWN = ((130 / 255, 112 / 255, 96 / 255), (150 / 255, 130 / 255, 112 / 255))
+TONES = (None, PALE_SAND, DEEP_RED, GREY_BROWN)  # None keeps the base colours of the biome
+TONE_MIX: dict[str, tuple[float, float, float, float]] = {  # the shares of TONES, by biome
+    "khartoum": (0.5, 0.25, 0.10, 0.15),
+    "dense_urban": (0.5, 0.15, 0.2, 0.15),
+    "informal_settlement": (0.5, 0.1, 0.3, 0.1),
+}
+DEFAULT_TONE_MIX = (0.7, 0.1, 0.1, 0.1)
+
 DRY_OLIVE = np.array([0.46, 0.43, 0.30], dtype="float32")
 TUFT = np.array([0.30, 0.31, 0.21], dtype="float32")  # dark dry scrub, set by eye
 PATCH_CELLS_M = ((70.0, 0.45), (22.0, 0.3), (7.0, 0.15), (2.5, 0.1))  # ragged edges, not blobs
@@ -73,8 +85,15 @@ def _noise(seed: int, name: str, side: int, cell_m: float, gsd_m: float) -> Arra
     return np.asarray(value_noise(lattice, cell_px, shape), dtype="float32")
 
 
-def soil_style(biome: str) -> SoilStyle:
-    return BIOME_SOIL.get(biome, DEFAULT_SOIL)
+def soil_style(biome: str, seed: int | None = None) -> SoilStyle:
+    """The biome's soil; with a ``seed`` the tile may draw another earth tone (own stream)."""
+    style = BIOME_SOIL.get(biome, DEFAULT_SOIL)
+    if seed is None:
+        return style
+    mix = TONE_MIX.get(biome, DEFAULT_TONE_MIX)
+    roll = float(substream(seed, "soil:tone").uniform())
+    tone = TONES[int(np.searchsorted(np.cumsum(mix), roll))]
+    return style if tone is None else replace(style, soil_a=tone[0], soil_b=tone[1])
 
 
 def apply_soil(ground: Array, surface: Array, seed: int, gsd_m: float, style: SoilStyle) -> Array:
