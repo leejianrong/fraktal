@@ -1,6 +1,7 @@
 import math
 
 import numpy as np
+import pytest
 
 from fraktal import labels3d, props_scene
 from fraktal.render import ROAD_LOCAL
@@ -153,3 +154,39 @@ def test_street_pass_adds_bikes_vans_people_and_litter_without_moving_the_first_
     assert classes <= {p["class"] for p in street}
     for p in street:  # none lands on top of a first-pass prop
         assert all(math.hypot(p["x"] - q["x"], p["y"] - q["y"]) >= 4.0 for q in first)
+
+
+def _prop(kind: str, x: float, y: float) -> dict[str, object]:
+    return {"kind": kind, "variant": 0, "x": x, "y": y, "yaw": 1.0, "scale": 1.0, "tint": 0,
+            "wear": 0, "class": labels3d.CLASSES[props_scene.PROP_CLASS[kind]]}  # fmt: skip
+
+
+def test_vehicles_face_along_the_road_and_people_stand_on_the_footpath() -> None:
+    from shapely.geometry import LineString
+
+    mask = np.zeros((SIDE, SIDE), dtype="uint8")
+    roads = [(LineString([(0.0, 100.0), (200.0, 100.0)]), 8.0)]  # east-west, 8 m wide
+    props = [
+        _prop("minibus", 50.0, 103.0), _prop("motorbike", 80.0, 98.0),
+        _prop("pedestrian", 120.0, 101.0), _prop("container", 60.0, 60.0),
+    ]  # fmt: skip
+    out = props_scene.align_to_roads(props, roads, mask, GSD, SIDE, 3)
+    van, bike, walker, box = out
+    for v in (van, bike):
+        assert abs(math.sin(v["yaw"])) < 0.15  # along the road, either way
+        assert abs(v["y"] - 100.0) < 4.0  # still on the carriageway, towards the kerb
+    assert van["y"] > 100.0 > bike["y"]  # each stays on its own side
+    assert abs(walker["y"] - 100.0) == pytest.approx(4.9, abs=0.01)  # beyond the edge
+    assert box == props[3]  # not a street kind: untouched
+    assert props_scene.align_to_roads(props, roads, mask, GSD, SIDE, 3) == out
+    assert props_scene.align_to_roads(props, [], mask, GSD, SIDE, 3) == props
+
+
+def test_a_person_does_not_move_into_a_building() -> None:
+    from shapely.geometry import LineString
+
+    mask = np.ones((SIDE, SIDE), dtype="uint8")  # buildings everywhere
+    roads = [(LineString([(0.0, 100.0), (200.0, 100.0)]), 8.0)]
+    given = [_prop("pedestrian", 120.0, 101.0)]
+    (walker,) = props_scene.align_to_roads(given, roads, mask, GSD, SIDE, 3)
+    assert (walker["x"], walker["y"]) == (120.0, 101.0)
