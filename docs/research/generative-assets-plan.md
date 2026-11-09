@@ -218,6 +218,48 @@ look richer later with textures and detail in Blender; TRELLIS and DINOv3 are ex
 - Generic clutter that matches our look: CC0 libraries, once surveyed.
 - Not tried: texturing the generated meshes with our own materials (FRK-126), which would close the colour gap.
 
+## Asset taxonomy and coverage targets (FRK-127, 2026-11-10)
+
+"Distinct" counts shapes a tile can show (a code-written prop has 8 shape variants per kind, each in 4 tints and 3 wear levels, so 96 looks per kind). Routes: **code** is a generator in `propgen`, `trees3d`, `building_grammar` or `compounds`; **gen-tex** is an SDXL texture on code geometry (FRK-126 route); **CC0** is a scanned texture in the manifest; **model** is image-to-3D, held back by ADR-0013 and FRK-123. The first choice is always code. Status: done, a card, or **not planned** (named so a gap is a decision, not an oversight).
+
+| Class | Now (distinct) | Target | Route | Status |
+|---|---|---|---|---|
+| Cars (parked and moving) | 1 box body | 6 body shapes (hatch, saloon, SUV, pickup, van, taxi) | code | **not planned** (sim vehicles are boxes; FRK-112 added the others) |
+| Tuk-tuks | 8 | 8 | code | done (FRK-130) |
+| Motorbikes | 8 | 12, plus a rider variant | code | shapes done (FRK-112); rider **not planned** |
+| Minibuses | 8 | 8 | code | done (FRK-112) |
+| Trucks and buses | 0 | 6 trucks, 4 buses (dense urban, industrial yards) | code | **not planned** |
+| Carts and animals | 0 | 4 hand and donkey carts (Khartoum, informal) | code | **not planned** |
+| Standing people | 8 | 16 (clothing, bags, children) | code | shapes done (FRK-112); more is **not planned** |
+| Walking people (sim) | 1 | follow the sim | code | FRK-94 (Godot replay); Blender side **not planned** |
+| Poles | 1 | 3 (lamp, power pole, mast) | code | **not planned** |
+| Stalls | 8 | 12 | code | done (FRK-130); more **not planned** |
+| Signboards | 8 | 12 | code | done (FRK-130) |
+| Bins, drums, litter | 8 each | 8 each | code | done (FRK-112) |
+| Bus shelters, kiosks, benches | 0 | 6 | code | FRK-115 |
+| Containers, tanks, silos | 8 each | 8 each | code | done (FRK-130, FRK-107) |
+| Roof colours (tin) | 8 | 8 | gen-tex plus code | done (FRK-110) |
+| Roof materials (tile, flat) | 1 tile, 4 flat | 3 tile, 6 flat | gen-tex, CC0 | **not planned** |
+| Roof clutter (tanks, solar, brick stacks) | 3 | 10 | code | FRK-110 started it; more **not planned** |
+| Building footprints | rectangle, L, T, shed | add courtyard and hall (done), stepped block | code | FRK-105 done; stepped block **not planned** |
+| Facade materials | 8 wall materials | 16 | gen-tex, CC0 | FRK-115 |
+| Compound walls | 3 kinds, 10 colours, angled and curved outlines | 5 kinds (add mud wall, chain link) | code | FRK-106 done; extra kinds **not planned** |
+| Trees | 3 species | 6 (acacia, neem, date palm, mango, banana, eucalyptus) | code | FRK-111 done for 3; the rest **not planned** |
+| Ground textures | 1 soil, 2 concrete | 4 soils, 3 pavements, mud, grass | gen-tex, CC0 | FRK-108 and FRK-126 done for the first set; more **not planned** |
+
+Per biome, what matters most, in priority order (a target is the distinct shapes of that class the biome should show):
+
+| Biome | First | Then | Barely needed |
+|---|---|---|---|
+| Khartoum | walls (5 kinds), tin and flat roofs, acacia and neem, motorbikes, carts | stalls, minibuses, poles | containers, silos |
+| Dense urban | minibuses and trucks, bins, facade materials (16), halls and yards, poles | motorbikes, bus shelters, signboards | trees beyond 3 species |
+| Informal settlement | sheet fences and tin roofs in more colours, stalls, tanks on roofs, litter, motorbikes | carts, people, tuk-tuks | halls, silos |
+| Oil palm plantation | palm variety (age, height), tracks, trucks, sheds | water tanks, a few workers | walls, litter |
+| Paddy terraces | water and mud textures, huts, a few people and bikes | trees | vehicles in number |
+| Mangrove coast | mud and water textures, boats (not built), stilt huts | trees (mangrove species) | cars, walls |
+
+Boats and stilt huts are **not planned**: no biome card exists for them. A target is a ceiling to aim for, not a count to hit before rendering; ADR-0009 says to build for coverage and measure to steer, so the table is reviewed when FRK-129 shows what still looks fake.
+
 ## Order of work
 
 1. FRK-121: read the licences, write ADR-0013. No GPU, can start now.
