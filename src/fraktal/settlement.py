@@ -54,6 +54,9 @@ class BuildingConfig:
     depth_share: tuple[float, float] = (0.45, 0.8)  # of the usable parcel depth
     roof_materials: bool = False  # record tin or tile on each building
     tin_share: float = 0.6  # share of tin (corrugated metal) roofs when materials are recorded
+    shape_mix: tuple[float, float, float] = (0.0, 0.0, 0.0)  # share of L, T and shed-attached
+    size_tail: float = 0.0  # log-normal spread of the footprint size; 0 keeps the uniform mix
+    shed_height_m: tuple[float, float] = (2.4, 3.2)
 
 
 def _cell_is_water(landcover: Any, inverse: Affine, x: float, y: float) -> bool:
@@ -249,14 +252,18 @@ def build_buildings(
         tin_roll = float(rng.uniform()) if config.roof_materials else 0.0
         if roll >= chance:
             continue
+        shape = _draw_shape(seed, parcel.id, config)
+        width_share = float(np.clip(width_share * shape.size, 0.3, 1.0))
+        depth_share = float(np.clip(depth_share * shape.size, 0.3, 1.0))
         if road_lines is None:
-            footprint = _footprint(parcel.geometry, config, width_share, depth_share)
+            parts = _footprint_parts(parcel.geometry, config, width_share, depth_share, shape)
         else:  # block lots are free-form: fit a rectangle facing the street
-            footprint = _lot_footprint(
-                parcel.geometry, road_lines[parcel.road_id], config, width_share, depth_share
+            parts = _lot_footprint(
+                parcel.geometry, road_lines[parcel.road_id], config, width_share, depth_share, shape
             )
-        if footprint is None:
+        if parts is None:
             continue
+        footprint, shed = parts
         feature: dict[str, Any] = {
             "geometry": footprint,
             "provenance": BUILDING_PROVENANCE,
@@ -268,15 +275,58 @@ def build_buildings(
         if config.roof_materials:
             feature["roof_material"] = "tin" if tin_roll < config.tin_share else "tile"
         features.append(feature)
+        if shed is not None:  # a low lean-to against the house, a building of its own
+            features.append(
+                {**feature, "geometry": shed, "height_m": shape.shed_height, "roof_type": "flat",
+                 "land_use": "residential"}
+            )  # fmt: skip
     if not features:
         raise ValueError("no buildings were placed")
     return make_layer("building", world, features, str(parcels.crs))
+
+
+@dataclass(frozen=True)
+class Shape:
+    kind: str = "rect"  # rect, L, T or shed
+    size: float = 1.0  # multiplies the width and depth shares
+    cut_w: float = 0.4  # share of the width an L or T notch removes
+    cut_d: float = 0.4
+    flip: bool = False  # which side the L notch or the shed is on
+    shed_height: float = 2.8
+
+
+def _draw_shape(seed: int, parcel_id: str, config: BuildingConfig) -> Shape:
+    """The footprint type and size factor of one parcel, from a stream of its own."""
+    if config.shape_mix == (0.0, 0.0, 0.0) and config.size_tail <= 0.0:
+        return Shape()
+    look = substream(seed, f"buildings:shape:{parcel_id}")
+    pick = float(look.uniform())
+    kind = ("L", "T", "shed", "rect")[
+        int(np.searchsorted(np.cumsum(config.shape_mix), pick, side="right"))
+    ]
+    size = float(np.exp(look.normal(0.0, config.size_tail))) if config.size_tail > 0.0 else 1.0
+    return Shape(
+        kind, size, float(look.uniform(0.3, 0.5)), float(look.uniform(0.3, 0.5)),
+        bool(look.integers(0, 2)), float(look.uniform(*config.shed_height_m)),
+    )  # fmt: skip
 
 
 def _footprint(
     parcel: Polygon, config: BuildingConfig, width_share: float, depth_share: float
 ) -> Polygon | None:
     """A rectangle inside the parcel, set back from the road and the neighbours."""
+    parts = _footprint_parts(parcel, config, width_share, depth_share, Shape())
+    return None if parts is None else parts[0]
+
+
+def _footprint_parts(
+    parcel: Polygon, config: BuildingConfig, width_share: float, depth_share: float, shape: Shape
+) -> tuple[Polygon, Polygon | None] | None:
+    """The house outline in the parcel, and a lean-to shed when the shape has one.
+
+    The outline is a rectangle with an L or T notch cut from its back corners, or a narrower
+    rectangle with a low shed on one side, all within the rectangle a plain house would fill.
+    """
     (x0, y0), (x1, y1), (_x2, _y2), (x3, y3) = list(parcel.exterior.coords)[:4]
     frontage, depth = math.hypot(x1 - x0, y1 - y0), math.hypot(x3 - x0, y3 - y0)
     usable_w = frontage - 2 * config.side_setback_m
@@ -292,19 +342,37 @@ def _footprint(
     def corner(a: float, b: float) -> tuple[float, float]:
         return (x0 + ux * a + vx * b, y0 + uy * a + vy * b)
 
-    return Polygon(
-        [
-            corner(left, near),
-            corner(left + w, near),
-            corner(left + w, near + d),
-            corner(left, near + d),
-        ]
-    )
+    def poly(points: list[tuple[float, float]]) -> Polygon:
+        return Polygon([corner(left + a, near + b) for a, b in points])
+
+    cw, cd = w * shape.cut_w, d * shape.cut_d
+    big = w >= 6.0 and d >= 6.0  # a notch or shed needs room to leave two usable parts
+    if shape.kind == "L" and big:
+        pts = [(0, 0), (w, 0), (w, d - cd), (w - cw, d - cd), (w - cw, d), (0, d)]
+        if shape.flip:
+            pts = [(w - a, b) for a, b in pts][::-1]
+        return poly(pts), None
+    if shape.kind == "T" and big:
+        notch_w = w * shape.cut_w * 0.7
+        pts = [(0, 0), (w, 0), (w, d - cd), (w - notch_w, d - cd), (w - notch_w, d),
+               (notch_w, d), (notch_w, d - cd), (0, d - cd)]  # fmt: skip
+        return poly(pts), None
+    if shape.kind == "shed" and big:
+        main_w = w * 0.68
+        shed_d = d * 0.55
+        x_main, x_shed = (0.0, main_w) if not shape.flip else (w - main_w, 0.0)
+        shed_w = w - main_w
+        return (
+            poly([(x_main, 0), (x_main + main_w, 0), (x_main + main_w, d), (x_main, d)]),
+            poly([(x_shed, 0), (x_shed + shed_w, 0), (x_shed + shed_w, shed_d), (x_shed, shed_d)]),
+        )
+    return poly([(0, 0), (w, 0), (w, d), (0, d)]), None
 
 
 def _lot_footprint(
-    lot: Polygon, street: Any, config: BuildingConfig, width_share: float, depth_share: float
-) -> Polygon | None:
+    lot: Polygon, street: Any, config: BuildingConfig, width_share: float, depth_share: float,
+    shape: Shape | None = None,
+) -> tuple[Polygon, Polygon | None] | None:  # fmt: skip
     """A footprint in a free-form lot: its bounding rectangle turned so the street side is first."""
     ring = list(lot.minimum_rotated_rectangle.exterior.coords)[:4]
     near = [street.distance(Point((a[0] + b[0]) / 2, (a[1] + b[1]) / 2))
@@ -315,9 +383,9 @@ def _lot_footprint(
     for step in range(0, 13):  # shrink about the centre until the footprint fits the lot
         f = 1.0 - 0.05 * step
         fitted = affinity.scale(rect, f, f, origin=centre)
-        footprint = _footprint(fitted, config, width_share, depth_share)
-        if footprint is not None and lot.buffer(1e-6).contains(footprint):
-            return footprint
+        parts = _footprint_parts(fitted, config, width_share, depth_share, shape or Shape())
+        if parts is not None and all(lot.buffer(1e-6).contains(g) for g in parts if g is not None):
+            return parts
     return None
 
 
