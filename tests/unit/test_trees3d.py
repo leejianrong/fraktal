@@ -72,3 +72,23 @@ def test_yard_trees_stand_at_the_yard_point_for_a_share_of_compounds() -> None:
     assert trees == trees3d.yard_trees(compounds, 1, "khartoum", 0.3)
     assert 40 < len(trees) < 80 and all(2.0 <= t[2] <= 3.4 and t[1] == 20.0 for t in trees)
     assert trees3d.yard_trees(compounds, 1, "khartoum", 0.0) == []
+
+
+def test_varieties_refine_broadleaf_and_palm_by_biome_without_moving_the_species() -> None:
+    def tally(biome: str, family: str) -> dict[str, int]:
+        out: dict[str, int] = {}
+        for i in range(3000):
+            v = trees3d.variety_for(biome, family, float(i), float(i * 7 % 100), 0)
+            out[v] = out.get(v, 0) + 1
+        return out
+
+    dry, wet = tally("khartoum", "broadleaf"), tally("mangrove_coast", "broadleaf")
+    assert dry["acacia"] / 3000 > 0.3 and dry["neem"] / 3000 > 0.3 and dry["broadleaf"] / 3000 < 0.3
+    assert set(wet) == {"broadleaf"}  # the mangrove coast keeps the plain crown
+    palms = tally("khartoum", "palm")
+    assert palms["date_palm"] / 3000 > 0.6
+    assert trees3d.variety_for("khartoum", "shrub", 1.0, 2.0, 0) == "shrub"
+    assert trees3d.variety_for("khartoum", "broadleaf", 1.0, 2.0, 5) == trees3d.variety_for(
+        "khartoum", "broadleaf", 1.0, 2.0, 5
+    )
+    assert trees3d.species_for("khartoum", 5.0, 6.0, 8.0, 1) in {"broadleaf", "palm", "shrub"}
