@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 
 from fraktal import labels3d, props_scene
@@ -133,3 +135,21 @@ def test_props_keep_off_compound_walls() -> None:
     walled = props_scene.sample(surface, mask, None, 0.5, 400, 4000.0, 3, walls=wall)
     assert any(abs(p["y"] - 100.0) < 1.0 and 20 < p["x"] < 180 for p in plain)
     assert not any(abs(p["y"] - 100.0) < 0.6 and 20 < p["x"] < 180 for p in walled)
+
+
+def test_street_pass_adds_bikes_vans_people_and_litter_without_moving_the_first_pass() -> None:
+    surface, mask, road = _world()
+    first = props_scene.sample(surface, mask, road, GSD, SIDE, 800.0, 2)
+    street = props_scene.sample(
+        surface, mask, road, GSD, SIDE, 1200.0, 2,
+        mix=props_scene.STREET_MIX, stream="props:street", avoid=first,
+    )  # fmt: skip
+    assert props_scene.sample(surface, mask, road, GSD, SIDE, 800.0, 2) == first
+    assert {p["kind"] for p in street} <= set(props_scene.STREET_MIX)
+    assert {"motorbike", "pedestrian"} <= {p["kind"] for p in street}
+    for p in street:
+        assert p["class"] == labels3d.CLASSES[props_scene.PROP_CLASS[p["kind"]]]
+    classes = {labels3d.CLASSES["vehicle"], labels3d.CLASSES["person"]}
+    assert classes <= {p["class"] for p in street}
+    for p in street:  # none lands on top of a first-pass prop
+        assert all(math.hypot(p["x"] - q["x"], p["y"] - q["y"]) >= 4.0 for q in first)
