@@ -9,7 +9,7 @@ buildings from a per-parcel one, so changing the building settings never moves a
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import geopandas as gpd
@@ -55,6 +55,7 @@ class BuildingConfig:
     roof_materials: bool = False  # record tin or tile on each building
     tin_share: float = 0.6  # share of tin (corrugated metal) roofs when materials are recorded
     shape_mix: tuple[float, float, float] = (0.0, 0.0, 0.0)  # share of L, T and shed-attached
+    step_share: float = 0.0  # of the plain rectangles, the share drawn as a two-step staircase
     size_tail: float = 0.0  # log-normal spread of the footprint size; 0 keeps the uniform mix
     shed_height_m: tuple[float, float] = (2.4, 3.2)
 
@@ -292,7 +293,7 @@ def build_buildings(
 
 @dataclass(frozen=True)
 class Shape:
-    kind: str = "rect"  # rect, L, T or shed
+    kind: str = "rect"  # rect, L, T, shed or step
     size: float = 1.0  # multiplies the width and depth shares
     cut_w: float = 0.4  # share of the width an L or T notch removes
     cut_d: float = 0.4
@@ -302,7 +303,7 @@ class Shape:
 
 def _draw_shape(seed: int, parcel_id: str, config: BuildingConfig) -> Shape:
     """The footprint type and size factor of one parcel, from a stream of its own."""
-    if config.shape_mix == (0.0, 0.0, 0.0) and config.size_tail <= 0.0:
+    if config.shape_mix == (0.0, 0.0, 0.0) and config.size_tail <= 0.0 and not config.step_share:
         return Shape()
     look = substream(seed, f"buildings:shape:{parcel_id}")
     pick = float(look.uniform())
@@ -310,10 +311,13 @@ def _draw_shape(seed: int, parcel_id: str, config: BuildingConfig) -> Shape:
         int(np.searchsorted(np.cumsum(config.shape_mix), pick, side="right"))
     ]
     size = float(np.exp(look.normal(0.0, config.size_tail))) if config.size_tail > 0.0 else 1.0
-    return Shape(
+    shape = Shape(
         kind, size, float(look.uniform(0.3, 0.5)), float(look.uniform(0.3, 0.5)),
         bool(look.integers(0, 2)), float(look.uniform(*config.shed_height_m)),
     )  # fmt: skip
+    if config.step_share and kind == "rect" and float(look.uniform()) < config.step_share:
+        return replace(shape, kind="step")  # drawn last, so every earlier draw keeps its value
+    return shape
 
 
 def _footprint(
@@ -361,6 +365,12 @@ def _footprint_parts(
         notch_w = w * shape.cut_w * 0.7
         pts = [(0, 0), (w, 0), (w, d - cd), (w - notch_w, d - cd), (w - notch_w, d),
                (notch_w, d), (notch_w, d - cd), (0, d - cd)]  # fmt: skip
+        return poly(pts), None
+    if shape.kind == "step" and big:  # two steps back from the street
+        pts = [(0, 0), (w, 0), (w, d * 0.4), (w * 0.7, d * 0.4), (w * 0.7, d * 0.7),
+               (w * 0.4, d * 0.7), (w * 0.4, d), (0, d)]  # fmt: skip
+        if shape.flip:
+            pts = [(w - a, b) for a, b in pts][::-1]
         return poly(pts), None
     if shape.kind == "shed" and big:
         main_w = w * 0.68

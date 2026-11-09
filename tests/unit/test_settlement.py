@@ -176,3 +176,20 @@ def test_footprint_shapes_vary_stay_in_the_lot_and_sheds_are_low_neighbours() ->
         a, b = group.geometry.iloc[0], group.geometry.iloc[1]
         assert a.intersection(b).area < 1e-6  # touching, never overlapping
     assert mixed.geometry.area.std() != plain.geometry.area.std()  # a different size mix
+
+
+def test_step_share_draws_staircase_footprints_that_stay_in_the_lot() -> None:
+    land, roads = scene()
+    block = ParcelConfig(blocks=True, block_depth_m=60.0)
+    lots = build_parcels(roads, land, TRANSFORM, SEED, block)
+    lines = dict(zip(roads.id, roads.geometry, strict=True))
+    cfg = BuildingConfig(built_probability_core=1.0, built_probability_edge=1.0, step_share=0.5)
+    base = BuildingConfig(built_probability_core=1.0, built_probability_edge=1.0)
+    steps = build_buildings(lots, arterial_centres(roads), SEED, cfg, road_lines=lines)
+    plain = build_buildings(lots, arterial_centres(roads), SEED, base, road_lines=lines)
+    corners = steps.geometry.map(lambda g: len(g.exterior.coords) - 1)
+    flat = plain.geometry.map(lambda g: len(g.exterior.coords) - 1)
+    assert (corners == 8).sum() > 5 and (flat == 8).sum() == 0
+    by_lot = dict(zip(lots.id, lots.geometry, strict=True))
+    for _, b in steps.iterrows():
+        assert by_lot[b.parcel_id].buffer(1e-6).contains(b.geometry) and b.geometry.is_valid

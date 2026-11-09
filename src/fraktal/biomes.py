@@ -78,6 +78,7 @@ BIOMES: dict[str, Biome] = {
                 width_share=(0.93, 1.0),
                 depth_share=(0.88, 0.98),
                 shape_mix=(0.12, 0.08, 0.04),
+                step_share=0.12,
                 size_tail=0.15,
             ),
             industrial=IndustrialConfig(
