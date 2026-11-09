@@ -16,8 +16,8 @@ SUN_LOW = (1.0, 0.62, 0.38)  # a low sun: orange
 SUN_HIGH = (1.0, 0.93, 0.82)  # a high sun: warm white
 ZENITH = (0.30, 0.46, 0.80)  # a clear zenith
 DUST = (0.86, 0.78, 0.64)  # the horizon with dust in the air
-SUN_STRENGTH = 2.4
-FILL_RANGE = (0.8, 1.15)  # sky fill: shadows keep texture because the sky lights them
+SUN_STRENGTH = 2.3
+FILL_RANGE = (1.3, 1.9)  # sky fill: shadows keep texture because the sky lights them
 DUST_RANGE = (0.2, 0.8)  # how much of the horizon is dust rather than blue sky
 GLOW_RANGE = (0.2, 0.7)  # the warm bloom around the sun
 
