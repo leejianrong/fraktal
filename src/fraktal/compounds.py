@@ -50,6 +50,8 @@ GATE_M = 3.0
 MIN_AREA_M2 = 120.0
 IRREGULAR_SHARE = 0.7  # of compounds that get slanted, chamfered, notched or kinked walls
 CUT_COUNTS = (0.1, 0.3, 0.35, 0.25)  # shares that take 0, 1, 2 or 3 cuts
+ROUND_SHARE = 0.35  # of reshaped compounds that also get rounded corners
+ARC_STEPS = 8
 MIN_KEPT_SHARE = 0.55  # of the lot the walls must still enclose
 
 
@@ -111,7 +113,7 @@ def build(
         segments: list[list[float]] = []
         for i, (a, b) in enumerate(edges):
             length = float(np.hypot(*(b - a)))
-            if length < 0.5:
+            if length < 1e-6:
                 continue
             if i != gate:
                 segments.append(_seg(a, b, origin))
@@ -145,7 +147,8 @@ def build(
 
 
 def reshape(poly: Any, keep: Any, rng: Any) -> Any:
-    """``poly`` with up to three straight cuts taken off, so its walls meet at odd angles.
+    """``poly`` with up to three cuts taken off (straight, or a curved bite) and maybe rounded
+    corners, so its walls meet at odd angles and bow.
 
     Cuts only remove ground, so the result stays inside the lot. A cut that would touch ``keep``
     (the house, with a margin) or leave under ``MIN_KEPT_SHARE`` of the lot is skipped.
@@ -165,7 +168,7 @@ def reshape(poly: Any, keep: Any, rng: Any) -> Any:
         if min(ln, lp) < 6.0:
             continue
         un, up = to_next / ln, to_prev / lp
-        kind = int(rng.integers(0, 4))
+        kind = int(rng.integers(0, 5))
         d1 = float(rng.uniform(2.0, min(12.0, 0.45 * lp)))
         d2 = float(rng.uniform(2.0, min(12.0, 0.45 * ln)))
         if kind == 0:  # a corner cut off at a slant
@@ -174,7 +177,7 @@ def reshape(poly: Any, keep: Any, rng: Any) -> Any:
             cut = [v, v + up * d1, v + up * d1 + un * d2, v + un * d2]
         elif kind == 2:  # a whole side leaned over: a trapezoid
             cut = [v, nxt, v + up * min(d1 + 3.0, 0.45 * lp)]
-        else:  # a wedge pushed into the middle of a side, so the wall bends
+        elif kind == 3 or kind == 4:  # a wedge, or a curved bite, pushed into the middle of a side
             t, w = float(rng.uniform(0.3, 0.7)), float(rng.uniform(3.0, min(9.0, 0.5 * ln)))
             mid = v + un * ln * t
             normal = np.array([-un[1], un[0]])
@@ -182,7 +185,16 @@ def reshape(poly: Any, keep: Any, rng: Any) -> Any:
                 normal = -normal
             if not shape.contains(_pt(mid + normal * 0.3)):
                 continue
-            cut = [mid - un * w / 2, mid + normal * float(rng.uniform(1.5, 4.0)), mid + un * w / 2]
+            depth = float(rng.uniform(1.5, 4.0))
+            if kind == 3:
+                cut = [mid - un * w / 2, mid + normal * depth, mid + un * w / 2]
+            else:  # a parabolic arc: the wall bows inwards
+                cut = [
+                    mid
+                    + un * w * (k / ARC_STEPS - 0.5)
+                    + normal * depth * (1 - (2 * k / ARC_STEPS - 1) ** 2)
+                    for k in range(ARC_STEPS + 1)
+                ]
         trial = shape.difference(Polygon(cut))
         if trial.geom_type == "MultiPolygon":
             trial = max(trial.geoms, key=lambda g: g.area)
@@ -191,6 +203,12 @@ def reshape(poly: Any, keep: Any, rng: Any) -> Any:
         if keep is not None and not trial.contains(keep):
             continue
         shape, done = trial.simplify(0.05), done + 1
+    if done and float(rng.uniform()) < ROUND_SHARE:  # round the convex corners
+        r = float(rng.uniform(2.0, 5.0))
+        rounded = shape.buffer(-r).buffer(r, quad_segs=4).simplify(0.03)
+        fits = keep is None or rounded.contains(keep)
+        if rounded.geom_type == "Polygon" and rounded.area >= MIN_KEPT_SHARE * start and fits:
+            shape = rounded
     return shape
 
 
@@ -248,7 +266,7 @@ def pack(compounds: list[dict[str, Any]]) -> dict[str, Any]:
 
         for x0, y0, x1, y1 in c["segments"]:
             length = math.hypot(x1 - x0, y1 - y0)
-            if length < 0.05:
+            if length < 1e-3:
                 continue
             ux, uy = (x1 - x0) / length, (y1 - y0) / length
             thick = SHEET_THICKNESS_M if c.get("kind") == "sheet" else THICKNESS_M
@@ -258,6 +276,8 @@ def pack(compounds: list[dict[str, Any]]) -> dict[str, Any]:
                 c["height_m"],
             )
             if c.get("kind") == "piered":  # a post at each end and every few metres between
+                if length < 2.0:  # a short run of a curve: no post on every facet
+                    continue
                 steps = max(1, round(length / PIER_SPACING_M))
                 for k in range(steps + 1):
                     px, py = x0 + ux * length * k / steps, y0 + uy * length * k / steps

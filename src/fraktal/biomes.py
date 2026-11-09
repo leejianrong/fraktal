@@ -63,6 +63,7 @@ BIOMES: dict[str, Biome] = {
                 frontage_m=(9.0, 15.0),
                 depth_m=(28.0, 33.0),
                 min_area_m2=120.0,
+                skew_deg=16.0,  # slanted cuts between lots, so plots are not all square
                 blocks=True,
                 block_depth_m=30.0,
             ),
