@@ -22,6 +22,9 @@ Array = np.ndarray[Any, Any]
 WALL_SHARE = {  # of the parcels with a building, set by eye from the board; the default is 0.3
     "khartoum": 0.55,
     "dense_urban": 0.4,
+    "khartoum_city": 0.55,
+    "manila_quezon": 0.5,  # hoarding fences and painted block walls along the street
+    "nairobi_centre": 0.15,  # shopfronts on the pavement, few compounds
     "informal_settlement": 0.25,
     "oil_palm_plantation": 0.05,
     "paddy_terraces": 0.05,
@@ -38,6 +41,8 @@ KIND_MIX = {
     "informal_settlement": (0.35, 0.15, 0.5),
     "khartoum": (0.6, 0.3, 0.1),
     "dense_urban": (0.55, 0.3, 0.15),
+    "khartoum_city": (0.6, 0.3, 0.1),
+    "manila_quezon": (0.4, 0.2, 0.4),  # sheet-metal and painted plywood hoardings are common
 }
 DEFAULT_KIND_MIX = (0.6, 0.25, 0.15)
 KINDS = ("block", "piered", "sheet")
