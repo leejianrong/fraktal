@@ -382,11 +382,13 @@ def add_corrugation(mat, spec: dict, coords, bsdf, tint, normal_in=None) -> None
 
 def build_buildings(scene: dict, scene_dir: Path, assets: Path) -> int:
     """One mesh for every building, read from the exported ``mesh_*.npy`` arrays."""
+    if not scene["buildings"]:  # an estate or paddy tile: empty arrays load as floats, no mesh
+        return 0
     load = lambda key: np.load(scene_dir / f"mesh_{key}.npy")  # noqa: E731
     co, sizes, face_verts, face_mat = (
         load("vertices"), load("face_sizes"), load("face_verts"), load("face_material")
     )  # fmt: skip
-    if TERRAIN and len(co):  # each building stands on the lowest ground under its footprint
+    if TERRAIN:  # each building stands on the lowest ground under its footprint
         owner_face = np.load(scene_dir / "mesh_face_building.npy").astype("int64")
         owner = np.zeros(len(co), dtype="int64")
         owner[face_verts] = np.repeat(owner_face, sizes)
