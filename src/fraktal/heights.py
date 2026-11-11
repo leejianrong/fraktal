@@ -23,9 +23,14 @@ STOREY_M = 3.0
 PROFILES: dict[str, tuple[tuple[int, float], ...]] = {
     "lowrise": ((1, 0.45), (2, 0.35), (3, 0.12), (4, 0.05), (5, 0.03)),
     "informal": ((1, 0.70), (2, 0.27), (3, 0.03)),
+    "city_lowrise": ((1, 0.10), (2, 0.38), (3, 0.30), (4, 0.17), (5, 0.05)),  # Manila-Quezon
+    "midrise": ((3, 0.10), (4, 0.15), (6, 0.25), (8, 0.25), (10, 0.15), (12, 0.10)),  # Nairobi
 }
 BIOME_PROFILE = {
     "khartoum": "lowrise",
+    "khartoum_city": "lowrise",
+    "manila_quezon": "city_lowrise",
+    "nairobi_centre": "midrise",
     "informal_settlement": "informal",
     "oil_palm_plantation": "informal",
     "paddy_terraces": "informal",

@@ -49,6 +49,15 @@ BIOME_SOIL: dict[str, SoilStyle] = {
     "khartoum": SoilStyle(
         *TAN, share=0.9, green_mute=0.8, bare_is_soil=True, mute_tree_cover=True, speckle=0.22
     ),
+    "khartoum_city": SoilStyle(
+        *TAN, share=0.9, green_mute=0.8, bare_is_soil=True, mute_tree_cover=True, speckle=0.22
+    ),
+    "manila_quezon": SoilStyle(  # damp earth under canopy: less soil, the green stays green
+        *LATERITE, share=0.5, green_mute=0.5, bare_is_soil=True, speckle=0.1
+    ),
+    "nairobi_centre": SoilStyle(
+        *LATERITE, share=0.5, green_mute=0.6, bare_is_soil=True, speckle=0.1
+    ),
     "dense_urban": SoilStyle(
         *LATERITE, share=0.75, green_mute=0.9, bare_is_soil=True, mute_tree_cover=True, speckle=0.18
     ),

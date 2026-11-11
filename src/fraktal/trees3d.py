@@ -24,6 +24,9 @@ SHRUB_BELOW_M = 3.5
 MIX: dict[str, tuple[float, float, float]] = {
     "khartoum": (0.85, 0.05, 0.10),  # neem and acacia, the odd date palm
     "dense_urban": (0.55, 0.35, 0.10),
+    "khartoum_city": (0.85, 0.05, 0.10),
+    "manila_quezon": (0.80, 0.15, 0.05),  # big broadleaf street trees, the odd coconut palm
+    "nairobi_centre": (0.85, 0.08, 0.07),  # jacaranda and other street trees, a few palms
     "informal_settlement": (0.45, 0.35, 0.20),
     "oil_palm_plantation": (0.35, 0.55, 0.10),
     "paddy_terraces": (0.50, 0.40, 0.10),
@@ -48,6 +51,9 @@ VARIETIES = ("acacia", "neem", "date_palm")  # refinements of broadleaf and palm
 VARIETY_MIX: dict[str, tuple[float, float, float]] = {
     "khartoum": (0.40, 0.40, 0.7),
     "dense_urban": (0.10, 0.30, 0.2),
+    "khartoum_city": (0.40, 0.40, 0.7),
+    "manila_quezon": (0.0, 0.1, 0.0),
+    "nairobi_centre": (0.05, 0.1, 0.0),
     "informal_settlement": (0.20, 0.30, 0.1),
     "oil_palm_plantation": (0.0, 0.05, 0.0),
     "paddy_terraces": (0.0, 0.10, 0.0),
@@ -73,6 +79,9 @@ def variety_for(biome: str, species: str, x: float, y: float, seed: int) -> str:
 PER_HA = {  # trees and shrubs per hectare before ``density``
     "khartoum": 110.0,
     "dense_urban": 30.0,
+    "khartoum_city": 30.0,  # the photos are almost treeless (1 to 2% vegetation)
+    "manila_quezon": 160.0,  # heavy canopy: a third of the frame is vegetation
+    "nairobi_centre": 70.0,
     "informal_settlement": 40.0,
     "oil_palm_plantation": 25.0,
     "paddy_terraces": 40.0,

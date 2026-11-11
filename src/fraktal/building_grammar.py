@@ -56,6 +56,7 @@ TIN_WEIGHTS = (
 # blue, green, white and a little pink. Khartoum is drier and plainer.
 TIN_MIXES: dict[str, tuple[float, ...]] = {
     "khartoum": (0.30, 0.08, 0.38, 0.10, 0.05, 0.0, 0.09, 0.0),
+    "khartoum_city": (0.30, 0.08, 0.38, 0.10, 0.05, 0.0, 0.09, 0.0),
 }
 SOLAR_SHARE, BRICK_SHARE, EXTRA_TANK_SHARE = 0.20, 0.15, 0.20  # of flat roofs, assumed shares
 TIN_MIX_TROPICAL = (0.12, 0.20, 0.22, 0.08, 0.16, 0.08, 0.10, 0.04)
