@@ -104,3 +104,15 @@ Limits: the Mapillary photos are one hash-chosen sample, not a survey; the API r
 on each call, so a re-run adds new ones. Some are blurry or show the car bonnet. Commons photos are what people
 chose to upload, which skews to landmarks. `fraktal review --board` shows a few per place; there is no
 side-by-side sheet for eye-level renders yet (FRK-115).
+
+## Eye-level check (FRK-144)
+
+`fraktal streets FRAMES_DIR --city 'nairobi-*' --sheet out.png` compares a directory of synthetic street
+frames with the photos in `data/eval/ground-reference` (Commons and Mapillary together, eval only). It
+prints nine coarse statistics (sky, green, warm and vertical-structure shares, brightness, contrast,
+saturation, edge energy, road brightness) as photo mean and spread against synthetic, with a z score and a
+`*` when the synthetic mean is more than 2 photo standard deviations away. The report always states the
+photo count: under 8 photos a city's numbers are a hint. The sheet puts the frames above the photos; read
+it first, since a frame can pass every number and still look wrong. Some Mapillary images are dashcam
+frames with overlays or odd colour (a pink false-colour tree in Manila-Quezon); they stay in the sample and
+widen the photo spread, so look at the sheet before trusting a flag.
