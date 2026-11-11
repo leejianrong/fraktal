@@ -283,3 +283,32 @@ def test_painted_shutters_flank_the_windows_of_some_blocks_only() -> None:
 def test_new_facade_materials_are_in_the_material_list_for_the_asset_check() -> None:
     for name in (*grammar.FASCIA, *grammar.SHUTTERS):
         assert name in grammar.MATERIALS
+
+
+def test_the_shopfront_and_the_door_go_on_the_wall_that_faces_the_street() -> None:
+    ring = [[0.0, 0.0], [10.0, 0.0], [10.0, 13.0], [0.0, 13.0], [0.0, 0.0]]  # deep, narrow plot
+    pts = np.asarray(ring[:-1], dtype="float64")
+    assert grammar.front_edge(pts, None) == 1  # the longest wall is the side wall
+    assert grammar.front_edge(pts, (5.0, -6.0)) == 0  # the street is south: the 10 m wall at y = 0
+    assert grammar.front_edge(pts, (5.0, 20.0)) == 2
+    shop_id = next(
+        i for i in _ids(400) if grammar.plan_shop(pts, 5, i, 3.5, (5.0, -6.0)) is not None
+    )
+    plan = grammar.plan_shop(pts, 5, shop_id, 3.5, (5.0, -6.0))
+    assert plan is not None and plan[0] == 0
+    mesh = grammar.build(shop_id, ring, 7.0, None, 5, street=(5.0, -6.0))
+    verts = np.asarray(mesh.vertices)
+    for face, material in zip(mesh.faces, mesh.materials, strict=True):
+        if material in (*grammar.FASCIA, "roller-door"):
+            ys = verts[list(face), 1]
+            assert ys.max() < 1.5, material  # on the south wall (an awning reaches 1.1 m out)
+            assert ys.min() > -1.5
+
+
+def test_a_building_with_a_street_keeps_its_door_off_the_side_wall() -> None:
+    ring = [[0.0, 0.0], [10.0, 0.0], [10.0, 13.0], [0.0, 13.0], [0.0, 0.0]]
+    mesh = grammar.build("bldfront0000", ring, 7.0, None, 5, street=(5.0, -6.0))
+    verts = np.asarray(mesh.vertices)
+    doors = [f for f, m in zip(mesh.faces, mesh.materials, strict=True) if m == "door"]
+    assert doors
+    assert all(verts[list(f), 1].max() < 0.5 for f in doors)  # the door is on the y = 0 wall
