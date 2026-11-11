@@ -172,6 +172,72 @@
       "verified": true
     },
     {
+      "id": "mat-fascia-red",
+      "file": "materials/fascia-red.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "523fd5212543535afe1b9a7bc6a2b66025ca17cc6c4b34dabf5bd993a8d9e7a1",
+      "verified": true
+    },
+    {
+      "id": "mat-fascia-blue",
+      "file": "materials/fascia-blue.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "c066250624d48ab16a8d8f44c06a6b2e23cc025db96c8e021ce55ae58c4f74bf",
+      "verified": true
+    },
+    {
+      "id": "mat-fascia-green",
+      "file": "materials/fascia-green.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "5df14d59b0ed626333e6b2cd44ca54593c6db53e75fe7420ecd9e5b59b8b0889",
+      "verified": true
+    },
+    {
+      "id": "mat-fascia-yellow",
+      "file": "materials/fascia-yellow.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "3d164e288032d817051168ed583468c26ff5686c355cdaea61495647baf66041",
+      "verified": true
+    },
+    {
+      "id": "mat-shutter-green",
+      "file": "materials/shutter-green.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "8c5c5f55dd5914369d1c39fe08dea64038fdc941804a2805e17dcc975863c13a",
+      "verified": true
+    },
+    {
+      "id": "mat-shutter-brown",
+      "file": "materials/shutter-brown.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "a0ce4f8f4fc42dff7af35863afc2820b861986959c2ae0335a161e1d237118c4",
+      "verified": true
+    },
+    {
       "id": "mat-tank",
       "file": "materials/tank.json",
       "kind": "material",

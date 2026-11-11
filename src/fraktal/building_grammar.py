@@ -65,7 +65,9 @@ AC_SHARE, DISH_SHARE, VENT_SHARE, STAIR_HUT_SHARE = 0.35, 0.2, 0.25, 0.5
 FLAT_ROOFS = ("roof-flat-concrete", "roof-flat-pale", "roof-flat-terracotta", "roof-flat-bitumen")
 OPENINGS = ("window-glass", "door")
 CLUTTER = ("tank",)
-DETAIL = ("wall-plinth", "window-frame", "balcony", "roller-door")
+FASCIA = ("fascia-red", "fascia-blue", "fascia-green", "fascia-yellow")  # shop signs and awnings
+SHUTTERS = ("shutter-green", "shutter-brown")  # window shutters, painted wood
+DETAIL = ("wall-plinth", "window-frame", "balcony", "roller-door", *FASCIA, *SHUTTERS)
 MATERIALS = (
     *WALLS,
     *GENERATED_WALLS,
@@ -92,6 +94,14 @@ SILL_M = 0.9
 MIN_EDGE_FOR_WINDOWS_M = 3.0
 PLINTH_M = 0.9  # a darker band along the foot of a wall
 FRAME_M = 0.08  # the window frame shows this much around the glass
+SHOP_SHARE = 0.2  # of flat-roofed blocks with a long enough street wall
+SHOP_MIN_EDGE_M, SHOP_MIN_STOREY_M = 7.0, 3.3
+SHOP_WIDTH_M = (4.5, 7.5)
+SHOP_SHUTTER_M, SHOP_DOOR_M = (2.4, 2.45), 1.0  # shutter width, height; the side door's width
+FASCIA_Z_M = (2.7, 3.25)  # the sign band, above the shutter
+AWNING_SHARE, AWNING_OUT_M, AWNING_Z_M = 0.5, 1.1, (2.6, 2.25)  # at the wall, at the outer edge
+SHUTTER_SHARE = 0.22  # of blocks whose windows have painted shutters either side
+SHUTTER_W_M = 0.32
 ROLLER_DOOR_M = (4.0, 4.4)  # width, height of a hall's roller door
 ROLLER_SPACING_M = 11.0  # one door per this much of a long wall
 BALCONY_SHARE = 0.35  # of buildings with three storeys or more
@@ -192,6 +202,64 @@ def _roller_doors(mesh: Mesh, pts: Any, height: float) -> dict[int, list[tuple[f
     return taken
 
 
+def plan_shop(
+    pts: Any, seed: int, building_id: str, storey: float
+) -> tuple[int, float, float, str, bool] | None:
+    """A shopfront on the longest wall: ``(edge, from, to, fascia material, awning)``, or None.
+
+    Its own random stream (``shop:<id>``), so the draws behind every other part of a building
+    stay where they were. The span is centred on the wall and kept off its corners.
+    """
+    edges = np.roll(pts, -1, axis=0) - pts
+    lengths = np.hypot(edges[:, 0], edges[:, 1])
+    edge = int(np.argmax(lengths))
+    length = float(lengths[edge])
+    if length < SHOP_MIN_EDGE_M or storey < SHOP_MIN_STOREY_M:
+        return None
+    rng = substream(seed, f"shop:{building_id}")
+    if float(rng.uniform()) >= SHOP_SHARE:
+        return None
+    width = min(float(rng.uniform(*SHOP_WIDTH_M)), length - 2.0)
+    lo = (length - width) / 2.0
+    fascia = FASCIA[int(rng.integers(0, len(FASCIA)))]
+    return edge, lo, lo + width, fascia, float(rng.uniform()) < AWNING_SHARE
+
+
+def _shopfront(mesh: Mesh, pts: Any, plan: tuple[int, float, float, str, bool]) -> None:
+    """A roller shutter, a side door, a fascia sign and (half the time) an awning on one wall."""
+    edge, lo, hi, fascia, awning = plan
+    a = pts[edge]
+    direction = (pts[(edge + 1) % len(pts)] - a) / max(
+        float(np.hypot(*(pts[(edge + 1) % len(pts)] - a))), 1e-9
+    )
+    outward = np.array([direction[1], -direction[0]])
+
+    def at(s: float, out: float = POP_OUT_M) -> Any:
+        return a + direction * s + outward * out
+
+    shutter_w = min(SHOP_SHUTTER_M[0], hi - lo - SHOP_DOOR_M - 0.6)
+    mesh.add(_quad(at(lo + 0.3), at(lo + 0.3 + shutter_w), 0.0, SHOP_SHUTTER_M[1]), "roller-door")
+    mesh.add(_quad(at(hi - 0.3 - SHOP_DOOR_M), at(hi - 0.3), 0.0, 2.1), "door")
+    z0, z1 = FASCIA_Z_M
+    mesh.add(_quad(at(lo, 0.12), at(hi, 0.12), z0, z1), fascia)
+    if awning:
+        near, far = at(lo, 0.1), at(lo, 0.1 + AWNING_OUT_M)
+        near2, far2 = at(hi, 0.1), at(hi, 0.1 + AWNING_OUT_M)
+        za, zb = AWNING_Z_M
+        mesh.add([(*near, za), (*near2, za), (*far2, zb), (*far, zb)], fascia)
+        mesh.add([(*far, zb), (*far2, zb), (*near2, za), (*near, za)], fascia)  # seen from below
+
+
+def _shutter_pair(mesh: Mesh, a: Any, b: Any, direction: Any, outward: Any, z0: float,
+                  material: str) -> None:  # fmt: skip
+    """Two painted shutter leaves beside a window whose glass runs from ``a`` to ``b``."""
+    top = z0 + WINDOW_M[1] + 0.06
+    gap = direction * 0.04
+    leaf = direction * SHUTTER_W_M
+    for p, q in ((a - gap - leaf, a - gap), (b + gap, b + gap + leaf)):
+        mesh.add(_quad(p + outward * 0.02, q + outward * 0.02, z0 - 0.03, top), material)
+
+
 def _openings(
     mesh: Mesh,
     pts: Any,
@@ -201,8 +269,14 @@ def _openings(
     door: bool,
     balconies: Any = None,
     blocked: dict[int, list[tuple[float, float]]] | None = None,
+    ground_only: bool = False,
+    shutter: str | None = None,
 ) -> None:
     """A window grid on every edge long enough and, if ``door``, a door on the longest edge.
+
+    ``blocked`` spans along an edge are taken by something else (a hall's roller door, or with
+    ``ground_only`` a shopfront, which leaves the upper floors' windows); ``shutter`` names the
+    material of painted shutters drawn either side of every window.
 
     ``pts`` is a ring whose right-hand side is outside: a counter-clockwise outline, or a
     clockwise courtyard so the windows face the open space.
@@ -222,15 +296,17 @@ def _openings(
         cols = max(1, int((length - 1.0) // spacing))
         for c in range(cols):
             along = (c + 0.5) * length / cols
-            if blocked and any(lo <= along <= hi for lo, hi in blocked.get(i, ())):
+            spans = blocked.get(i, ()) if blocked is not None else ()
+            covered = any(lo <= along <= hi for lo, hi in spans)
+            if covered and not ground_only:
                 continue  # a roller door takes this bay
-            if i == door_edge and c == cols // 2:  # the door takes this bay's ground floor
+            if i == door_edge and c == cols // 2 and not covered:  # the door takes this bay's floor
                 half = 0.5
                 a = pts[i] + direction * (along - half) + outward * POP_OUT_M
                 b = pts[i] + direction * (along + half) + outward * POP_OUT_M
                 mesh.add(_quad(a, b, 0.0, 2.1), "door")
             for f in range(floors):
-                if f == 0 and i == door_edge and c == cols // 2:
+                if f == 0 and (covered or (i == door_edge and c == cols // 2)):
                     continue
                 if rng.uniform() > fill:
                     continue
@@ -251,6 +327,8 @@ def _openings(
                     b + direction * 0.1 + outward * 0.1,
                 )
                 mesh.add(_quad(sill_a, sill_b, z0 - 0.1, z0 - 0.02), "window-frame")
+                if shutter is not None:
+                    _shutter_pair(mesh, a, b, direction, outward, z0, shutter)
                 if balconies is not None and f >= 1 and balconies.uniform() < BALCONY_BAY_SHARE:
                     _balcony(mesh, pts[i] + direction * along, direction, outward, f * storey)
 
@@ -430,7 +508,15 @@ def build(
 
     facade = substream(seed, f"facade:{building_id}")  # its own stream: the openings stay put
     balconies = facade if floors >= 3 and facade.uniform() < BALCONY_SHARE else None
-    _openings(mesh, pts, rng, floors, storey, door=True, balconies=balconies)
+    shop = plan_shop(pts, seed, building_id, storey) if flat else None
+    painted = None
+    if flat and float(substream(seed, f"shutters:{building_id}").uniform()) < SHUTTER_SHARE:
+        painted = SHUTTERS[int(substream(seed, f"shutters:{building_id}:colour").integers(0, 2))]
+    blocked = {shop[0]: [(shop[1] - 0.4, shop[2] + 0.4)]} if shop else None
+    _openings(mesh, pts, rng, floors, storey, door=True, balconies=balconies, blocked=blocked,
+              ground_only=True, shutter=painted)  # fmt: skip
+    if shop:
+        _shopfront(mesh, pts, shop)
 
     if flat and poly.area >= 60.0:  # roof clutter, kept clear of the parapet
         room = poly.buffer(-1.8)
