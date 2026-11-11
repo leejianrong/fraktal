@@ -59,3 +59,15 @@ def test_nadir_building_labels_match_the_footprints(tmp_path: Path) -> None:
     assert (mask & footprints).sum() / (mask | footprints).sum() > 0.9
     assert set(np.unique(semantic)) <= set(labels3d.CLASSES.values())
     assert 0 < len(np.unique(instance[mask])) <= len(scene["buildings"])
+
+
+@pytest.mark.skipif(not os.environ.get("FRAKTAL_BPY_PYTHON"), reason="needs a Python with bpy")
+def test_a_tile_with_no_buildings_renders_on_sloping_ground(tmp_path: Path) -> None:
+    from fraktal import render3d_batch
+
+    world = tmp_path / "estate"
+    generate_world(world, (104.0, 1.5), 3, biomes.resolve("oil_palm_plantation"))
+    specs = render3d_batch.plan(world, 12, 5, 100.0, 1.0, min_buildings=0)
+    out = tmp_path / "batch"
+    record = render3d_batch.run(world, out, specs, samples=4, timeout_s=600.0)
+    assert record["counts"]["failed"] == 0, record["tiles"]
