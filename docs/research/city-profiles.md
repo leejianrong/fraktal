@@ -60,3 +60,38 @@ Drive side; biome base and the parameters it overrides (street width, parcel siz
 footprint mix); building palette and materials; ground and pavement palette; tree species and density;
 vehicle and rider mix; people density and clothing palette; signage and pole density; sky and haze;
 the class-share targets above as a check, not an input.
+
+## Baseline of the three city biomes at eye level (2026-11-12)
+
+One pod run per city (`MODE=fly STREET=1`, 8 m between frames, 75 degree field of view, camera on the
+road centre line, 32 samples), then `fraktal streets --segment` against that city's photos. Frames: 18
+(Manila-Quezon), 30 (Nairobi centre), 17 (Khartoum). Photos and frames, mean:
+
+| Measure | Manila-Quezon (14) | Nairobi centre (13) | Khartoum (3, a hint) |
+|---|---|---|---|
+| brightness | 0.48 / **0.79** (z 3.6) | 0.49 / 0.53 | 0.54 / **0.85** (z 3.0) |
+| road brightness | 0.36 / **0.74** (z 2.6) | 0.37 / 0.47 | 0.37 / **0.79** (z 5.3) |
+| vertical structure | 0.44 / 0.43 | 0.49 / 0.53 | 0.43 / 0.34 |
+| edge energy | 0.041 / 0.019 | 0.023 / 0.027 | 0.043 / 0.015 |
+| seg building | 0.09 / 0.21 | 0.26 / 0.38 | 0.11 / 0.12 |
+| seg road | 0.24 / 0.21 | 0.24 / 0.19 | 0.26 / 0.30 |
+| seg pavement | 0.02 / **0.20** (z 5.8) | 0.07 / 0.23 | 0.07 / 0.14 |
+| seg vegetation | 0.34 / 0.02 | 0.11 / 0.02 | 0.02 / 0.00 |
+| seg vehicle | 0.08 / 0.00 | 0.07 / 0.00 | 0.03 / 0.00 |
+
+What it says:
+
+- The biome settings fixed the shape: the dense-urban strip had vertical structure 0.59 against 0.43; the
+  Manila-Quezon biome now matches it. Heights and widths are in range.
+- The largest gap is exposure. Wide sunlit scenes render about 1.6 times brighter than the photos, the road
+  twice as bright. Nairobi's shaded canyon is near the photos. Card FRK-152.
+- Our road is read as pavement by the segmenter in all three cities (flat grey, no markings or kerbs).
+  Card FRK-153.
+- Vegetation (Manila 0.02 against 0.34, Nairobi 0.02 against 0.11) and vehicles (0.00 against 0.03 to 0.08)
+  are missing. Cards FRK-154 and FRK-147.
+- Edge energy is about half the photos' in Manila and Khartoum: wires, signage, small detail.
+- Limits: the camera sits on the road centre line in all three, a view the photos rarely have (they are
+  taken from kerbs and vehicles); Khartoum has 3 photos; z uses the photo spread, which is wide, so read the
+  means first.
+
+Sheets and tables are under `data/review/street_*` and the scratch output, not committed.
