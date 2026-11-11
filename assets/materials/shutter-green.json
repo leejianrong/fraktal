@@ -1,0 +1,10 @@
+{
+  "name": "shutter-green",
+  "role": "opening",
+  "color": [
+    0.16,
+    0.36,
+    0.22
+  ],
+  "roughness": 0.8
+}

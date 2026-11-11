@@ -225,3 +225,61 @@ def test_flat_roofs_get_ac_boxes_dishes_vents_and_stair_huts_in_their_own_stream
     a = grammar.build("gear0001", big, 12.0, None, 1)
     kinds = Counter(a.materials)
     assert kinds["door"] == 1
+
+
+def _block_ring(w: float = 12.0, d: float = 9.0) -> list[list[float]]:
+    return [[0.0, 0.0], [w, 0.0], [w, d], [0.0, d], [0.0, 0.0]]
+
+
+def _ids(n: int) -> list[str]:
+    return [f"bldg{i:04x}0000" for i in range(n)]
+
+
+def test_shopfronts_are_planned_deterministically_for_about_a_fifth_of_long_walls() -> None:
+    ring = np.asarray(_block_ring()[:-1], dtype="float64")
+    plans = [grammar.plan_shop(ring, 5, i, 3.5) for i in _ids(400)]
+    assert plans == [grammar.plan_shop(ring, 5, i, 3.5) for i in _ids(400)]
+    made = [p for p in plans if p is not None]
+    assert 0.12 < len(made) / 400 < 0.28
+    for edge, lo, hi, fascia, awning in made:
+        assert edge == 2 or edge == 0  # a longest wall: the two 12 m walls tie, argmax takes one
+        assert 0.9 <= lo < hi <= 12.0 - 0.9
+        assert fascia in grammar.FASCIA and isinstance(awning, bool)
+    assert grammar.plan_shop(ring, 5, "x", 3.0) is None  # a low storey cannot carry a sign band
+    short = np.asarray(_block_ring(6.0, 5.0)[:-1], dtype="float64")
+    assert all(grammar.plan_shop(short, 5, i, 3.5) is None for i in _ids(60))
+
+
+def test_a_shop_building_has_a_shutter_a_fascia_and_no_windows_on_its_ground_floor_span() -> None:
+    ring = _block_ring()
+    shop_id = next(
+        i for i in _ids(400)
+        if grammar.plan_shop(np.asarray(ring[:-1], dtype="float64"), 5, i, 3.5) is not None
+    )  # fmt: skip
+    mesh = grammar.build(shop_id, ring, 7.0, None, 5)
+    mats = mesh.materials
+    assert "roller-door" in mats and any(m in grammar.FASCIA for m in mats)
+    assert mats.count("window-glass") > 0  # the upper floor keeps its windows
+    plain_id = next(
+        i for i in _ids(400)
+        if grammar.plan_shop(np.asarray(ring[:-1], dtype="float64"), 5, i, 3.5) is None
+    )  # fmt: skip
+    assert not any(m in grammar.FASCIA or m == "roller-door" for m in
+                   grammar.build(plain_id, ring, 7.0, None, 5).materials)  # fmt: skip
+
+
+def test_painted_shutters_flank_the_windows_of_some_blocks_only() -> None:
+    ring = _block_ring()
+    with_shutters = [
+        i for i in _ids(200)
+        if any(m in grammar.SHUTTERS for m in grammar.build(i, ring, 7.0, None, 5).materials)
+    ]  # fmt: skip
+    assert 0.1 < len(with_shutters) / 200 < 0.35
+    mesh = grammar.build(with_shutters[0], ring, 7.0, None, 5)
+    assert mesh.materials.count(next(m for m in mesh.materials if m in grammar.SHUTTERS)) % 2 == 0
+    assert grammar.build(with_shutters[0], ring, 7.0, None, 5).faces == mesh.faces  # deterministic
+
+
+def test_new_facade_materials_are_in_the_material_list_for_the_asset_check() -> None:
+    for name in (*grammar.FASCIA, *grammar.SHUTTERS):
+        assert name in grammar.MATERIALS
