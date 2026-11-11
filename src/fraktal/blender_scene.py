@@ -386,7 +386,7 @@ def build_buildings(scene: dict, scene_dir: Path, assets: Path) -> int:
     co, sizes, face_verts, face_mat = (
         load("vertices"), load("face_sizes"), load("face_verts"), load("face_material")
     )  # fmt: skip
-    if TERRAIN:  # each building stands on the lowest ground under its footprint
+    if TERRAIN and len(co):  # each building stands on the lowest ground under its footprint
         owner_face = np.load(scene_dir / "mesh_face_building.npy").astype("int64")
         owner = np.zeros(len(co), dtype="int64")
         owner[face_verts] = np.repeat(owner_face, sizes)
