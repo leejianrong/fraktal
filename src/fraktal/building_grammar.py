@@ -65,7 +65,7 @@ AC_SHARE, DISH_SHARE, VENT_SHARE, STAIR_HUT_SHARE = 0.35, 0.2, 0.25, 0.5
 FLAT_ROOFS = ("roof-flat-concrete", "roof-flat-pale", "roof-flat-terracotta", "roof-flat-bitumen")
 OPENINGS = ("window-glass", "door")
 CLUTTER = ("tank",)
-DETAIL = ("wall-plinth", "window-frame", "balcony")
+DETAIL = ("wall-plinth", "window-frame", "balcony", "roller-door")
 MATERIALS = (
     *WALLS,
     *GENERATED_WALLS,
@@ -92,6 +92,8 @@ SILL_M = 0.9
 MIN_EDGE_FOR_WINDOWS_M = 3.0
 PLINTH_M = 0.9  # a darker band along the foot of a wall
 FRAME_M = 0.08  # the window frame shows this much around the glass
+ROLLER_DOOR_M = (4.0, 4.4)  # width, height of a hall's roller door
+ROLLER_SPACING_M = 11.0  # one door per this much of a long wall
 BALCONY_SHARE = 0.35  # of buildings with three storeys or more
 BALCONY_BAY_SHARE = 0.3  # of the upper-floor bays of such a building
 POP_OUT_M = 0.03  # windows and doors sit this far proud of the wall so they are not coplanar
@@ -169,8 +171,36 @@ def _balcony(mesh: Mesh, centre: Any, direction: Any, outward: Any, z: float) ->
         mesh.add(_quad(a, b, top, rail), "balcony")
 
 
+def _roller_doors(mesh: Mesh, pts: Any, height: float) -> dict[int, list[tuple[float, float]]]:
+    """Roller doors along each long wall of a hall; returns the stretch each one covers per edge."""
+    edges = np.roll(pts, -1, axis=0) - pts
+    lengths = np.hypot(edges[:, 0], edges[:, 1])
+    taken: dict[int, list[tuple[float, float]]] = {}
+    width, tall = ROLLER_DOOR_M[0], min(ROLLER_DOOR_M[1], height - 1.0)
+    for i, length in enumerate(lengths):
+        if length < 0.6 * float(lengths.max()) or tall < 2.5:
+            continue
+        count = max(1, int(length // ROLLER_SPACING_M))
+        direction = edges[i] / length
+        outward = np.array([direction[1], -direction[0]])
+        for c in range(count):
+            along = (c + 0.5) * length / count
+            a = pts[i] + direction * (along - width / 2) + outward * POP_OUT_M
+            b = pts[i] + direction * (along + width / 2) + outward * POP_OUT_M
+            mesh.add(_quad(a, b, 0.0, tall), "roller-door")
+            taken.setdefault(i, []).append((along - width / 2 - 0.5, along + width / 2 + 0.5))
+    return taken
+
+
 def _openings(
-    mesh: Mesh, pts: Any, rng: Any, floors: int, storey: float, door: bool, balconies: Any = None
+    mesh: Mesh,
+    pts: Any,
+    rng: Any,
+    floors: int,
+    storey: float,
+    door: bool,
+    balconies: Any = None,
+    blocked: dict[int, list[tuple[float, float]]] | None = None,
 ) -> None:
     """A window grid on every edge long enough and, if ``door``, a door on the longest edge.
 
@@ -192,6 +222,8 @@ def _openings(
         cols = max(1, int((length - 1.0) // spacing))
         for c in range(cols):
             along = (c + 0.5) * length / cols
+            if blocked and any(lo <= along <= hi for lo, hi in blocked.get(i, ())):
+                continue  # a roller door takes this bay
             if i == door_edge and c == cols // 2:  # the door takes this bay's ground floor
                 half = 0.5
                 a = pts[i] + direction * (along - half) + outward * POP_OUT_M
@@ -225,7 +257,7 @@ def _openings(
 
 def _gable(
     poly: Polygon, pts: Any, height: float, wall: str, roof: str, rng: Any, floors: int,
-    storey: float,
+    storey: float, rollers: bool = False,
 ) -> Mesh | None:  # fmt: skip
     """A pitched roof along the footprint's long axis, walls rising to the ridge at the gable ends.
 
@@ -266,7 +298,8 @@ def _gable(
         face = np.asarray(orient(piece, 1.0).exterior.coords[:-1], dtype="float64")
         d = (face - centre) @ perp
         mesh.add([(x, y, lift(float(dd))) for (x, y), dd in zip(face, d, strict=True)], roof)
-    _openings(mesh, pts, rng, floors, storey, door=True)
+    blocked = _roller_doors(mesh, pts, height) if rollers else None
+    _openings(mesh, pts, rng, floors, storey, door=not rollers, blocked=blocked)
     return mesh
 
 
@@ -362,7 +395,7 @@ def build(
             return shed
     elif typology == "industrial_hall":
         tin = TIN_ROOFS[int(look.integers(0, 3))]
-        hall = _gable(poly, pts, height, "wall-concrete", tin, rng, 1, height)
+        hall = _gable(poly, pts, height, "wall-concrete", tin, rng, 1, height, rollers=True)
         if hall is not None:
             hall.typology = "industrial_hall"
             return hall

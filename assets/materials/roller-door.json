@@ -1,0 +1,10 @@
+{
+  "name": "roller-door",
+  "role": "opening",
+  "color": [
+    0.34,
+    0.38,
+    0.4
+  ],
+  "roughness": 0.5
+}
