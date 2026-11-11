@@ -64,7 +64,21 @@ print('import ok')" 2>&1)
   timeout 300 $PIP install -q "$mod" || echo "WARN could not install $mod"
 done
 
-stage trial
-timeout 2700 /workspace/props/bin/python src/scripts/props/props_trial.py review --step1x /workspace/step1x ${TRIAL_ARGS:-} \
-  || echo "ERROR props_trial exited $?"
+if [ "${MODE:-trial}" = text3d ]; then  # FRK-123: a prompt file in, meshes with sidecars out, then a Blender sheet
+  stage text3d
+  timeout 2700 /workspace/props/bin/python src/scripts/props/text_to_3d.py review --step1x /workspace/step1x \
+    --prompts "src/scripts/props/${PROMPTS:-prompts-20.json}" --seed "${SEED:-0}" --usd-per-hour "${USD_PER_HOUR:-0.59}" \
+    || echo "ERROR text_to_3d exited $?"
+  stage blender_sheet
+  for attempt in 1 2; do  # bpy is a headless wheel that still links X11 and GL libraries the image lacks
+    timeout 300 apt-get install -y -qq libxrender1 libxi6 libxxf86vm1 libxfixes3 libgl1 libsm6 libxkbcommon0 libegl1 > /dev/null && break
+  done
+  python -m venv /workspace/bpyenv && /workspace/bpyenv/bin/pip install -q bpy numpy \
+    && timeout 1500 /workspace/bpyenv/bin/python src/scripts/props/bpy_glb_sheet.py review/meshes review/blender --px 320 --samples 16 \
+    || echo "ERROR blender sheet exited $?"
+else
+  stage trial
+  timeout 2700 /workspace/props/bin/python src/scripts/props/props_trial.py review --step1x /workspace/step1x ${TRIAL_ARGS:-} \
+    || echo "ERROR props_trial exited $?"
+fi
 du -sh review | sed 's/^/RP_ARTIFACT_SIZE /'

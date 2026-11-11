@@ -1,0 +1,202 @@
+[
+ {
+  "id": "motorbike-red",
+  "prompt": "a red commuter motorbike",
+  "size_m": 1.9,
+  "expected_lwh": [
+   1.9,
+   0.8,
+   1.1
+  ]
+ },
+ {
+  "id": "motorbike-scooter",
+  "prompt": "a black motorised moped scooter with a seat, one headlight and two small wheels",
+  "size_m": 1.8,
+  "expected_lwh": [
+   1.8,
+   0.7,
+   1.1
+  ]
+ },
+ {
+  "id": "motorbike-cargo",
+  "prompt": "a blue motorbike with a cargo box on the back",
+  "size_m": 2.1,
+  "expected_lwh": [
+   2.1,
+   0.8,
+   1.3
+  ]
+ },
+ {
+  "id": "tuktuk-yellow",
+  "prompt": "a yellow three-wheeled auto rickshaw with a canopy",
+  "size_m": 2.7,
+  "expected_lwh": [
+   2.7,
+   1.4,
+   1.7
+  ]
+ },
+ {
+  "id": "tuktuk-green",
+  "prompt": "a green three-wheeled taxi with a folding roof",
+  "size_m": 2.7,
+  "expected_lwh": [
+   2.7,
+   1.4,
+   1.7
+  ]
+ },
+ {
+  "id": "tuktuk-blue",
+  "prompt": "a blue and white three-wheeler passenger taxi",
+  "size_m": 2.8,
+  "expected_lwh": [
+   2.8,
+   1.4,
+   1.7
+  ]
+ },
+ {
+  "id": "minibus-white",
+  "prompt": "a white passenger minibus van",
+  "size_m": 5.5,
+  "expected_lwh": [
+   5.5,
+   2.0,
+   2.5
+  ]
+ },
+ {
+  "id": "minibus-colour",
+  "prompt": "a colourfully painted minibus",
+  "size_m": 5.6,
+  "expected_lwh": [
+   5.6,
+   2.0,
+   2.5
+  ]
+ },
+ {
+  "id": "pickup-white",
+  "prompt": "a white pickup truck",
+  "size_m": 5.3,
+  "expected_lwh": [
+   5.3,
+   1.9,
+   1.8
+  ]
+ },
+ {
+  "id": "pickup-red",
+  "prompt": "one single dusty red pickup truck with an open back, only one vehicle",
+  "size_m": 5.3,
+  "expected_lwh": [
+   5.3,
+   1.9,
+   1.8
+  ]
+ },
+ {
+  "id": "stall-tarp",
+  "prompt": "a wooden market stall with a blue tarpaulin roof",
+  "size_m": 2.5,
+  "expected_lwh": [
+   2.5,
+   1.5,
+   2.3
+  ]
+ },
+ {
+  "id": "stall-kiosk",
+  "prompt": "a small street kiosk with a corrugated metal roof",
+  "size_m": 2.4,
+  "expected_lwh": [
+   2.4,
+   2.0,
+   2.4
+  ]
+ },
+ {
+  "id": "stall-umbrella",
+  "prompt": "a fruit stall with a large umbrella",
+  "size_m": 2.6,
+  "expected_lwh": [
+   2.6,
+   1.6,
+   2.4
+  ]
+ },
+ {
+  "id": "tank-black",
+  "prompt": "a black plastic rooftop water tank on a metal stand",
+  "size_m": 1.8,
+  "expected_lwh": [
+   1.8,
+   1.0,
+   1.0
+  ]
+ },
+ {
+  "id": "tank-blue",
+  "prompt": "a blue cylindrical water storage tank",
+  "size_m": 1.7,
+  "expected_lwh": [
+   1.7,
+   1.1,
+   1.1
+  ]
+ },
+ {
+  "id": "container-rust",
+  "prompt": "a rusty shipping container",
+  "size_m": 6.1,
+  "expected_lwh": [
+   6.1,
+   2.4,
+   2.6
+  ]
+ },
+ {
+  "id": "container-blue",
+  "prompt": "a blue shipping container",
+  "size_m": 6.1,
+  "expected_lwh": [
+   6.1,
+   2.4,
+   2.6
+  ]
+ },
+ {
+  "id": "sign-billboard",
+  "prompt": "one large rectangular billboard on a steel frame, one object only",
+  "size_m": 4.0,
+  "expected_lwh": [
+   4.0,
+   0.8,
+   3.0
+  ]
+ },
+ {
+  "id": "sign-shop",
+  "prompt": "a small hand-painted shop signboard on a wooden frame",
+  "size_m": 2.0,
+  "expected_lwh": [
+   2.0,
+   0.3,
+   1.5
+  ]
+ },
+ {
+  "id": "sign-street",
+  "prompt": "a green street name sign on a short metal pole, blank sign",
+  "size_m": 3.0,
+  "expected_lwh": [
+   3.0,
+   0.8,
+   0.5
+  ]
+ }
+]
