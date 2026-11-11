@@ -12,6 +12,7 @@ SIZE_M="${SIZE_M:-1000}"
 SAMPLES="${SAMPLES:-16 64}"
 MODE="${MODE:-stage0}"  # stage0: timing loop; render3d: the CLI end to end plus a scene equality check; batch: render3d-batch
 COUNT="${COUNT:-50}"; TILE_M="${TILE_M:-500}"; BATCH_BIOME="${BATCH_BIOME:-dense_urban}"  # MODE=batch
+EXTRA="${EXTRA:-}"  # MODE=batch: more render3d-batch flags, e.g. --no-wall-textures
 PUBLISH_ALL="${PUBLISH_ALL:-0}"  # MODE=batch: 1 sends every tile, 0 only two per biome and batch.json
 # MODE=fly: a drone path over one world, written as video.mp4 and video_labels.mp4 (FRK-78)
 # MODE=batch: BATCH_BIOME may list several biomes; SENSOR=1 also writes sensor.png per tile
@@ -101,7 +102,7 @@ PY
     stage "batch_$biome"
     T1=$(date +%s)
     fraktal render3d-batch review/world --out "review/batch_$biome" --count "$COUNT" --size-m "$TILE_M" --gsd-m ${GSD:-0.5} --prop-density ${PROPS:-60} --sun-elevation-range ${SUN_ELEV:-35 70} \
-      --samples "${SAMPLES%% *}" --threads "$(nproc)" --seed $((10 + n)) $SENSOR_FLAG \
+      --samples "${SAMPLES%% *}" --threads "$(nproc)" --seed $((10 + n)) $SENSOR_FLAG ${EXTRA:-} \
       2> >(tee "review/batch_$biome.err" | grep --line-buffered render3d_batch_tile) > "review/batch_$biome.out" \
       || echo "ERROR render3d-batch $biome exited non-zero"
     echo "RP_BATCH_SECONDS $biome $(( $(date +%s) - T1 ))"
