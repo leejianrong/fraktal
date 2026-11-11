@@ -96,6 +96,16 @@ RETRY = {
 SEEDS = 2
 
 
+def image_seed(k: int, base: int = 0) -> int:
+    """The SDXL seed of prop ``k``; ``base`` 0 gives the 1000 + k the first trial used."""
+    return 1000 + k + base
+
+
+def mesh_seed(k: int, base: int = 0) -> int:
+    """The Step1X-3D seed of prop ``k``; ``base`` 0 gives the first trial's 2000 + k."""
+    return 2000 + k + base
+
+
 def retry_props() -> list[tuple[str, str, float]]:
     """name-s0, name-s1, ... for every retried prop, with the new prompt and the old size."""
     sizes = {n: s for n, _, s in PROPS}
@@ -116,7 +126,7 @@ def log(**fields: object) -> None:
     print("fraktal-log " + json.dumps(fields, sort_keys=True), file=sys.stderr, flush=True)
 
 
-def make_images(out: Path, props: list[tuple[str, str, float]]) -> dict[str, float]:
+def make_images(out: Path, props: list[tuple[str, str, float]], seed: int = 0) -> dict[str, float]:
     import torch
     from diffusers import StableDiffusionXLPipeline
 
@@ -131,7 +141,7 @@ def make_images(out: Path, props: list[tuple[str, str, float]]) -> dict[str, flo
         t = time.perf_counter()
         image = pipe(
             prompt=f"{prompt}, {STYLE}", negative_prompt=NEGATIVE, num_inference_steps=30,
-            guidance_scale=7.0, generator=torch.Generator("cuda").manual_seed(1000 + k),
+            guidance_scale=7.0, generator=torch.Generator("cuda").manual_seed(image_seed(k, seed)),
         ).images[0]  # fmt: skip
         image.save(out / "images" / f"{name}.png")
         per[name] = round(time.perf_counter() - t, 2)
@@ -183,7 +193,9 @@ def cut_out(out: Path, props: list[tuple[str, str, float]]) -> dict[str, float]:
     return stats
 
 
-def make_meshes(out: Path, props: list[tuple[str, str, float]], step1x: Path) -> dict[str, object]:
+def make_meshes(
+    out: Path, props: list[tuple[str, str, float]], step1x: Path, seed: int = 0
+) -> dict[str, object]:
     import torch
     import trimesh
 
@@ -208,7 +220,7 @@ def make_meshes(out: Path, props: list[tuple[str, str, float]], step1x: Path) ->
                 str(out / "cutouts" / f"{name}.png"),  # a path: check_inputs rejects a PIL image
                 guidance_scale=7.5,
                 num_inference_steps=50,
-                generator=torch.Generator(device=pipe.device).manual_seed(2000 + k),
+                generator=torch.Generator(device=pipe.device).manual_seed(mesh_seed(k, seed)),
                 force_remove_background=False,
                 do_remove_floater=False,
                 do_shade_smooth=False, surface_extractor_type="mc", do_reduce_face=False,
