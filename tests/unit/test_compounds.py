@@ -184,7 +184,7 @@ def test_wall_colours_map_to_a_texture_with_a_tint_and_sheet_metal_stays_flat() 
     table = compounds.textures()
     assert set(table) == set(compounds.TEXTURE_BASE) == set(compounds.WALL_MATERIALS)
     for name, (base, tint) in table.items():
-        assert base.startswith("wall-") and len(tint) == 3 and max(tint) <= 1.1, name
+        assert base.startswith("wall-") and len(tint) == 3 and max(tint) <= compounds.TINT_MAX, name
     assert not set(table) & set(compounds.SHEET_MATERIALS)
 
 
@@ -197,3 +197,28 @@ def test_block_walls_get_a_coping_stone_and_sheet_fences_do_not() -> None:
     assert faces["sheet"] == 12 * n_segments
     top = compounds.pack([{**base, "kind": "block"}])["vertices"][:, 2].max()
     assert top == pytest.approx(base["height_m"] + compounds.CAP_M, abs=1e-4)
+
+
+def test_a_textured_wall_averages_the_colour_it_was_given() -> None:
+    from fraktal.propgen import MATERIALS
+
+    for colour, (base, tint) in compounds.textures().items():
+        mean = compounds.TEXTURE_MEAN[base]
+        for want, t, m in zip(MATERIALS[colour][0], tint, mean, strict=True):
+            assert t * m == pytest.approx(min(want, t * m), abs=0.01)  # capped tints fall short
+            if t < compounds.TINT_MAX:
+                assert t * m == pytest.approx(want, abs=0.005)
+
+
+def test_the_recorded_texture_means_match_the_image_files() -> None:
+    import json
+    from pathlib import Path
+
+    import rasterio
+
+    assets = Path(__file__).resolve().parents[2] / "assets"
+    for base, recorded in compounds.TEXTURE_MEAN.items():
+        spec = json.loads((assets / "materials" / f"{base}.json").read_text())
+        with rasterio.open(assets / spec["image"]) as src:
+            measured = src.read().astype("float64").mean(axis=(1, 2)) / 255.0
+        assert measured == pytest.approx(recorded, abs=0.01), base

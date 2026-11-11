@@ -450,6 +450,7 @@ def _render3d(args: argparse.Namespace) -> Result:
             height_profile=args.height_profile,
             prop_density=args.prop_density,
             wall_share=args.wall_share,
+            wall_textures=not args.no_wall_textures,
         )
     except (OSError, ValueError, render3d.RenderError) as err:
         raise CliError(ExitCode.FAILURE, "render3d_failed", str(err)) from err
@@ -484,6 +485,7 @@ def _render3d_batch(args: argparse.Namespace) -> Result:
             assets_dir=args.assets,
             prop_density=args.prop_density,
             wall_share=args.wall_share,
+            wall_textures=not args.no_wall_textures,
         )
     except (OSError, ValueError) as err:
         raise CliError(ExitCode.FAILURE, "render3d_batch_failed", str(err)) from err
@@ -697,6 +699,11 @@ def _render3d_batch_args(parser: argparse.ArgumentParser) -> None:
         help="share of built parcels with a compound wall (default: the biome's)",
     )
     parser.add_argument(
+        "--no-wall-textures",
+        action="store_true",
+        help="draw compound walls in flat colour, to compare with the textured ones",
+    )
+    parser.add_argument(
         "--sun-elevation-range",
         type=float,
         nargs=2,
@@ -777,6 +784,11 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
         type=float,
         default=None,
         help="share of built parcels with a compound wall (default: the biome's)",
+    )
+    parser.add_argument(
+        "--no-wall-textures",
+        action="store_true",
+        help="draw compound walls in flat colour, to compare with the textured ones",
     )
     parser.add_argument(
         "--height-profile",

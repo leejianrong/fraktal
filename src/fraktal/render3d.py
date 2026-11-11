@@ -212,6 +212,7 @@ def render(
     height_profile: str = "auto",
     prop_density: float = 60.0,
     wall_share: float | None = None,
+    wall_textures: bool = True,
     waypoints: list[tuple[float, float]] | None = None,
     make_video: bool = False,
     with_depth: bool = False,
@@ -231,7 +232,7 @@ def render(
     scene = export_scene(
         world_dir, out_dir / "scene", center_lonlat, size_m, gsd_m, sun, seed,
         height_profile=height_profile, vehicle_density=0.0 if traffic else 1.0,
-        prop_density=prop_density, wall_share=wall_share,
+        prop_density=prop_density, wall_share=wall_share, wall_textures=wall_textures,
     )  # fmt: skip
     poses: list[cameras.Pose] = []
     moving: agents.Tracks | None = None
@@ -417,6 +418,7 @@ def render(
         "height_profile": height_profile,
         "prop_density": prop_density,
         "wall_share": wall_share,
+        "wall_textures": wall_textures,
         "assets": str(assets),
         "buildings": blender.get("buildings"),
         "trees": blender.get("trees"),
