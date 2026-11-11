@@ -191,3 +191,24 @@ def test_lens_effects_are_drawn_per_tile_and_each_can_be_left_out(world: Path) -
                                        "ca_px": 0.0, "jpeg_quality": 0}  # fmt: skip
     with pytest.raises(render3d_batch.BatchError):
         render3d_batch.plan(world, 1, 4, 150.0, 1.0, sensor=True, lens=("bokeh",))
+
+
+def test_tiles_of_a_field_world_land_on_planted_ground(tmp_path: Path) -> None:
+    from shapely.geometry import box
+
+    from fraktal.procedural import read_fields
+
+    path = tmp_path / "estate"
+    generate_world(path, CENTER, 3, biomes.resolve("oil_palm_plantation"))
+    fields = read_fields(path)
+    planted = fields[fields["field_type"] == "oil_palm"].union_all()
+    specs = render3d_batch.plan(path, 8, 5, 300.0, 0.3)
+    assert specs == render3d_batch.plan(path, 8, 5, 300.0, 0.3)
+    manifest = json.loads((path / "world.json").read_text())
+    from pyproj import Transformer
+
+    to_world = Transformer.from_crs(4326, manifest["crs"], always_xy=True)
+    for s in specs:
+        x, y = to_world.transform(*s["center"])
+        window = box(x - 150, y - 150, x + 150, y + 150)
+        assert window.intersection(planted).area / window.area >= render3d_batch.FIELD_SHARE - 0.01
