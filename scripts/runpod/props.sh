@@ -7,7 +7,7 @@ echo "RP_BOOT $(date +%s) host=$(hostname) gpu=$(nvidia-smi --query-gpu=name,mem
 set -uo pipefail
 T0=$(date +%s)
 : "${COMMIT:?set COMMIT to the sha to run}"
-STEP1X_SHA="${STEP1X_SHA:-cb5ac944709c6c913109070c7b90c3447f57f3d4}"
+export STEP1X_SHA="${STEP1X_SHA:-cb5ac944709c6c913109070c7b90c3447f57f3d4}"  # exported: text_to_3d.py records it
 RUN=/workspace/run
 mkdir -p "$RUN" && cd "$RUN"
 exec > >(tee -a "$RUN/job.log") 2>&1
@@ -70,6 +70,7 @@ if [ "${MODE:-trial}" = text3d ]; then  # FRK-123: a prompt file in, meshes with
     --prompts "src/scripts/props/${PROMPTS:-prompts-20.json}" --seed "${SEED:-0}" --usd-per-hour "${USD_PER_HOUR:-0.59}" \
     || echo "ERROR text_to_3d exited $?"
   stage blender_sheet
+  timeout 300 apt-get update -qq > /dev/null
   for attempt in 1 2; do  # bpy is a headless wheel that still links X11 and GL libraries the image lacks
     timeout 300 apt-get install -y -qq libxrender1 libxi6 libxxf86vm1 libxfixes3 libgl1 libsm6 libxkbcommon0 libegl1 > /dev/null && break
   done

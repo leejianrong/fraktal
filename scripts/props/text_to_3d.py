@@ -16,6 +16,7 @@ meshes. Only models ADR-0013 allows are used; nothing here reads or prints a sec
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.metadata
 import json
 import os
@@ -168,6 +169,9 @@ def main() -> int:
     )  # fmt: skip
     versions = model_versions()
     for record in records:
+        glb = args.out / "meshes" / f"{record['id']}.glb"
+        digest = hashlib.sha256(glb.read_bytes()).hexdigest() if glb.exists() else None
+        record["mesh_sha256"] = digest
         (args.out / "meshes" / f"{record['id']}.json").write_text(
             json.dumps({**record, **versions}, indent=1) + "\n"
         )
