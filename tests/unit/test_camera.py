@@ -1,6 +1,7 @@
 import math
 from typing import Any
 
+import numpy as np
 import pytest
 
 from fraktal import camera
@@ -122,3 +123,63 @@ def test_a_riding_camera_follows_the_ground_and_checks_its_pitch() -> None:
     with pytest.raises(ValueError, match="pitch"):
         camera.follow_poses(np.zeros(1), np.zeros(1), np.zeros(1), np.zeros(1), mount_height_m=1.0,
                             forward_m=0.0, pitch_deg=75.0, fov_deg=90.0)  # fmt: skip
+
+
+def HILL(x: Any, y: Any) -> Any:  # noqa: N802  a 1:2 slope rising east
+    return 0.5 * np.asarray(x, dtype="float64")
+
+
+def _flat(x: Any, y: Any) -> Any:
+    return np.zeros_like(np.asarray(x, dtype="float64"))
+
+
+def test_a_path_with_ground_flies_above_the_terrain_it_crosses() -> None:
+    route = [(100.0, 250.0), (400.0, 250.0)]
+    flat = camera.trajectory("path", 500.0, 0, waypoints=route, altitude_m=40.0, speed_mps=20.0)
+    assert {p.z for p in flat} == {40.0}  # the old behaviour: absolute altitude
+    over = camera.trajectory(
+        "path", 500.0, 0, waypoints=route, altitude_m=40.0, speed_mps=20.0, ground=HILL
+    )
+    assert all(p.z >= HILL(p.x, p.y) + 40.0 for p in over)
+    assert any(p.z < HILL(p.x, p.y) for p in flat)  # the failure this fixes: under the hillside
+
+
+def test_an_eye_level_walk_keeps_eye_height_over_a_slope() -> None:
+    poses, stats = camera.street_poses(
+        [(10.0, 20.0), (60.0, 20.0)],
+        speed_mps=1.4,
+        fps=4.0,
+        ground=HILL,
+        hazards=camera.obstacles([], []),
+    )
+    assert len(poses) > 30 and stats == {"blocked_share": 0.0, "pushed_m": 0.0}
+    assert all(p.z >= HILL(p.x, p.y) + 1.6 for p in poses)  # the highest ground nearby, so more
+    assert all(p.heading_deg == pytest.approx(90.0, abs=1.0) for p in poses)  # along the route
+    assert all(p.off_nadir_deg == pytest.approx(90.0) for p in poses)  # level
+
+
+def test_an_eye_level_walk_stays_out_of_buildings_and_walls() -> None:
+    house = {"ring": [[28.0, 18.0], [34.0, 18.0], [34.0, 24.0], [28.0, 24.0], [28.0, 18.0]]}
+    wall = [20.0, 14.0, 44.0, 14.0]
+    hazards = camera.obstacles([house], [wall])
+    route = [(10.0, 20.0), (60.0, 20.0)]  # straight through the house
+    walked, stats = camera.street_poses(
+        route, speed_mps=1.4, fps=4.0, ground=_flat, hazards=hazards
+    )
+    assert stats["pushed_m"] > 1.0
+    from shapely.geometry import Point
+
+    assert all(hazards.distance(Point(p.x, p.y)) >= 0.99 for p in walked)
+    raw, _ = camera.street_poses(
+        route, speed_mps=1.4, fps=4.0, ground=_flat, hazards=camera.obstacles([], [])
+    )
+    assert any(hazards.contains(Point(p.x, p.y)) for p in raw)  # the failure this fixes
+
+
+def test_a_camera_looking_into_a_wall_is_counted_as_blocked() -> None:
+    hazards = camera.obstacles([], [[10.0, -5.0, 10.0, 5.0]])
+    share = camera.blocked_share(
+        [8.0, 0.0], [0.0, 0.0], [90.0, 90.0], hazards
+    )  # east; second is past it
+    assert share == 0.5
+    assert camera.blocked_share([8.0], [0.0], [270.0], hazards) == 0.0  # facing away

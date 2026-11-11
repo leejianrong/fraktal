@@ -97,6 +97,9 @@ def _write_depth(out_dir: Path, sequence: bool) -> None:
         (out_dir / "depth_raw").rmdir()
 
 
+CANDIDATES = 40  # how many of the most travelled agents are tried for a clear view
+
+
 def _follow(
     follow: dict[str, Any],
     scene: dict[str, Any],
@@ -112,37 +115,66 @@ def _follow(
     if kind not in ("car", "person") or tr is None or not tr.ids:
         raise ValueError(f"nothing to follow: no {kind} in this tile (raise the density)")
     wanted = follow.get("id")
+    if wanted and wanted not in tr.ids:
+        raise ValueError(f"no {kind} called {wanted!r}; there are {len(tr.ids)} (e.g. {tr.ids[0]})")
+    car = kind == "car"
+    pitch = follow.get("pitch_deg")
+    ground = _ground(scene, out_dir)
+    hazards = cameras.obstacles(
+        scene["buildings"], [seg for c in scene.get("walls", []) for seg in c["segments"]]
+    )
+
+    def mount(i: int) -> tuple[list[cameras.Pose], float]:
+        """The poses of agent ``i``, pushed out of walls and buildings, and the share of frames
+        that still look at one."""
+        fwd = 0.9 if car else 0.2
+        c = np.cos(tr.heading[i])
+        s_ = np.sin(tr.heading[i])
+        x, y = cameras.clear_xy(tr.x[i] + fwd * c, tr.y[i] + fwd * s_, hazards, 0.6)
+        poses = cameras.follow_poses(
+            x - fwd * c, y - fwd * s_, tr.heading[i], times,
+            mount_height_m=float(follow.get("mount_height_m") or (1.25 if car else 1.65)),
+            forward_m=fwd,
+            pitch_deg=float(pitch if pitch is not None else (3.0 if car else 0.0)),
+            fov_deg=float(options.get("fov_deg") or 90.0),
+            ground=lambda gx, gy: cameras.ground_under(ground, gx, gy),
+        )  # fmt: skip
+        blocked = cameras.blocked_share(
+            [p.x for p in poses], [p.y for p in poses], [p.heading_deg for p in poses], hazards
+        )
+        return poses, blocked
+
     if wanted:
-        if wanted not in tr.ids:
-            raise ValueError(
-                f"no {kind} called {wanted!r}; there are {len(tr.ids)} (e.g. {tr.ids[0]})"
-            )
         k = tr.ids.index(wanted)
-    else:  # the one that stays in the tile and covers the most ground
+        poses, blocked = mount(k)
+    else:  # of the ones that stay in the tile and cover ground, the first with a clear view
         size = scene["size_m"]
         inside = (tr.x > 20) & (tr.x < size - 20) & (tr.y > 20) & (tr.y < size - 20)
         steps = np.hypot(np.diff(tr.x, axis=1), np.diff(tr.y, axis=1)) * inside[:, 1:]
-        k = int(np.argmax(steps.sum(axis=1)))
-    car = kind == "car"
-    pitch = follow.get("pitch_deg")
-    nodes = None
-    if "terrain" in scene:
-        nodes = np.load(out_dir / "scene" / scene["terrain"]["file"])
-    cell = scene.get("terrain", {}).get("cell_m", 1.0)
-    poses = cameras.follow_poses(
-        tr.x[k], tr.y[k], tr.heading[k], times,
-        mount_height_m=float(follow.get("mount_height_m") or (1.25 if car else 1.65)),
-        forward_m=0.9 if car else 0.2,
-        pitch_deg=float(pitch if pitch is not None else (3.0 if car else 0.0)),
-        fov_deg=float(options.get("fov_deg") or 90.0),
-        ground=None if nodes is None else (lambda x, y: terrain_height(nodes, cell, x, y)),
-    )  # fmt: skip
+        best: tuple[float, int, list[cameras.Pose]] | None = None
+        for k in np.argsort(-steps.sum(axis=1))[:CANDIDATES]:
+            poses, blocked = mount(int(k))
+            if best is None or blocked < best[0]:
+                best = (blocked, int(k), poses)
+            if blocked <= 0.02:
+                break
+        assert best is not None
+        blocked, k, poses = best
     agent = "traffic" if car else "people"
     (out_dir / "scene" / "camera.json").write_text(
         json.dumps({"frames": [p.as_dict() for p in poses], "follow": {"agent": agent, "index": k}})
         + "\n"
     )
-    return poses, {"kind": kind, "id": tr.ids[k], "index": k}
+    return poses, {"kind": kind, "id": tr.ids[k], "index": k, "blocked_share": round(blocked, 4)}
+
+
+def _ground(scene: dict[str, Any], out_dir: Path) -> Any:
+    """``ground(x, y)``: the terrain height in tile metres, zero on a flat tile."""
+    if "terrain" not in scene:
+        return lambda x, y: np.zeros_like(np.asarray(x, dtype="float64"))
+    nodes = np.load(out_dir / "scene" / scene["terrain"]["file"])
+    cell = scene["terrain"]["cell_m"]
+    return lambda x, y: terrain_height(nodes, cell, x, y)
 
 
 def run_blender(
@@ -205,7 +237,7 @@ def render(
     timeout_s: float = 1800.0,
     script: Path = BLENDER_SCRIPT,
     trajectory: str | None = None,
-    camera_options: dict[str, float] | None = None,
+    camera_options: dict[str, Any] | None = None,
     frame_px: int = 512,
     assets_dir: Path | None = None,
     labels: bool = True,
@@ -240,6 +272,7 @@ def render(
     flyers: agents.Tracks | None = None
     config = agents.TrafficConfig()
     follow_meta: dict[str, Any] | None = None
+    street_meta: dict[str, float] | None = None
 
     def simulate(times: Any) -> None:
         """Moving cars (and people) at ``times``, replacing the parked cars."""
@@ -279,10 +312,27 @@ def render(
         simulate(times)
         poses, follow_meta = _follow(follow, scene, out_dir, times, moving, walkers, opts)
         trajectory = "follow"
+    elif trajectory == cameras.STREET:  # walk a route at eye level, clear of walls (FRK-115)
+        opts = dict(camera_options or {})
+        poses, street_meta = cameras.street_poses(
+            waypoints or [], speed_mps=float(opts.get("speed_mps", 1.4)),
+            fps=float(opts.get("fps", 8.0)), ground=_ground(scene, out_dir),
+            hazards=cameras.obstacles(
+                scene["buildings"], [g for c in scene.get("walls", []) for g in c["segments"]]
+            ),
+            eye_m=float(opts.get("eye_m", cameras.EYE_M)),
+            lateral_m=opts.get("lateral_m"), fov_deg=float(opts.get("fov_deg", 90.0)),
+            pitch_deg=float(opts.get("pitch_deg", 0.0)),
+        )  # fmt: skip
+        (out_dir / "scene" / "camera.json").write_text(
+            json.dumps({"frames": [p.as_dict() for p in poses]}) + "\n"
+        )
     elif trajectory:  # a perspective sequence instead of the nadir tile (FRK-51)
         poses = cameras.trajectory(
-            trajectory, scene["size_m"], seed, waypoints=waypoints, **(camera_options or {})
-        )
+            trajectory, scene["size_m"], seed, waypoints=waypoints,
+            ground=_ground(scene, out_dir) if "terrain" in scene else None,
+            **(camera_options or {}),
+        )  # fmt: skip
         (out_dir / "scene" / "camera.json").write_text(
             json.dumps({"frames": [p.as_dict() for p in poses]}) + "\n"
         )
@@ -437,6 +487,8 @@ def render(
         meta["trajectory"] = trajectory
         if follow_meta:
             meta["follow"] = follow_meta
+        if street_meta:
+            meta["street"] = street_meta
         meta["px"] = frame_px
         meta["frames"] = [p.as_dict() for p in poses]
         meta["files"] = {

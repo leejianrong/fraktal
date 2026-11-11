@@ -408,7 +408,13 @@ def _render3d(args: argparse.Namespace) -> Result:
             threads=args.threads,
             bpy_python=args.bpy_python or os.environ.get("FRAKTAL_BPY_PYTHON"),
             timeout_s=args.timeout_s,
-            trajectory="path" if args.path else args.trajectory,
+            trajectory=(
+                args.trajectory
+                if args.trajectory == cameras.STREET
+                else "path"
+                if args.path
+                else args.trajectory
+            ),
             waypoints=_waypoints(args.path) if args.path else None,
             make_video=args.video,
             with_depth=args.depth,
@@ -437,7 +443,12 @@ def _render3d(args: argparse.Namespace) -> Result:
             camera_options={
                 "altitude_m": args.altitude_m,
                 "off_nadir_deg": args.off_nadir,
-                "fov_deg": args.fov if args.fov is not None else (90.0 if args.follow else 40.0),
+                "fov_deg": args.fov
+                if args.fov is not None
+                else (90.0 if args.follow or args.trajectory == cameras.STREET else 40.0),
+                "eye_m": args.eye_m,
+                "lateral_m": args.lateral_m,
+                "pitch_deg": args.pitch if args.pitch is not None else 0.0,
                 "duration_s": args.duration_s,
                 "fps": args.fps,
                 "speed_mps": args.speed,
@@ -734,7 +745,17 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--threads", type=int, default=0, help="0 means all cores")
     parser.add_argument("--bpy-python", help="a Python with bpy (default $FRAKTAL_BPY_PYTHON)")
     parser.add_argument("--timeout-s", type=float, default=1800.0)
-    parser.add_argument("--trajectory", choices=cameras.KINDS, help="render a perspective sequence")
+    parser.add_argument(
+        "--trajectory",
+        choices=(*cameras.KINDS, cameras.STREET),
+        help="render a perspective sequence; street walks --path at eye level (--speed 1.4)",
+    )
+    parser.add_argument("--eye-m", type=float, default=1.6, help="street: camera height, metres")
+    parser.add_argument(
+        "--lateral-m",
+        type=float,
+        help="street: shift the route left (+) or right (default: best of 7)",
+    )
     parser.add_argument("--path", type=Path, help="fly through the waypoints in this JSON file")
     parser.add_argument("--video", action="store_true", help="also write video.mp4 (needs ffmpeg)")
     parser.add_argument("--depth", action="store_true", help="also write 16-bit depth images")
