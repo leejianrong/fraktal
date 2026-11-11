@@ -24,6 +24,12 @@ dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "mypy>=1.11"]
 train = [
     "torch>=2.14.1",
 ]
+seg = [  # eval-only class shares of street images (FRK-145)
+    "torch>=2.14.1",
+    "transformers>=4.50",
+    "scipy>=1.11",
+    "pillow>=10",  # the image processor of transformers needs it
+]
 report = [
     "matplotlib>=3.9",
     "pillow>=10",
@@ -55,5 +61,5 @@ files = ["src", "tests"]
 exclude = ["src/fraktal/blender_scene\\.py"]  # runs inside Blender; bpy has no stubs
 
 [[tool.mypy.overrides]]
-module = ["geopandas.*", "pyarrow.*", "shapely.*", "pandas.*", "rasterio.*", "torch.*", "matplotlib.*", "reportlab.*", "PIL.*", "trimesh.*"]
+module = ["geopandas.*", "pyarrow.*", "shapely.*", "pandas.*", "rasterio.*", "torch.*", "matplotlib.*", "reportlab.*", "PIL.*", "trimesh.*", "transformers.*", "scipy.*"]
 ignore_missing_imports = true

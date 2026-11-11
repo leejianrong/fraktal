@@ -36,3 +36,18 @@ Cost: about 14 s per image on 16 CPU cores, 38 s to load, 7 GB RAM tight. A city
 - It sees roads and pavements by appearance, so a dusty dirt road may be labelled dirt or ground and a
   sealed road labelled road; the road group includes dirt, gravel and sand for that reason.
 - Wires, signs and stalls are not classes. Those gaps are found by eye on the sheet.
+
+## Dependencies added (optional group `seg`, `make install-seg`)
+
+`uv lock` added `transformers`, `huggingface-hub`, `hf-xet`, `safetensors`, `tokenizers`, `scipy`,
+`pydantic`, `httpx`, `typer`, `rich`, `pyyaml`, `regex`, `tqdm` and small helpers. Licences read from the
+installed metadata: Apache-2.0, MIT, BSD, ISC; `tqdm` and `certifi` are MPL-2.0 (file-level copyleft,
+unmodified, fine for an optional evaluation group). The default `make install` does not install the group.
+
+## First result (2026-11-12): dense-urban strip against Manila-Quezon
+
+12 photos, 20 frames, same model on both. Class shares, photos against synthetic: vegetation 34% / 0.5%,
+building 5% / 49%, road 27% / 5%, pavement 2% / 34%, vehicle 9% / 0%, fence 5% / 0%.
+Reading it: the dense-urban biome is the wrong kind of street for Manila-Quezon (a tall canyon, no trees),
+and our flat grey road reads as pavement to the model, since it has no markings or kerbs. The z column
+under-reports the vegetation gap (z -1.8) because the photos vary a lot; read the shares first.

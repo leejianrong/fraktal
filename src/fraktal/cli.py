@@ -1072,7 +1072,17 @@ def _streets(args: argparse.Namespace) -> Result:
         root = args.reference or args.data_dir / "eval" / "ground-reference"
         real = streetview.load_reference(root, args.city)
         frames = streetview.load_frames(args.frames, args.limit)
-        report = streetview.compare(real, frames)
+        extra = None
+        if args.segment:
+            from fraktal import segment
+
+            cache = args.data_dir / "eval" / "segmentation" / "cache.json"
+
+            def extra(photos: Sequence[streetview.Photo]) -> list[dict[str, float]]:
+                found = segment.cached_shares([p.image for p in photos], segment.load_model, cache)
+                return [segment.as_stats(f) for f in found]
+
+        report = streetview.compare(real, frames, extra)
         report["city"] = args.city
         if args.sheet:
             streetview.sheet(real, frames, args.sheet)
@@ -1090,6 +1100,11 @@ def _streets_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--reference", type=Path, help="default DATA_DIR/eval/ground-reference")
     parser.add_argument("--limit", type=int, default=40, help="frames sampled from the directory")
+    parser.add_argument(
+        "--segment",
+        action="store_true",
+        help="add class shares from a segmenter (make install-seg)",
+    )
     parser.add_argument("--sheet", type=Path, help="also write a side-by-side PNG here")
 
 

@@ -10,6 +10,9 @@ install: ## Create the venv and install locked dependencies
 install-train: ## Also install PyTorch for the benchmark (large download)
 	uv sync --frozen --group train
 
+install-seg: ## Also install torch and transformers for `fraktal streets --segment`
+	uv sync --frozen --group seg
+
 install-report: ## Also install plotting and PDF libraries for `fraktal report`
 	uv sync --frozen --group report
 
