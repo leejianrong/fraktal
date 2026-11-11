@@ -161,6 +161,17 @@
       "verified": true
     },
     {
+      "id": "mat-roller-door",
+      "file": "materials/roller-door.json",
+      "kind": "material",
+      "source": "fraktal",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "26bb3a03ed1291f3a4eaa7ff4e3fd5a6488425795a61530e91944712fb13bdf4",
+      "verified": true
+    },
+    {
       "id": "mat-tank",
       "file": "materials/tank.json",
       "kind": "material",

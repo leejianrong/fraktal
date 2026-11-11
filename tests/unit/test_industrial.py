@@ -82,3 +82,12 @@ def test_yard_props_fill_the_apron_clear_of_the_halls_with_yard_objects() -> Non
     for p in props:
         assert yard.contains(Point(p["x"], p["y"]))
     assert props_scene.yard_props([{**site, "yard": Polygon()}], 5) == []
+
+
+def test_a_hall_has_roller_doors_on_its_long_walls_and_a_house_has_none() -> None:
+    hall = [[0, 0], [44, 0], [44, 16], [0, 16], [0, 0]]
+    house = [[0, 0], [10, 0], [10, 8], [0, 8], [0, 0]]
+    mesh = grammar.build("hall0001", hall, 8.0, None, 1)
+    assert mesh.materials.count("roller-door") >= 6  # at least three per long wall
+    assert "roller-door" in grammar.MATERIALS
+    assert "roller-door" not in grammar.build("home0001", house, 8.0, None, 1).materials
