@@ -263,13 +263,13 @@ def test_a_camera_can_ride_on_a_car_and_the_car_is_hidden_from_itself(
     scene_dir = tmp_path / "car" / "scene"
     scene_json = json.loads((scene_dir / "scene.json").read_text())
     nodes = np.load(scene_dir / "ground_height.npy") if "terrain" in scene_json else None
-    for f in cam["frames"]:  # 1.25 m above the ground under the camera
+    for f in cam["frames"]:  # 1.25 m above the highest ground within 1.5 m of the camera
         ground = (
             0.0
             if nodes is None
             else terrain_height(nodes, scene_json["terrain"]["cell_m"], f["x"], f["y"])
         )
-        assert f["z"] == pytest.approx(ground + 1.25, abs=0.01)
+        assert ground + 1.25 - 0.01 <= f["z"] <= ground + 1.25 + 1.5  # never under, slope-bounded
     agents_file = json.loads((tmp_path / "car" / "scene" / "agents.json").read_text())
     k = meta["follow"]["index"]  # the camera is just ahead of its car, on its track
     first = cam["frames"][0]

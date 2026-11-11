@@ -130,7 +130,7 @@ from fraktal import agents, biomes, procedural
 from fraktal.procedural import generate_world
 generate_world(Path("review/world"), (32.55, 15.64), 3, biomes.resolve(os.environ["BATCH_BIOME"].split()[0], {"size_m": 3000.0}))
 center, route = (32.55, 15.64), [[200, 200], [400, 260], [560, 420], [480, 560]]
-if os.environ.get("TRAFFIC") == "1":  # fly along a real road in the road-dense part of the world
+if os.environ.get("TRAFFIC") == "1" or os.environ.get("STREET") == "1":  # fly along a real road in the road-dense part of the world
     from shapely.geometry import box
     from shapely.ops import substring
     roads = procedural.read_roads(Path("review/world")).to_crs(4326)
@@ -151,10 +151,12 @@ PY
   EXTRA=""
   [ "${TRAFFIC:-0}" = 1 ] && EXTRA="--traffic --cars-per-km 25 --people-per-km ${PEOPLE_PER_KM:-0} --drones ${DRONES:-0} --drone-scale ${DRONE_SCALE:-1} --altitude-m ${ALT:-90} --off-nadir 35 --fps 8 --speed ${SPEED:-20}"
   [ "${TRAFFIC:-0}" = 1 ] || EXTRA="--altitude-m 150 --off-nadir 40 --fps 12 --depth"
+  # STREET=1: walk the route at eye level (FRK-115); SPEED is then the metres between frames at 1 fps
+  [ "${STREET:-0}" = 1 ] && EXTRA="--trajectory street --eye-m ${EYE:-1.6} --speed ${SPEED:-8} --fps 1 --traffic --cars-per-km 25 --people-per-km ${PEOPLE_PER_KM:-30}"
   [ "${FLOW:-0}" = 1 ] && EXTRA="$EXTRA --flow"
   [ -n "${FOLLOW:-}" ] && EXTRA="$EXTRA --follow $FOLLOW --fps 10 --duration-s ${DURATION:-24}"  # ride on a car or person
   fraktal render3d review/world --out review/fly --center $(cat review/center.txt) --size-m 800 --gsd-m ${GSD:-0.5} \
-    --path review/path.json --fov 60 --frame-px 512 $EXTRA \
+    --path review/path.json --fov ${FOV:-60} --frame-px 512 $EXTRA \
     --samples "${SAMPLES%% *}" --seed 7 --threads "$(nproc)" --video > review/fly.out 2> review/fly.err \
     || { echo "ERROR fly failed"; tail -n 20 review/fly.err; }
   echo "RP_FLY $(python -c "import json;d=json.load(open('review/fly/render.json'));print(len(d['frames']), d['files'], d['seconds'], d.get('traffic'))" 2>&1)"
@@ -190,7 +192,7 @@ print("RP_TRACK_CHECK", "tracks", len(table["tracks"]), "seen", len(seen), "mean
       "longest_track", long_lived and (long_lived["id"], long_lived["instance"], long_lived["detections"][0]["frame"], long_lived["detections"][-1]["frame"], len(long_lived["detections"])))
 PY
   fi
-  if [ "${TRAFFIC:-0}" != 1 ]; then
+  if [ "${TRAFFIC:-0}" != 1 ] && [ "${STREET:-0}" != 1 ]; then
   python - <<'PY'
 import json
 import numpy as np
