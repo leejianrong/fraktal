@@ -50,7 +50,18 @@ TEXTURE_BASE = {
     "wall-grey": "wall-concrete", "wall-brick": "wall-plaster-cracked",
     "wall-terracotta": "wall-paint-peeling",
 }  # fmt: skip
-TEXTURE_MEAN = 0.75  # about the mean grey of those textures: tint = colour / mean
+# Mean RGB of each base texture file, measured on the JPEGs: tint = colour / mean, so a wall
+# averages the colour it was given (a guessed 0.75 left plaster 10% too bright and the generated
+# plaster and paint 20 to 25% too dark). ``test_compounds`` re-measures them to catch drift.
+TEXTURE_MEAN = {
+    "wall-plaster-pale": (0.843, 0.828, 0.815),
+    "wall-plaster-sand": (0.843, 0.828, 0.815),
+    "wall-plaster-ochre": (0.843, 0.828, 0.815),
+    "wall-concrete": (0.723, 0.723, 0.723),
+    "wall-plaster-cracked": (0.652, 0.603, 0.547),
+    "wall-paint-peeling": (0.559, 0.575, 0.562),
+}
+TINT_MAX = 1.6
 CAP_M, CAP_OVERHANG_M = 0.08, 0.05  # the coping stone on a block wall
 INSET_M = 0.4  # the wall stands inside the parcel edge
 THICKNESS_M = 0.22
@@ -68,7 +79,8 @@ def textures() -> dict[str, list[Any]]:
     """For Blender: wall colour name -> [material file, tint]. Sheet metal stays a flat colour."""
     out: dict[str, list[Any]] = {}
     for name, base in TEXTURE_BASE.items():
-        tint = [round(min(c / TEXTURE_MEAN, 1.1), 3) for c in MATERIALS[name][0]]
+        pairs = zip(MATERIALS[name][0], TEXTURE_MEAN[base], strict=True)
+        tint = [round(min(c / m, TINT_MAX), 3) for c, m in pairs]
         out[name] = [base, tint]
     return out
 

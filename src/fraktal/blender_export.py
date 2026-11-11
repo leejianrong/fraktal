@@ -268,6 +268,7 @@ def export_scene(
     vehicle_density: float = 1.0,
     prop_density: float = 60.0,
     wall_share: float | None = None,
+    wall_textures: bool = True,
     height_profile: str = "auto",
 ) -> dict[str, Any]:
     """Write the tile around ``center_lonlat`` and return the scene description.
@@ -462,7 +463,7 @@ def export_scene(
         "prop_materials": packed["materials"],
         "walls": walls,
         "wall_materials": packed_walls["materials"],
-        "wall_textures": compounds.textures(),
+        "wall_textures": compounds.textures() if wall_textures else None,
     }
     if terrain:
         scene["terrain"] = terrain

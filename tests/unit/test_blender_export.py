@@ -237,3 +237,12 @@ def test_compound_walls_are_exported_per_biome_share(tmp_path: Path) -> None:
     assert export_scene(world, tmp_path / "w3", CENTER, 400.0, 1.0, wall_share=0.0)["walls"] == []
     default = export_scene(world, tmp_path / "w4", CENTER, 400.0, 1.0)["walls"]
     assert 0 < len(default) < len(walls)  # the khartoum share is under 1
+
+
+def test_wall_textures_can_be_switched_off(tmp_path: Path) -> None:
+    world = tmp_path / "w"
+    generate_world(world, CENTER, 3, biomes.resolve("dense_urban"))
+    on = export_scene(world, tmp_path / "on", CENTER, 200.0, 1.0)
+    off = export_scene(world, tmp_path / "off", CENTER, 200.0, 1.0, wall_textures=False)
+    assert on["wall_textures"] and off["wall_textures"] is None
+    assert on["walls"] == off["walls"]  # only the look changes, not the geometry
