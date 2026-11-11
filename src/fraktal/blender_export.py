@@ -199,6 +199,24 @@ def _paddy_look(
     return paddy_tone(ground, cells, state, jitter.astype("float32"), angle, gsd_m)
 
 
+def _street_finder(roads: Any) -> Any:
+    """A function from a building centroid to the nearest point on any road, in tile coordinates."""
+    from shapely.ops import nearest_points
+    from shapely.strtree import STRtree
+
+    lines = [g for g in roads.geometry if not g.is_empty] if len(roads) else []
+    tree = STRtree(lines) if lines else None
+
+    def find(centroid: Any, west: float, south: float) -> list[float] | None:
+        if tree is None:
+            return None
+        road = lines[int(tree.nearest(centroid))]
+        point = nearest_points(road, centroid)[0]
+        return [round(point.x - west, 3), round(point.y - south, 3)]
+
+    return find
+
+
 def _class_colours(classes: Any) -> Any:
     """An (H, W, 3) float image of the display colour of each land-cover class."""
     out = np.zeros((*classes.shape, 3), dtype="float32")
@@ -378,6 +396,7 @@ def export_scene(
     )
     yards = _yard_sites(read_parcels(world_dir).to_crs(epsg), local, west, south)
     props += props_scene.yard_props(yards, seed)
+    street_of = _street_finder(roads)
     buildings = []
     for row in local.itertuples():
         if row.geometry.is_empty or not row.geometry.intersects(
@@ -394,6 +413,7 @@ def export_scene(
                     for x, y in row.geometry.exterior.coords
                 ],
                 "height_m": float(height),
+                "street": street_of(row.geometry.centroid, west, south),
                 "roof_material": None
                 if material is None or material != material
                 else str(material),
@@ -411,6 +431,7 @@ def export_scene(
                 b["roof_material"],
                 seed,
                 roof_mix=building_grammar.tin_mix(biome),
+                street=None if b["street"] is None else (b["street"][0], b["street"][1]),
             )
             b["typology"] = built.typology
             meshes.append(built)

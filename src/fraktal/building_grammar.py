@@ -202,17 +202,27 @@ def _roller_doors(mesh: Mesh, pts: Any, height: float) -> dict[int, list[tuple[f
     return taken
 
 
+def front_edge(pts: Any, street: tuple[float, float] | None) -> int:
+    """The wall that faces the street: the one whose middle is nearest ``street``, a point on the
+    road. Without a street, the longest wall (the old rule, wrong for a deep narrow plot)."""
+    edges = np.roll(pts, -1, axis=0) - pts
+    if street is None:
+        return int(np.argmax(np.hypot(edges[:, 0], edges[:, 1])))
+    middles = pts + edges / 2.0
+    return int(np.argmin(np.hypot(middles[:, 0] - street[0], middles[:, 1] - street[1])))
+
+
 def plan_shop(
-    pts: Any, seed: int, building_id: str, storey: float
+    pts: Any, seed: int, building_id: str, storey: float, street: tuple[float, float] | None = None
 ) -> tuple[int, float, float, str, bool] | None:
-    """A shopfront on the longest wall: ``(edge, from, to, fascia material, awning)``, or None.
+    """A shopfront on the street wall: ``(edge, from, to, fascia material, awning)``, or None.
 
     Its own random stream (``shop:<id>``), so the draws behind every other part of a building
     stay where they were. The span is centred on the wall and kept off its corners.
     """
     edges = np.roll(pts, -1, axis=0) - pts
     lengths = np.hypot(edges[:, 0], edges[:, 1])
-    edge = int(np.argmax(lengths))
+    edge = front_edge(pts, street)
     length = float(lengths[edge])
     if length < SHOP_MIN_EDGE_M or storey < SHOP_MIN_STOREY_M:
         return None
@@ -271,6 +281,7 @@ def _openings(
     blocked: dict[int, list[tuple[float, float]]] | None = None,
     ground_only: bool = False,
     shutter: str | None = None,
+    front: int | None = None,
 ) -> None:
     """A window grid on every edge long enough and, if ``door``, a door on the longest edge.
 
@@ -286,7 +297,7 @@ def _openings(
     lengths = np.hypot(edges[:, 0], edges[:, 1])
     spacing = float(rng.uniform(2.6, 3.4))
     fill = float(rng.uniform(0.75, 1.0))
-    door_edge = int(np.argmax(lengths)) if door else -1
+    door_edge = (front if front is not None else int(np.argmax(lengths))) if door else -1
     for i in range(n):
         length = float(lengths[i])
         if length < MIN_EDGE_FOR_WINDOWS_M:
@@ -435,8 +446,12 @@ def build(
     roof_material: str | None,
     seed: int,
     roof_mix: Sequence[float] | None = None,
+    street: tuple[float, float] | None = None,
 ) -> Mesh:
-    """The mesh of one building, in the ring's own (tile) coordinates, ground at z = 0."""
+    """The mesh of one building, in the ring's own (tile) coordinates, ground at z = 0.
+
+    ``street`` is the nearest point on the road, in the same coordinates: the door and any shopfront
+    go on the wall that faces it. Without it they go on the longest wall."""
     pts = np.asarray(ring, dtype="float64")
     if len(pts) > 1 and np.allclose(pts[0], pts[-1]):
         pts = pts[:-1]
@@ -508,13 +523,14 @@ def build(
 
     facade = substream(seed, f"facade:{building_id}")  # its own stream: the openings stay put
     balconies = facade if floors >= 3 and facade.uniform() < BALCONY_SHARE else None
-    shop = plan_shop(pts, seed, building_id, storey) if flat else None
+    shop = plan_shop(pts, seed, building_id, storey, street) if flat else None
     painted = None
     if flat and float(substream(seed, f"shutters:{building_id}").uniform()) < SHUTTER_SHARE:
         painted = SHUTTERS[int(substream(seed, f"shutters:{building_id}:colour").integers(0, 2))]
     blocked = {shop[0]: [(shop[1] - 0.4, shop[2] + 0.4)]} if shop else None
     _openings(mesh, pts, rng, floors, storey, door=True, balconies=balconies, blocked=blocked,
-              ground_only=True, shutter=painted)  # fmt: skip
+              ground_only=True, shutter=painted,
+              front=front_edge(pts, street) if street is not None else None)  # fmt: skip
     if shop:
         _shopfront(mesh, pts, shop)
 
