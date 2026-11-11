@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import fnmatch
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -123,15 +123,23 @@ def wasserstein(a: Sequence[float] | Array, b: Sequence[float] | Array) -> float
     return float(np.abs(np.quantile(a, q) - np.quantile(b, q)).mean())
 
 
-def compare(real: Sequence[Photo], synthetic: Sequence[Photo]) -> dict[str, Any]:
-    """Per statistic: both samples' mean and spread, the distance in photo standard deviations
-    (at least ``MIN_SD``), and whether the synthetic mean is further than ``FLAG_Z`` of them."""
+def compare(
+    real: Sequence[Photo],
+    synthetic: Sequence[Photo],
+    extra: Callable[[Sequence[Photo]], list[dict[str, float]]] | None = None,
+) -> dict[str, Any]:
+    """Per statistic (``STATS`` and whatever ``extra`` adds): both samples' mean and spread, the
+    distance in photo standard deviations (at least ``MIN_SD``), and whether the synthetic mean
+    is further than ``FLAG_Z`` of them."""
     if not real or not synthetic:
         raise ValueError("need at least one photo and one synthetic frame")
     ra = [statistics(p.image) for p in real]
     sa = [statistics(p.image) for p in synthetic]
+    if extra:  # more per-image statistics, such as class shares from a segmenter
+        ra = [{**a, **e} for a, e in zip(ra, extra(real), strict=True)]
+        sa = [{**a, **e} for a, e in zip(sa, extra(synthetic), strict=True)]
     rows: dict[str, Any] = {}
-    for name in STATS:
+    for name in ra[0]:
         rv, sv = np.array([s[name] for s in ra]), np.array([s[name] for s in sa])
         spread = max(float(rv.std()), MIN_SD)
         z = (float(sv.mean()) - float(rv.mean())) / spread
