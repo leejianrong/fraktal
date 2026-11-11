@@ -29,7 +29,7 @@ from pyproj import Transformer
 from fraktal import randomise, render3d
 from fraktal.ids import substream
 from fraktal.log import emit
-from fraktal.procedural import read_buildings
+from fraktal.procedural import read_buildings, read_fields
 from fraktal.render import RenderConfig, tile_px_for
 
 SCHEMA = 1
@@ -39,6 +39,7 @@ SUN_AZIMUTH_DEG = (
 )  # an equatorial sun, assumed: it crosses the sky in the east or west
 SUN_ELEVATION_DEG = (35.0, 70.0)
 CENTRE_TRIES = 40
+FIELD_SHARE = 0.4  # of a tile that must be planted or paddy in a world that has fields
 SLIM_REMOVE = ("scene", "tile.tif", "labels.tif")
 SENSOR_NAME = "sensor.png"
 
@@ -74,6 +75,11 @@ def plan(
         raise BatchError(f"the world is smaller than one {size_m:.0f} m tile")
     buildings = read_buildings(world_dir)
     index = buildings.sindex
+    fields = read_fields(world_dir)
+    planted = None  # estates and paddy country have few houses: tiles must find the crops
+    if fields is not None:
+        crops = fields[fields["field_type"].isin(["oil_palm", "paddy", "terrace"])]
+        planted = crops.union_all() if len(crops) else None
     to_lonlat = Transformer.from_crs(manifest["crs"], 4326, always_xy=True)
     specs: list[dict[str, Any]] = []
     for i in range(count):
@@ -84,8 +90,11 @@ def plan(
             y = float(rng.uniform(south + half, north - half))
             x = min(max(x, west + half + slack), east - half - slack)  # only an edge draw moves
             y = min(max(y, south + half + slack), north - half - slack)
-            hits = index.query(_window(x, y, half))
-            if len(hits) >= min_buildings:
+            window = _window(x, y, half)
+            if planted is not None:
+                if window.intersection(planted).area >= FIELD_SHARE * window.area:
+                    break
+            elif len(index.query(window)) >= min_buildings:
                 break
         lon, lat = to_lonlat.transform(x, y)
         sun = (

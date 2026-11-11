@@ -18,13 +18,16 @@ from typing import Any
 import numpy as np
 import rasterio
 from rasterio.enums import Resampling
+from rasterio.features import rasterize
 
 from fraktal import building_grammar, compounds, lighting, props_scene, trees3d
 from fraktal import heights as heights_mod
 from fraktal.coast import TIDAL_FLAT
+from fraktal.fields import PADDY
 from fraktal.ground_soil import apply_soil, soil_style
 from fraktal.ids import substream
 from fraktal.kernels.noise import lattice_shape, value_noise
+from fraktal.kernels.paddy import paddy_tone
 from fraktal.landcover_gen import WATER
 from fraktal.objects import CAR_COLOURS, place
 from fraktal.procedural import read_buildings, read_fields, read_parcels, read_roads
@@ -179,6 +182,23 @@ def _poles(
     return out
 
 
+def _paddy_look(
+    ground: Any, surface: Any, fields: Any, transform: Any, seed: int, gsd_m: float
+) -> Any:
+    """``ground`` with each paddy block given its own tone, muted colour and rows (FRK-141)."""
+    blocks = fields[fields["field_type"] == PADDY].sort_values("id")
+    if blocks.empty:
+        return ground
+    shapes = [(g, i + 1) for i, g in enumerate(blocks.geometry)]
+    cells = rasterize(shapes, surface.shape, transform=transform, dtype="int32")
+    cells = np.where(np.isin(surface, list(PADDY_CODES.values())), cells, 0)  # not the bunds
+    names = list(PADDY_CODES)
+    state = np.array([0] + [names.index(str(v)) for v in blocks["state"]], dtype="int64")
+    angle = np.array([0.0] + [math.radians(float(v)) for v in blocks["row_angle_deg"]], "float32")
+    jitter = substream(seed, "paddy:look").uniform(-1, 1, size=(len(blocks) + 1, 3))
+    return paddy_tone(ground, cells, state, jitter.astype("float32"), angle, gsd_m)
+
+
 def _class_colours(classes: Any) -> Any:
     """An (H, W, 3) float image of the display colour of each land-cover class."""
     out = np.zeros((*classes.shape, 3), dtype="float32")
@@ -307,6 +327,8 @@ def export_scene(
     ground = np.where(green, ground * (1.0 + GRAIN_STRENGTH * grain), ground)
     biome = json.loads((world_dir / "world.json").read_text()).get("biome", "")
     ground = apply_soil(ground, surface, seed, gsd_m, soil_style(biome, seed))
+    if fields is not None and len(fields):
+        ground = _paddy_look(ground, surface, local_fields, transform, seed, gsd_m)
     if texture > 0:
         amp = np.ones(256, dtype="float32")
         for code, value in TEXTURE_CLASS_AMP.items():
