@@ -47,6 +47,14 @@ def to_z_up(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
     return m
 
 
+def to_gltf(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
+    """The inverse of ``to_z_up``: a z-up mesh written as glTF must be y up, or every glTF reader
+    (Blender's importer, a viewer, Godot) stands it on its side."""
+    m = mesh.copy()
+    m.apply_transform(trimesh.transformations.rotation_matrix(-np.pi / 2, [1, 0, 0]))
+    return m
+
+
 def place(mesh: trimesh.Trimesh, longest_m: float) -> trimesh.Trimesh:
     """Scale so the longest extent is ``longest_m``, stand on z = 0, centre the footprint."""
     m = mesh.copy()

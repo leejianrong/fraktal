@@ -56,3 +56,16 @@ def test_a_cube_is_not_a_container() -> None:
     assert qa.proportions_off([6.1, 5.9, 5.9], (6.1, 2.4, 2.6)) is not None
     # the expected box is scaled to the mesh's longest side
     assert qa.proportions_off([3.0, 1.2, 1.3], (6.0, 2.4, 2.6)) is None
+
+
+def test_a_glb_is_written_y_up_and_comes_back_z_up() -> None:
+    import trimesh
+
+    qa = _qa()
+    box = trimesh.creation.box(extents=(2.0, 1.0, 0.5))  # long in x, thin in z
+    box.apply_translation((0.0, 0.0, 0.25))  # standing on z = 0
+    gltf = qa.to_gltf(box)
+    np.testing.assert_allclose(gltf.extents, (2.0, 0.5, 1.0), atol=1e-9)  # height is now y
+    np.testing.assert_allclose(gltf.bounds[0][1], 0.0, atol=1e-9)  # still on the floor
+    back = qa.to_z_up(gltf)
+    np.testing.assert_allclose(back.bounds, box.bounds, atol=1e-9)

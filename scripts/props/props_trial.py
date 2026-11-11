@@ -232,7 +232,7 @@ def make_meshes(
             seconds = round(time.perf_counter() - t, 2)
             raw.export(out / "meshes_raw" / f"{name}.glb")  # kept even if our own QA fails
             final, report = meshqa.process(raw, size_m, expected(name))
-            final.export(out / "meshes" / f"{name}.glb")
+            meshqa.to_gltf(final).export(out / "meshes" / f"{name}.glb")  # glTF is y up
             report.update(prompt=prompt, gen_s=seconds)
             rows.append(
                 (

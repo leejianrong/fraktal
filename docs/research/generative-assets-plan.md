@@ -184,6 +184,48 @@ A vision-model reading of the same sheet (one subagent, not blind: the sheet sho
 rejected the same two cubes, marked 5 meshes usable and 9 as needing fixes for holes and lumps. Best of N seeds
 with the check, then a look, is the working method.
 
+## Text to 3D as a command (FRK-123, 2026-11-11)
+
+`scripts/props/text_to_3d.py OUT --prompts prompts.json --step1x DIR [--seed N]` takes a list of
+`{id, prompt, size_m, expected_lwh}` and runs the FRK-122 stack on it: SDXL base 1.0, BiRefNet,
+Step1X-3D geometry (marching cubes, our own clean-up), then QA. The pod job runs it with
+`MODE=text3d scripts/runpod/props_run.sh COMMIT OUT` and then a Blender stage
+(`bpy_glb_sheet.py`, a clay render of each mesh at ground level and from above). Per mesh it writes
+`meshes/<id>.glb` and `meshes/<id>.json` (prompt, image and mesh seeds, seconds per stage, QA verdict, face
+count, SHA-256 of the GLB), and per run `manifest.json` with the Hugging Face revision of each model, the
+Step1X-3D code commit, library versions and the totals (ADR-0013 decision 5). FLUX.1 schnell was not used:
+SDXL is allowed and was already working.
+
+Two runs of the 20-prop list (`prompts-20.json`, seed 0) on A40 pods at $0.59 an hour:
+
+| | |
+|---|---|
+| Per prop (image 6.8 s, cut-out 0.5 s, mesh 70.6 s on average) | **77.9 s**, about **$0.0128** |
+| Whole run | about 33 minutes: install and import check 159 s, models and 20 props about 28 minutes, Blender stage about 2 minutes, including installing `bpy`. About $0.33 a run with the pod's start and teardown |
+| QA by proportion | 13 of 20 pass; the same seven fail as in FRK-122 (both containers, both minibuses, the two-truck pickup, the cube-frame shop sign, the street sign) |
+| Determinism | all 20 GLBs have the same SHA-256 in both runs, on two different pod instances |
+
+Cost per prop is the mean generation time times the hourly rate. Model loading and installing are paid once
+per run, not per prop. At about 46 props an hour a library of 200 props is about $2.60 of generation, before
+the failures that are thrown away.
+
+`docs/img/generative-assets/text-to-3d-blender-sheet.jpg` is the Blender check: every prop, ground view and
+nadir view. Vehicles, tanks, stalls and the billboard read well. The flagged ones look as flagged: containers
+are near-cubes, the shop sign is a wireframe cube, the red pickup is two trucks stacked.
+
+The Blender stage found two faults that the matplotlib sheet of FRK-122 could not show:
+
+- **The GLBs were written z up.** glTF is y up, so Blender's importer stood every prop on its side, as would
+  any other glTF reader (a viewer, Godot). `meshqa.to_gltf` now rotates the mesh a quarter turn on export, with
+  a round-trip test against `to_z_up`. FRK-124 (import, scale, instancing) must read these files as y up.
+- **Light grey clay clipped white** under the Nishita sky and sun, so the shapes were washed out. The clay is
+  now darker and the exposure lower.
+
+Not done: the sheet in the image was rendered with a local `bpy` from the pod's meshes after applying the same
+quarter turn, not by a third pod run, because the pod's Blender stage had already worked (the first run's
+install lacked `apt-get update`, fixed) and only the file's up axis and the exposure changed. The next pod run
+writes y-up files directly. Texture and colour are still ours to add (FRK-126); these meshes are plain grey.
+
 ## Code-written props (FRK-130, 2026-11-08)
 
 `src/fraktal/propgen.py` holds five parametric generators (container, water tank, market stall, signboard,

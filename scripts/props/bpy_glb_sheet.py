@@ -31,7 +31,7 @@ def reset() -> None:
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
     scene.view_settings.view_transform = "Standard"
-    scene.view_settings.exposure = -1.3
+    scene.view_settings.exposure = -1.6
     world = bpy.data.worlds.new("sky")
     scene.world = world
     world.use_nodes = True
@@ -45,7 +45,7 @@ def reset() -> None:
     scene.collection.objects.link(sun)
 
 
-def clay(name: str, rgb: tuple, rough: float = 0.8):
+def clay(name: str, rgb: tuple, rough: float = 0.8):  # the sky plus sun clips light grey
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     bsdf = mat.node_tree.nodes["Principled BSDF"]
@@ -93,7 +93,7 @@ def main() -> int:
             objs = [o for o in bpy.context.scene.objects if o.type == "MESH"]
             if not objs:
                 raise RuntimeError("no mesh in the GLB")
-            body = clay("clay", (0.55, 0.52, 0.48))
+            body = clay("clay", (0.3, 0.28, 0.26))
             for o in objs:
                 o.data.materials.clear()
                 o.data.materials.append(body)
@@ -115,7 +115,7 @@ def main() -> int:
             render(args.out / "png" / f"{name}-ground.png", args.px, args.samples)
             for cam in [o for o in bpy.data.objects if o.type == "CAMERA"]:
                 bpy.data.objects.remove(cam)
-            bpy.context.scene.view_settings.exposure = -2.3
+            bpy.context.scene.view_settings.exposure = -2.4
             camera((0, 0, 40.0), (0, 0, 0), ortho=max(lx, ly) * 1.5 + 1.0)
             render(args.out / "png" / f"{name}-aerial.png", args.px, args.samples)
             timing[name] = round(time.perf_counter() - t, 2)
