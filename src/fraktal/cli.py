@@ -1065,6 +1065,34 @@ def _compare_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--limit", type=int, default=100, help="chips sampled per side")
 
 
+def _streets(args: argparse.Namespace) -> Result:
+    from fraktal import streetview
+
+    try:
+        root = args.reference or args.data_dir / "eval" / "ground-reference"
+        real = streetview.load_reference(root, args.city)
+        frames = streetview.load_frames(args.frames, args.limit)
+        report = streetview.compare(real, frames)
+        report["city"] = args.city
+        if args.sheet:
+            streetview.sheet(real, frames, args.sheet)
+            report["sheet"] = str(args.sheet)
+    except (OSError, ValueError) as err:
+        raise CliError(ExitCode.FAILURE, "streets_failed", str(err)) from err
+    return Result(report, streetview.table(report))
+
+
+def _streets_args(parser: argparse.ArgumentParser) -> None:
+    _data_dir_arg(parser)
+    parser.add_argument("frames", type=Path, help="a directory of synthetic frames (PNG)")
+    parser.add_argument(
+        "--city", default="*", help="place glob in the reference set, e.g. 'nairobi-*'"
+    )
+    parser.add_argument("--reference", type=Path, help="default DATA_DIR/eval/ground-reference")
+    parser.add_argument("--limit", type=int, default=40, help="frames sampled from the directory")
+    parser.add_argument("--sheet", type=Path, help="also write a side-by-side PNG here")
+
+
 def _terrain_center(terrain_dir: Path) -> tuple[float, float]:
     left, bottom, right, top = json.loads((terrain_dir / terrain.MARKER).read_text())["bounds"]
     return ((left + right) / 2, (bottom + top) / 2)
@@ -1110,6 +1138,7 @@ ARGS: dict[str, Callable[[argparse.ArgumentParser], None]] = {
     "generate": _generate_cli_args,
     "synth": _synth_args,
     "compare": _compare_args,
+    "streets": _streets_args,
     "ablate": _ablate_args,
     "report": _report_args,
     "palette": _palette_args,
@@ -1136,6 +1165,7 @@ COMMANDS: dict[str, tuple[str, Handler]] = {
     "report": ("Build the realism report PDF from an ablation", _report),
     "palette": ("Fit render colours from the real train chips", _palette),
     "compare": ("Measure how far synthetic chips are from real imagery", _compare),
+    "streets": ("Compare synthetic street frames with real ground photos (eval only)", _streets),
     "inspect": ("Look up a feature by ID, or summarise a world", _inspect),
     "assets": ("Check the asset manifest and its licences", _assets),
     "render3d": ("Render a world tile with Blender (3D path)", _render3d),
