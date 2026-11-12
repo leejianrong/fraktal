@@ -67,6 +67,7 @@ def scene_sha256(scene_dir: Path) -> str:
         "people.json",
         "drones.json",
         "camera.json",
+        "markings_vertices.npy",
     )  # camera.json only for sequences
     for name in (*names, *(f"mesh_{k}.npy" for k in MESH_FILES)):
         if (scene_dir / name).exists():

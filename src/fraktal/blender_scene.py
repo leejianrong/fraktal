@@ -451,6 +451,9 @@ def paint_labels(scene: dict, scene_dir: Path) -> None:
             np.asarray(PROP_FACE_CLASS, dtype="int64"),
             owner + 1 + PROP_INSTANCE_BASE,
         )
+    if "markings" in bpy.data.objects:  # paint and kerbs are part of the ground
+        n = len(bpy.data.objects["markings"].data.polygons)
+        paint(bpy.data.objects["markings"], np.full(n, CLASS_GROUND), np.zeros(n, int))
     if "walls" in bpy.data.objects and WALL_FACE_OWNER:
         owner = np.asarray(WALL_FACE_OWNER, dtype="int64")
         paint(bpy.data.objects["walls"], np.full(len(owner), CLASS_WALL), owner + 1)
@@ -807,6 +810,16 @@ def build_walls(scene: dict, scene_dir: Path, assets: Path | None = None) -> int
     return len(walls)
 
 
+def build_markings(scene: dict, scene_dir: Path) -> int:
+    """Lane lines, crossings, kerbs and pavements (FRK-153): one flat-coloured mesh, labelled as
+    ground. Returns the number of parts."""
+    marks = scene.get("markings") or {}
+    if not marks.get("parts"):
+        return 0
+    build_packed("markings", scene_dir, "markings", marks["materials"])
+    return int(marks["parts"])
+
+
 CLASS_PERSON = 6
 CLASS_DRONE = 7
 # Moving things are boxes: (forward shift, half length, half width, z0, z1), one per part.
@@ -1120,7 +1133,8 @@ def main() -> int:
     nt = build_trees(scene)
     nv, npoles = build_vehicles(scene), build_poles(scene)
     nprops, nwalls = build_props(scene, a.scene_dir), build_walls(scene, a.scene_dir, a.assets)
-    for name in ("trees", "vehicles", "poles", "props", "walls"):
+    nmarks = build_markings(scene, a.scene_dir)
+    for name in ("trees", "vehicles", "poles", "props", "walls", "markings"):
         lift_to_terrain(bpy.data.objects.get(name))
     moving = build_traffic(a.scene_dir, len(scene.get("vehicles", [])))
     walking = build_people(a.scene_dir)
@@ -1153,7 +1167,7 @@ def main() -> int:
     t1 = time.time()
     say(
         f"scene_built buildings={n} trees={nt} vehicles={nv} moving={moving} people={walking} "
-        f"poles={npoles} props={nprops} walls={nwalls} "
+        f"poles={npoles} props={nprops} walls={nwalls} marks={nmarks} "
         f"seconds={t1 - t0:.1f}"
     )
     if frames:  # OUT is a directory of frame_0000.png, frame_0001.png, ...

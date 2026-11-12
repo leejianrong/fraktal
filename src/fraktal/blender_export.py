@@ -20,7 +20,7 @@ import rasterio
 from rasterio.enums import Resampling
 from rasterio.features import rasterize
 
-from fraktal import building_grammar, compounds, lighting, props_scene, trees3d
+from fraktal import building_grammar, camera, compounds, lighting, markings, props_scene, trees3d
 from fraktal import heights as heights_mod
 from fraktal.coast import TIDAL_FLAT
 from fraktal.fields import PADDY
@@ -131,6 +131,7 @@ def _tile_heights(world_dir: Path, buildings: Any, profile: str, seed: int) -> d
 POLE_SPACING_M = 40.0
 POLE_HEIGHT_M = 8.0
 POLE_MIN_ROAD_WIDTH_M = 6.0
+MARK_MARGIN_M = 10.0  # roads this far outside the tile still get marks, so edges look continuous
 CAR_LENGTH_M, CAR_WIDTH_M = 4.5, 1.9
 
 
@@ -453,6 +454,14 @@ def export_scene(
     packed_walls = compounds.pack(walls)
     for key in ("vertices", "faces", "face_material", "face_owner"):
         np.save(out_dir / f"walls_{key}.npy", packed_walls[key])
+    surface_parts = markings.build(
+        _marking_roads(roads, west, south, side * gsd_m),
+        camera.obstacles(buildings, [g for c in walls for g in c["segments"]]),
+        biome,
+    )
+    packed_marks = markings.pack(surface_parts)
+    for key in ("vertices", "faces", "face_material", "face_owner"):
+        np.save(out_dir / f"markings_{key}.npy", packed_marks[key])
     np.save(out_dir / "ground.npy", ground)
     np.save(out_dir / "ground_rough.npy", rough)
     terrain = None
@@ -486,11 +495,26 @@ def export_scene(
         "walls": walls,
         "wall_materials": packed_walls["materials"],
         "wall_textures": compounds.textures() if wall_textures else None,
+        "markings": {"parts": len(surface_parts), "materials": packed_marks["materials"]},
     }
     if terrain:
         scene["terrain"] = terrain
     (out_dir / "scene.json").write_text(json.dumps(scene) + "\n")
     return scene
+
+
+def _marking_roads(roads: Any, west: float, south: float, size_m: float) -> list[markings.RoadLine]:
+    """The road lines inside the tile and a margin, in tile metres, for ``markings.build``."""
+    m = MARK_MARGIN_M
+    window = _box(west - m, south - m, west + size_m + m, south + size_m + m)
+    out = []
+    for row in roads.itertuples():
+        clipped = row.geometry.intersection(window)
+        for g in getattr(clipped, "geoms", [clipped]):
+            if g.geom_type == "LineString" and g.length > 1.0:
+                xy = [(x - west, y - south) for x, y in g.coords]
+                out.append(markings.RoadLine(xy, float(row.width_m), str(row.road_class)))
+    return out
 
 
 def _yard_sites(parcels: Any, buildings: Any, west: float, south: float) -> list[dict[str, Any]]:
