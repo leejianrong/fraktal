@@ -20,3 +20,9 @@ def test_a_low_sun_is_warmer_and_fill_stays_in_range() -> None:
         d = lighting.draw(s, 40.0)
         assert lighting.FILL_RANGE[0] <= d["fill"] <= lighting.FILL_RANGE[1]
         assert all(0.0 <= v <= 1.0 for key in ("zenith", "horizon", "glow") for v in d[key])
+
+
+def test_the_light_carries_the_eye_level_factors_that_darken_the_street_view() -> None:
+    eye = lighting.draw(3, 50.0)["eye_level"]
+    assert eye == lighting.EYE_LEVEL and eye["sun"] < 1.0 and eye["fill"] < 1.0
+    assert eye["sky_seen"] < lighting.FILL_RANGE[0]  # the visible sky is dimmer than its light

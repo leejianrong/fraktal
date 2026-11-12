@@ -72,6 +72,12 @@ BIOME_SOIL: dict[str, SoilStyle] = {
 }
 DEFAULT_SOIL = SoilStyle(*OCHRE, share=0.4)
 
+# City biomes whose local streets are sealed (FRK-152). The base road colour is a pale dusty street
+# set against overhead chips; at eye level it renders about twice as bright as the photos' asphalt
+# (road brightness 0.81 against 0.44 in Manila-Quezon), so these streets take an asphalt grey.
+SEALED_STREETS = ("khartoum_city", "manila_quezon", "nairobi_centre")
+SEALED_LOCAL_RGB = (84.0, 82.0, 82.0)
+
 # Other earth tones a tile may draw instead of the biome's base one (FRK-134), set by eye.
 # Keep these close to TAN: the sky fill makes anything lighter clip white or turn grey-lavender
 PALE_SAND = ((150 / 255, 116 / 255, 90 / 255), (168 / 255, 134 / 255, 104 / 255))
@@ -149,3 +155,11 @@ def apply_soil(ground: Array, surface: Array, seed: int, gsd_m: float, style: So
         hit = np.where(capable, hit, 0.0).astype("float32")[..., None] * 0.55
         out = out * (1 - hit) + TUFT * hit
     return np.asarray(np.clip(out, 0.0, 1.0), dtype="float32")
+
+
+def seal_streets(ground: Any, surface: Any, biome: str, local_code: int) -> Any:
+    """``ground`` with the local-road cells recoloured asphalt in a biome of ``SEALED_STREETS``."""
+    if biome not in SEALED_STREETS:
+        return ground
+    asphalt = np.array(SEALED_LOCAL_RGB, dtype="float32") / 255.0
+    return np.where((surface == local_code)[..., None], asphalt, ground).astype("float32")

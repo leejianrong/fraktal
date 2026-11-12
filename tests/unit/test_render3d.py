@@ -294,3 +294,21 @@ def test_riding_needs_something_to_ride_on(world: Path, tmp_path: Path) -> None:
         )
     with pytest.raises(ValueError, match="nothing to follow"):
         _ride(world, tmp_path, "c", {"kind": "person"}, traffic={"cars_per_km": 40.0})
+
+
+def test_camera_json_marks_eye_level_sequences_only(tmp_path: Path) -> None:
+    from fraktal import camera as cameras
+    from fraktal import render3d
+
+    (tmp_path / "scene").mkdir()
+
+    def pose(off_nadir: float) -> cameras.Pose:
+        return cameras.Pose(0, 0.0, 1.0, 2.0, 3.0, 90.0, off_nadir, 75.0, 4.0, 5.0)
+
+    render3d._write_camera(
+        tmp_path, [pose(90.0), pose(88.0)], follow={"agent": "people", "index": 1}
+    )
+    street = json.loads((tmp_path / "scene" / "camera.json").read_text())
+    assert street["eye_level"] is True and street["follow"] == {"agent": "people", "index": 1}
+    render3d._write_camera(tmp_path, [pose(35.0)])  # a drone looking 35 degrees off straight down
+    assert "eye_level" not in json.loads((tmp_path / "scene" / "camera.json").read_text())

@@ -81,3 +81,19 @@ def test_oil_palm_paddy_and_mangrove_each_have_their_own_ground() -> None:
         assert soil_style("paddy_terraces", seed).soil_a == paddy.soil_a
         assert soil_style("mangrove_coast", seed).soil_a == coast.soil_a
     assert sum(soil_style("paddy_terraces", 1).soil_a) < sum(palm.soil_a)  # darker than the earth
+
+
+def test_sealed_city_streets_take_asphalt_and_other_biomes_keep_their_road() -> None:
+    import pytest
+
+    from fraktal import ground_soil
+    from fraktal.render import ROAD_ARTERIAL, ROAD_LOCAL
+
+    surface = np.array([[ROAD_LOCAL, ROAD_ARTERIAL], [30, ROAD_LOCAL]], dtype="uint8")
+    ground = np.full((2, 2, 3), 0.6, dtype="float32")
+    sealed = ground_soil.seal_streets(ground, surface, "manila_quezon", ROAD_LOCAL)
+    assert sealed[0, 0] == pytest.approx(np.array(ground_soil.SEALED_LOCAL_RGB) / 255.0)
+    assert sealed[1, 1] == pytest.approx(sealed[0, 0])
+    assert (sealed[0, 1] == 0.6).all() and (sealed[1, 0] == 0.6).all()  # arterial, grass: unchanged
+    assert ground_soil.seal_streets(ground, surface, "khartoum", ROAD_LOCAL) is ground
+    assert max(ground_soil.SEALED_LOCAL_RGB) / 255.0 < 0.4  # darker than the dusty street colour

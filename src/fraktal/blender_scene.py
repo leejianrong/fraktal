@@ -965,11 +965,14 @@ def build_poles(scene: dict) -> int:
     return len(poles)
 
 
-def build_light(scene: dict) -> None:
+def build_light(scene: dict, eye_level: bool = False) -> None:
     az, el = scene["sun"]["azimuth_deg"], scene["sun"]["elevation_deg"]
     sky = scene.get("sky") or {}  # scenes exported before FRK-113 have none: the old flat light
+    eye = (sky.get("eye_level") or None) if eye_level else None  # FRK-152: street-level exposure
     sun = bpy.data.lights.new("sun", "SUN")
     sun.energy = sky.get("sun_strength", 2.6)  # about 0.6 of reflectance at 50 degrees elevation
+    if eye:
+        sun.energy *= eye["sun"]
     sun.color = sky.get("sun_colour", (1.0, 1.0, 1.0))
     sun.angle = math.radians(0.53)
     obj = bpy.data.objects.new("sun", sun)
@@ -1033,6 +1036,18 @@ def build_light(scene: dict) -> None:
     glow.inputs["Color2"].default_value = (*sky["glow"], 1.0)
     links.new(glow.outputs["Color"], bg.inputs["Color"])
     bg.inputs["Strength"].default_value = sky["fill"]
+    if eye:  # light the scene at ``fill`` and show the sky to the camera at ``sky_seen``
+        ray = nodes.new("ShaderNodeLightPath")
+        mix = nodes.new("ShaderNodeMath")  # camera ray: sky_seen, any other ray: fill
+        mix.operation = "MULTIPLY_ADD"
+        links.new(ray.outputs["Is Camera Ray"], mix.inputs[0])
+        mix.inputs[1].default_value = eye["sky_seen"] - eye["fill"]
+        mix.inputs[2].default_value = eye["fill"]
+        strength = nodes.new("ShaderNodeMath")
+        strength.operation = "MULTIPLY"
+        links.new(mix.outputs["Value"], strength.inputs[0])
+        strength.inputs[1].default_value = sky["fill"]
+        links.new(strength.outputs["Value"], bg.inputs["Strength"])
     bpy.context.scene.world = world
 
 
@@ -1110,9 +1125,9 @@ def main() -> int:
     moving = build_traffic(a.scene_dir, len(scene.get("vehicles", [])))
     walking = build_people(a.scene_dir)
     build_drones(a.scene_dir)
-    build_light(scene)
     camera_file = a.scene_dir / "camera.json"
     camera_data = json.loads(camera_file.read_text()) if camera_file.exists() else {}
+    build_light(scene, bool(camera_data.get("eye_level")))
     frames = camera_data.get("frames", [])
     follow = camera_data.get("follow")
     if follow and follow["agent"] in AGENTS:  # no camera inside its own car

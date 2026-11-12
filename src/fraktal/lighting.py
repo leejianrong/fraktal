@@ -20,6 +20,13 @@ SUN_STRENGTH = 2.3
 FILL_RANGE = (1.3, 1.9)  # sky fill: shadows keep texture because the sky lights them
 DUST_RANGE = (0.2, 0.8)  # how much of the horizon is dust rather than blue sky
 GLOW_RANGE = (0.2, 0.7)  # the warm bloom around the sun
+# Eye-level views (FRK-152). The light above is set for ground seen from overhead; from the street
+# the same light renders 20 to 50 percent brighter than the photos, and the sky clips to white
+# (Manila-Quezon: building 0.53 against 0.43, sky 1.00 against 0.88). These scale the sun, the
+# sky's light, and how bright the sky looks when seen directly (a multiplier on ``fill``), for
+# perspective frames near the horizon only.
+EYE_LEVEL = {"sun": 0.8, "fill": 0.8, "sky_seen": 0.6}
+EYE_LEVEL_MIN_OFF_NADIR_DEG = 75.0  # a camera at least this far from straight down is eye level
 
 
 def _mix(a: tuple[float, ...], b: tuple[float, ...], t: float) -> list[float]:
@@ -40,7 +47,8 @@ def draw(seed: int, sun_elevation_deg: float) -> dict[str, Any]:
         "glow": _mix((1.0, 0.85, 0.62), SUN_LOW, warm),
         "glow_amount": round(float(rng.uniform(*GLOW_RANGE)) * (0.6 + 0.8 * dust), 3),
         "fill": round(float(rng.uniform(*FILL_RANGE)), 3),
+        "eye_level": dict(EYE_LEVEL),
     }
 
 
-__all__ = ["draw"]
+__all__ = ["EYE_LEVEL", "EYE_LEVEL_MIN_OFF_NADIR_DEG", "draw"]
