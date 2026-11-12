@@ -38,7 +38,7 @@ import numpy as np
 import rasterio
 from affine import Affine
 
-from fraktal import agents, flowgt, labels3d, video
+from fraktal import agents, flowgt, labels3d, lighting, video
 from fraktal import camera as cameras
 from fraktal import depth as depths
 from fraktal import tracks as tracks_mod
@@ -161,11 +161,18 @@ def _follow(
         assert best is not None
         blocked, k, poses = best
     agent = "traffic" if car else "people"
-    (out_dir / "scene" / "camera.json").write_text(
-        json.dumps({"frames": [p.as_dict() for p in poses], "follow": {"agent": agent, "index": k}})
-        + "\n"
-    )
+    _write_camera(out_dir, poses, follow={"agent": agent, "index": k})
     return poses, {"kind": kind, "id": tr.ids[k], "index": k, "blocked_share": round(blocked, 4)}
+
+
+def _write_camera(out_dir: Path, poses: list[cameras.Pose], **extra: Any) -> None:
+    """``scene/camera.json``: the poses, and ``eye_level`` when the camera looks near the horizon,
+    which makes the Blender script use the lighting set for the street (FRK-152)."""
+    data: dict[str, Any] = {"frames": [p.as_dict() for p in poses], **extra}
+    mean_off_nadir = sum(p.off_nadir_deg for p in poses) / max(len(poses), 1)
+    if poses and mean_off_nadir >= lighting.EYE_LEVEL_MIN_OFF_NADIR_DEG:
+        data["eye_level"] = True
+    (out_dir / "scene" / "camera.json").write_text(json.dumps(data) + "\n")
 
 
 def _ground(scene: dict[str, Any], out_dir: Path) -> Any:
@@ -324,18 +331,14 @@ def render(
             lateral_m=opts.get("lateral_m"), fov_deg=float(opts.get("fov_deg", 90.0)),
             pitch_deg=float(opts.get("pitch_deg", 0.0)),
         )  # fmt: skip
-        (out_dir / "scene" / "camera.json").write_text(
-            json.dumps({"frames": [p.as_dict() for p in poses]}) + "\n"
-        )
+        _write_camera(out_dir, poses)
     elif trajectory:  # a perspective sequence instead of the nadir tile (FRK-51)
         poses = cameras.trajectory(
             trajectory, scene["size_m"], seed, waypoints=waypoints,
             ground=_ground(scene, out_dir) if "terrain" in scene else None,
             **(camera_options or {}),
         )  # fmt: skip
-        (out_dir / "scene" / "camera.json").write_text(
-            json.dumps({"frames": [p.as_dict() for p in poses]}) + "\n"
-        )
+        _write_camera(out_dir, poses)
     if traffic is not None and follow is None:  # same frame times as the camera
         simulate(np.array([p.t_s for p in poses] or [0.0]))
     digest = scene_sha256(out_dir / "scene")
