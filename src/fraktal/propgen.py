@@ -53,6 +53,11 @@ MATERIALS: dict[str, tuple[tuple[float, float, float], float, float]] = {
     "fruit-yellow": ((0.8, 0.65, 0.1), 0.6, 0.0),
     "fruit-green": ((0.25, 0.5, 0.12), 0.6, 0.0),
     "paint-white": ((0.72, 0.72, 0.70), 0.55, 0.2),
+    "paint-silver": ((0.55, 0.56, 0.58), 0.4, 0.5),
+    "paint-black": ((0.05, 0.05, 0.06), 0.45, 0.3),
+    "paint-maroon": ((0.30, 0.06, 0.07), 0.55, 0.3),
+    "paint-pink": ((0.75, 0.28, 0.40), 0.55, 0.2),
+    "chrome": ((0.72, 0.72, 0.74), 0.25, 0.9),
     "skin-dark": ((0.22, 0.13, 0.09), 0.7, 0.0),
     "skin-mid": ((0.4, 0.26, 0.17), 0.7, 0.0),
     "cloth-white": ((0.7, 0.7, 0.66), 0.9, 0.0),
@@ -415,6 +420,62 @@ def minibus(seed: int) -> Prop:
     return Prop("minibus", seed, tuple(parts))
 
 
+def jeepney(seed: int) -> Prop:
+    """A Philippine jeepney: a long bright body, an open rear with benches, a chrome grille and a
+    painted band down the side (FRK-147)."""
+    rng = substream(seed, "propgen.jeepney")
+    body = _pick(rng, ["paint-blue", "paint-red", "paint-green", "paint-yellow", "paint-pink"])
+    band = _pick(rng, ["paint-white", "paint-yellow", "paint-orange", "paint-silver"])
+    length = float(rng.uniform(6.2, 7.2))
+    width = float(rng.uniform(1.95, 2.1))
+    parts: list[Part] = []
+    for x in (length / 2 - 1.2, -length / 2 + 1.35):
+        for sy in (-1, 1):
+            parts.append(_wheel("rubber", x, sy * (width / 2 - 0.14), 0.36, 0.26))
+    parts += [
+        box(body, (0, 0, 0.85), (length, width, 0.8)),  # lower body
+        box(band, (0, 0, 1.05), (length + 0.02, width + 0.02, 0.18)),  # the painted band
+        box(body, (length / 2 - 0.85, 0, 1.55), (1.7, width * 0.96, 0.75)),  # cab
+        box("glass", (length / 2 - 0.05, 0, 1.55), (0.03, width * 0.85, 0.55), pitch=-0.2),
+        box(body, (-0.7, 0, 2.15), (length - 2.1, width * 0.98, 0.07)),  # roof over the passengers
+        box("chrome", (length / 2 + 0.02, 0, 0.8), (0.06, width * 0.7, 0.55)),  # grille
+        box("chrome", (length / 2 + 0.05, 0, 0.45), (0.1, width, 0.14)),  # bumper
+        box("wood-dark", (-0.7, 0, 0.88), (length - 2.4, width * 0.8, 0.1)),  # bench
+        box("steel-dark", (-length / 2 + 0.02, 0, 0.9), (0.04, width * 0.9, 0.6)),  # rear rail
+    ]
+    for sx in (-1, 1):  # posts holding the roof
+        for sy in (-1, 1):
+            parts.append(box("steel-dark", (-0.7 + sx * (length - 2.4) / 2, sy * (width / 2 - 0.04),
+                                            1.6), (0.05, 0.05, 1.0)))  # fmt: skip
+    return Prop("jeepney", seed, tuple(parts))
+
+
+def car(seed: int) -> Prop:
+    """A parked car: a sedan, a hatchback or an SUV, with wheels, glass and bumpers (FRK-147)."""
+    rng = substream(seed, "propgen.car")
+    body = _pick(rng, ["paint-white", "paint-white", "paint-silver", "paint-black", "paint-grey",
+                       "paint-red", "paint-blue", "paint-maroon"])  # fmt: skip
+    suv = rng.random() < 0.35
+    length = float(rng.uniform(4.3, 4.9) if not suv else rng.uniform(4.5, 5.0))
+    width = float(rng.uniform(1.72, 1.82) if not suv else rng.uniform(1.84, 1.95))
+    cabin_h = 0.62 if not suv else 0.72
+    parts: list[Part] = []
+    for x in (length / 2 - 0.95, -length / 2 + 0.95):
+        for sy in (-1, 1):
+            parts.append(_wheel("rubber", x, sy * (width / 2 - 0.1), 0.32, 0.22))
+    sill = 0.62 if not suv else 0.72
+    parts += [
+        box(body, (0, 0, sill / 2 + 0.2), (length, width, sill - 0.2)),  # lower body
+        box(body, (0.1 if not suv else 0.0, 0, sill + cabin_h / 2 - 0.02),
+            (length * (0.52 if not suv else 0.66), width * 0.92, cabin_h)),  # cabin
+        box("glass", (0.1 if not suv else 0.0, 0, sill + cabin_h / 2),
+            (length * (0.5 if not suv else 0.64) + 0.02, width * 0.93, cabin_h * 0.6)),  # glazing
+        box("plastic-black", (length / 2 - 0.04, 0, 0.45), (0.12, width * 0.96, 0.22)),  # bumper
+        box("plastic-black", (-length / 2 + 0.04, 0, 0.45), (0.12, width * 0.96, 0.22)),
+    ]  # fmt: skip
+    return Prop("car", seed, tuple(parts))
+
+
 def dumpster(seed: int) -> Prop:
     """A wheeled waste bin with a lid, the kind left at a street corner."""
     rng = substream(seed, "propgen.dumpster")
@@ -491,11 +552,14 @@ GENERATORS: dict[str, Callable[[int], Prop]] = {
     "container": container,
     "water_tank": water_tank,
     "market_stall": market_stall,
+    "kerb_stall": market_stall,  # the same stall, placed beside the road by the street pass
     "signboard": signboard,
     "tuk_tuk": tuk_tuk,
     "silo": silo,
     "motorbike": motorbike,
     "minibus": minibus,
+    "jeepney": jeepney,
+    "car": car,
     "dumpster": dumpster,
     "barrel_stack": barrel_stack,
     "rubbish_pile": rubbish_pile,

@@ -451,6 +451,9 @@ def paint_labels(scene: dict, scene_dir: Path) -> None:
             np.asarray(PROP_FACE_CLASS, dtype="int64"),
             owner + 1 + PROP_INSTANCE_BASE,
         )
+    if "cables" in bpy.data.objects:  # wires belong to the pole class
+        n = len(bpy.data.objects["cables"].data.polygons)
+        paint(bpy.data.objects["cables"], np.full(n, CLASS_POLE), np.zeros(n, int))
     if "markings" in bpy.data.objects:  # paint and kerbs are part of the ground
         n = len(bpy.data.objects["markings"].data.polygons)
         paint(bpy.data.objects["markings"], np.full(n, CLASS_GROUND), np.zeros(n, int))
@@ -842,6 +845,14 @@ def build_walls(scene: dict, scene_dir: Path, assets: Path | None = None) -> int
     return len(walls)
 
 
+def build_cables(scene: dict, scene_dir: Path) -> int:
+    """One mesh of overhead wires, from the packed ``cables_*.npy`` arrays (FRK-147)."""
+    wires = scene.get("cables") or {}
+    if not wires.get("wires"):
+        return 0
+    return build_packed("cables", scene_dir, "cables", wires["materials"])
+
+
 def build_markings(scene: dict, scene_dir: Path) -> int:
     """Lane lines, crossings, kerbs and pavements (FRK-153): one flat-coloured mesh, labelled as
     ground. Returns the number of parts."""
@@ -855,7 +866,14 @@ def build_markings(scene: dict, scene_dir: Path) -> int:
 CLASS_PERSON = 6
 CLASS_DRONE = 7
 # Moving things are boxes: (forward shift, half length, half width, z0, z1), one per part.
-CAR_BOXES = ((0.0, 2.25, 0.95, 0.25, 1.0), (-0.2, 1.2, 0.85, 1.0, 1.5))
+CAR_BOXES = (
+    (0.0, 2.2, 0.92, 0.3, 0.95),  # body
+    (-0.1, 1.15, 0.84, 0.95, 1.5),  # glazed cabin
+    (1.35, 0.33, 0.9, 0.0, 0.66),  # front wheels, one dark block across the axle
+    (-1.35, 0.33, 0.9, 0.0, 0.66),  # rear wheels
+    (2.25, 0.08, 0.9, 0.35, 0.6),  # front bumper
+    (-2.25, 0.08, 0.9, 0.35, 0.6),  # rear bumper
+)
 PERSON_BOXES = (
     (0.0, 0.13, 0.17, 0.0, 0.85),
     (0.0, 0.12, 0.23, 0.85, 1.45),
@@ -943,11 +961,23 @@ def build_traffic(scene_dir: Path, first_instance: int) -> int:
         for i, rgb in enumerate(CAR_BODY)
     ]
     mats.append(material("tcar-glass", (0.05, 0.07, 0.1), 0.1, 100))
-    glass = len(mats) - 1
+    mats.append(material("tcar-rubber", (0.03, 0.03, 0.03), 0.9, 101))
+    glass, rubber = len(mats) - 2, len(mats) - 1
+
+    def part_material(
+        k: int, b: int
+    ) -> int:  # box 0 is the body, 1 the cabin glass, the rest tyres
+        return (k * 3 + 1) % len(CAR_BODY) if b == 0 else glass if b == 1 else rubber
+
     return build_agents(
-        "traffic", scene_dir / "agents.json", CAR_BOXES, CLASS_VEHICLE, first_instance, mats,
-        lambda k, b: glass if b else (k * 3 + 1) % len(CAR_BODY),
-    )  # fmt: skip
+        "traffic",
+        scene_dir / "agents.json",
+        CAR_BOXES,
+        CLASS_VEHICLE,
+        first_instance,
+        mats,
+        part_material,
+    )
 
 
 def build_drones(scene_dir: Path) -> int:
@@ -1166,7 +1196,8 @@ def main() -> int:
     nv, npoles = build_vehicles(scene), build_poles(scene)
     nprops, nwalls = build_props(scene, a.scene_dir), build_walls(scene, a.scene_dir, a.assets)
     nmarks = build_markings(scene, a.scene_dir)
-    for name in ("trees", "vehicles", "poles", "props", "walls", "markings"):
+    ncables = build_cables(scene, a.scene_dir)
+    for name in ("trees", "vehicles", "poles", "props", "walls", "markings", "cables"):
         lift_to_terrain(bpy.data.objects.get(name))
     moving = build_traffic(a.scene_dir, len(scene.get("vehicles", [])))
     walking = build_people(a.scene_dir)
@@ -1199,7 +1230,7 @@ def main() -> int:
     t1 = time.time()
     say(
         f"scene_built buildings={n} trees={nt} vehicles={nv} moving={moving} people={walking} "
-        f"poles={npoles} props={nprops} walls={nwalls} marks={nmarks} "
+        f"poles={npoles} props={nprops} walls={nwalls} marks={nmarks} wires={ncables} "
         f"seconds={t1 - t0:.1f}"
     )
     if frames:  # OUT is a directory of frame_0000.png, frame_0001.png, ...

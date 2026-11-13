@@ -113,9 +113,15 @@ def test_a_city_export_writes_the_marks_inside_the_tile_and_other_biomes_none(
     assert verts[:, 2].max() == pytest.approx(markings.KERB_HEIGHT_M)
     margin = 10.0 + 13.0  # the clip margin and half the widest road
     assert verts[:, :2].min() >= -margin and verts[:, :2].max() <= 300.0 + margin
+    wires = scene["cables"][
+        "wires"
+    ]  # overhead cables ride along with the same city export (FRK-147)
+    assert wires >= 5 and len(np.load(tmp_path / "a" / "cables_faces.npy")) == 2 * 10 * wires
     again = export_scene(manila, tmp_path / "b", centre, 300.0, 1.0)
+    assert again["cables"] == scene["cables"]
     assert (verts == np.load(tmp_path / "b" / "markings_vertices.npy")).all()
     assert again["markings"] == scene["markings"]
     plain = tmp_path / "p"
     generate_world(plain, centre, 3, biomes.resolve("dense_urban", {"size_m": 1000.0}))
-    assert export_scene(plain, tmp_path / "c", centre, 300.0, 1.0)["markings"]["parts"] == 0
+    other = export_scene(plain, tmp_path / "c", centre, 300.0, 1.0)
+    assert other["markings"]["parts"] == 0 and other["cables"]["wires"] == 0

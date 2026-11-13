@@ -19,8 +19,18 @@ import numpy as np
 import rasterio
 from rasterio.enums import Resampling
 from rasterio.features import rasterize
+from shapely.geometry import LineString
 
-from fraktal import building_grammar, camera, compounds, lighting, markings, props_scene, trees3d
+from fraktal import (
+    building_grammar,
+    cables,
+    camera,
+    compounds,
+    lighting,
+    markings,
+    props_scene,
+    trees3d,
+)
 from fraktal import heights as heights_mod
 from fraktal.coast import TIDAL_FLAT
 from fraktal.fields import PADDY
@@ -160,15 +170,17 @@ def _vehicles(
 
 
 def _poles(
-    roads: Any, mask: Any, west: float, south: float, gsd_m: float, side: int
+    roads: Any, mask: Any, west: float, south: float, gsd_m: float, side: int, biome: str = ""
 ) -> list[list[float]]:
-    """Roadside poles every 40 m on streets wide enough for traffic, alternating sides."""
+    """Roadside poles every 40 m (a city's own spacing) on streets wide enough for traffic,
+    alternating sides."""
     out: list[list[float]] = []
     size = side * gsd_m
+    spacing_m, height_m = cables.pole_plan(biome, POLE_SPACING_M, POLE_HEIGHT_M)
     for _, r in roads.sort_values("id").iterrows():
-        if r.width_m < POLE_MIN_ROAD_WIDTH_M or r.geometry.length < 2 * POLE_SPACING_M / 2:
+        if r.width_m < POLE_MIN_ROAD_WIDTH_M or r.geometry.length < spacing_m:
             continue
-        for k, d in enumerate(np.arange(POLE_SPACING_M / 2, r.geometry.length, POLE_SPACING_M)):
+        for k, d in enumerate(np.arange(spacing_m / 2, r.geometry.length, spacing_m)):
             p = r.geometry.interpolate(float(d))
             a, b = r.geometry.interpolate(max(d - 1.0, 0.0)), r.geometry.interpolate(d + 1.0)
             tx, ty = b.x - a.x, b.y - a.y
@@ -179,7 +191,7 @@ def _poles(
             x, y = p.x - ty / norm * offset - west, p.y + tx / norm * offset - south
             col, row = int(x / gsd_m), int(side - 1 - y / gsd_m)
             if 0 <= x < size and 0 <= y < size and mask[row, col] == 0:
-                out.append([round(x, 2), round(y, 2), POLE_HEIGHT_M])
+                out.append([round(x, 2), round(y, 2), height_m])
     return out
 
 
@@ -377,7 +389,7 @@ def export_scene(
             if 0 <= x <= side * gsd_m and 0 <= y <= side * gsd_m:
                 trees.append([x, y, round(radius * gsd_m, 2), round(float(height), 2), "palm"])
     vehicles = _vehicles(surface, road, mask, gsd_m, side, vehicle_density, seed)
-    poles = _poles(roads, mask, west, south, gsd_m, side)
+    poles = _poles(roads, mask, west, south, gsd_m, side, biome)
     props = props_scene.sample(
         surface,
         mask,
@@ -388,19 +400,29 @@ def export_scene(
         seed,
         walls=[s for c in walls for s in c["segments"]],
     )
+    street_scale, street_mix = props_scene.street_plan(biome)
     props += props_scene.sample(
         surface,
         mask,
         road,
         gsd_m,
         side,
-        prop_density * props_scene.STREET_DENSITY_RATIO,
+        prop_density * props_scene.STREET_DENSITY_RATIO * street_scale,
         seed,
         walls=[s for c in walls for s in c["segments"]],
-        mix=props_scene.STREET_MIX,
+        mix=street_mix,
         stream="props:street",
         avoid=props,
     )
+    props = props_scene.align_to_roads(
+        props,
+        [
+            (LineString(r.xy), r.width_m)
+            for r in _marking_roads(roads, west, south, side * gsd_m)
+            if r.road_class in ("arterial", "local") and r.width_m >= 6.0
+        ],
+        mask, gsd_m, side, seed,
+    )  # fmt: skip
     yards = _yard_sites(read_parcels(world_dir).to_crs(epsg), local, west, south)
     props += props_scene.yard_props(yards, seed)
     street_of = _street_finder(roads)
@@ -467,6 +489,10 @@ def export_scene(
     packed_marks = markings.pack(surface_parts)
     for key in ("vertices", "faces", "face_material", "face_owner"):
         np.save(out_dir / f"markings_{key}.npy", packed_marks[key])
+    wires = cables.build(poles, biome, seed)
+    packed_cables = cables.pack(wires)
+    for key in ("vertices", "faces", "face_material", "face_owner"):
+        np.save(out_dir / f"cables_{key}.npy", packed_cables[key])
     np.save(out_dir / "ground.npy", ground)
     np.save(out_dir / "ground_rough.npy", rough)
     terrain = None
@@ -501,6 +527,7 @@ def export_scene(
         "wall_materials": packed_walls["materials"],
         "wall_textures": compounds.textures() if wall_textures else None,
         "markings": {"parts": len(surface_parts), "materials": packed_marks["materials"]},
+        "cables": {"wires": len(wires), "materials": packed_cables["materials"]},
     }
     if terrain:
         scene["terrain"] = terrain
