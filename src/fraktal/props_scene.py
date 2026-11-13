@@ -26,11 +26,14 @@ PROP_CLASS = {
     "container": "yard_object",
     "water_tank": "yard_object",
     "market_stall": "yard_object",
+    "kerb_stall": "yard_object",
     "signboard": "yard_object",
     "tuk_tuk": "vehicle",
     "silo": "yard_object",
     "motorbike": "vehicle",
     "minibus": "vehicle",
+    "jeepney": "vehicle",
+    "car": "vehicle",
     "dumpster": "yard_object",
     "barrel_stack": "yard_object",
     "rubbish_pile": "yard_object",
@@ -52,11 +55,33 @@ STREET_MIX = {  # the street pass (FRK-112): vehicles and people on the road, bi
     "rubbish_pile": 0.20,
 }
 STREET_DENSITY_RATIO = 1.5  # street props per km2, as a multiple of the scene prop density
-ON_STREET = ("tuk_tuk", "motorbike", "minibus", "pedestrian")  # these stand on the road raster
+# A city's street (FRK-147): the share of each kind, and how many times the base street density.
+# Set by eye from the ground photos (Manila: jeepneys, tricycles, motorbikes and parked cars with
+# a stall at most kerbs; Nairobi: matatus, boda-boda motorbikes and cars; Khartoum: pickups and
+# vans, rickshaws, a few stalls). A biome without an entry keeps ``STREET_MIX`` at one times.
+CITY_STREET: dict[str, tuple[float, dict[str, float]]] = {
+    "manila_quezon": (7.0, {"motorbike": 0.26, "car": 0.18, "jeepney": 0.10, "tuk_tuk": 0.08,
+                            "pedestrian": 0.14, "kerb_stall": 0.12, "dumpster": 0.04,
+                            "rubbish_pile": 0.08}),
+    "nairobi_centre": (7.0, {"car": 0.30, "minibus": 0.14, "motorbike": 0.16, "pedestrian": 0.22,
+                             "kerb_stall": 0.08, "dumpster": 0.04, "rubbish_pile": 0.06}),
+    "khartoum_city": (5.0, {"car": 0.26, "minibus": 0.14, "tuk_tuk": 0.10, "motorbike": 0.12,
+                            "pedestrian": 0.14, "kerb_stall": 0.10, "rubbish_pile": 0.14}),
+}  # fmt: skip
+
+
+def street_plan(biome: str) -> tuple[float, dict[str, float]]:
+    """(multiple of the base street density, mix of kinds) for ``biome``'s street pass."""
+    return CITY_STREET.get(biome, (1.0, STREET_MIX))
+
+
+# a "kerb_stall" is a market stall of the street pass: sampled on the road, then moved off it
+ON_STREET = ("tuk_tuk", "motorbike", "minibus", "jeepney", "car", "pedestrian", "kerb_stall")
 HALF_EXTENT = {  # half length, half width in metres, for the clearance check
     "container": (3.1, 1.3), "water_tank": (0.8, 0.8), "market_stall": (1.5, 1.1),
-    "signboard": (1.3, 0.4), "tuk_tuk": (1.5, 0.8), "silo": (2.6, 2.6),
+    "signboard": (1.3, 0.4), "kerb_stall": (1.5, 1.1), "tuk_tuk": (1.5, 0.8), "silo": (2.6, 2.6),
     "motorbike": (1.05, 0.45), "minibus": (2.75, 1.0), "dumpster": (1.25, 0.8),
+    "jeepney": (3.6, 1.05), "car": (2.5, 0.95),
     "barrel_stack": (0.95, 0.65), "rubbish_pile": (1.7, 1.7), "pedestrian": (0.3, 0.35),
 }  # fmt: skip
 VARIANTS = 8  # distinct shapes per kind, so a tile reuses geometry the way instancing would
@@ -165,7 +190,10 @@ def sample(
     return chosen
 
 
-KERB_LANE_M = {"tuk_tuk": 1.2, "motorbike": 0.9, "minibus": 1.5}  # from the carriageway edge
+KERB_LANE_M = {  # from the carriageway edge
+    "tuk_tuk": 1.2, "motorbike": 0.9, "minibus": 1.5, "jeepney": 1.7, "car": 1.3,
+}  # fmt: skip
+STALL_SETBACK_M = 1.6  # a stall stands this far outside the carriageway edge, its front to the road
 FOOTPATH_M = 0.9  # a pedestrian stands this far outside the carriageway edge
 ALIGN_JITTER = 0.1  # radians of yaw wobble so a row of parked bikes is not ruled
 
@@ -213,7 +241,16 @@ def align_to_roads(
         sign = 1.0 if tx * (prop["y"] - centre.y) - ty * (prop["x"] - centre.x) >= 0 else -1.0
         heading = math.atan2(ty, tx)
         new = dict(prop)
-        if kind == "pedestrian":
+        if kind == "kerb_stall":
+            reach = width / 2 + STALL_SETBACK_M
+            x, y = centre.x - ty * sign * reach, centre.y + tx * sign * reach
+            row = int(np.clip(side - 1 - y / gsd_m, 0, side - 1))
+            col = int(np.clip(x / gsd_m, 0, side - 1))
+            if not (0 <= x < size_m and 0 <= y < size_m and mask[row, col] == 0):
+                continue  # no room beside the road: no stall
+            new["x"], new["y"] = round(x, 2), round(y, 2)
+            new["yaw"] = round(heading + (math.pi if sign < 0 else 0.0) + draw[0] * 0.05, 4)
+        elif kind == "pedestrian":
             reach = width / 2 + FOOTPATH_M
             x, y = centre.x - ty * sign * reach, centre.y + tx * sign * reach
             row = int(np.clip(side - 1 - y / gsd_m, 0, side - 1))

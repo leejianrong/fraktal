@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pytest
 
-from fraktal import labels3d, props_scene
+from fraktal import labels3d, propgen, props_scene
 from fraktal.render import ROAD_LOCAL
 
 SIDE, GSD = 400, 0.5  # a 200 m tile
@@ -190,3 +190,26 @@ def test_a_person_does_not_move_into_a_building() -> None:
     given = [_prop("pedestrian", 120.0, 101.0)]
     (walker,) = props_scene.align_to_roads(given, roads, mask, GSD, SIDE, 3)
     assert (walker["x"], walker["y"]) == (120.0, 101.0)
+
+
+def test_city_street_plans_are_denser_and_only_use_known_kinds() -> None:
+    assert props_scene.street_plan("dense_urban") == (1.0, props_scene.STREET_MIX)
+    for biome, (scale, mix) in props_scene.CITY_STREET.items():
+        assert scale > 1.0 and abs(sum(mix.values()) - 1.0) < 1e-9, biome
+        for kind in mix:
+            assert kind in propgen.GENERATORS and kind in props_scene.PROP_CLASS, (biome, kind)
+    assert "jeepney" in props_scene.CITY_STREET["manila_quezon"][1]
+    assert "jeepney" not in props_scene.CITY_STREET["nairobi_centre"][1]
+
+
+def test_a_kerb_stall_stands_beside_the_road_facing_it_or_is_dropped() -> None:
+    from shapely.geometry import LineString
+
+    mask = np.zeros((SIDE, SIDE), dtype="uint8")
+    roads = [(LineString([(0.0, 100.0), (200.0, 100.0)]), 8.0)]
+    left, right = _prop("kerb_stall", 50.0, 102.0), _prop("kerb_stall", 90.0, 98.0)
+    out = props_scene.align_to_roads([left, right], roads, mask, GSD, SIDE, 3)
+    assert [round(p["y"] - 100.0, 1) for p in out] == [5.6, -5.6]  # 4 m half width plus the setback
+    assert math.cos(out[0]["yaw"]) > 0.9 > -0.9 > math.cos(out[1]["yaw"])  # facing opposite ways
+    mask[:, :] = 1  # buildings on both sides: there is no room
+    assert props_scene.align_to_roads([left], roads, mask, GSD, SIDE, 3) == []
