@@ -413,6 +413,7 @@ def export_scene(
         mix=street_mix,
         stream="props:street",
         avoid=props,
+        quota=street_scale > 1.0,  # a city's mix is a plan: vehicles are not crowded out by bins
     )
     props = props_scene.align_to_roads(
         props,

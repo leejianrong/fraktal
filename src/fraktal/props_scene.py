@@ -93,6 +93,7 @@ WEAR = ((1.0, 0.0), (0.93, 0.12), (0.84, 0.25))  # (colour multiplier, roughness
 WEAR_P = (0.5, 0.3, 0.2)
 MIN_SEPARATION_M = 4.0
 CANDIDATES_PER_PROP = 12
+QUOTA_BOOST = 4  # more candidates per prop when every kind has a quota
 
 
 def _lookup(raster: Array, gsd_m: float, side: int, x: Array, y: Array) -> Array:
@@ -114,18 +115,21 @@ def sample(
     mix: dict[str, float] | None = None,
     stream: str = "props:sample",
     avoid: list[dict[str, Any]] | None = None,
+    quota: bool = False,
 ) -> list[dict[str, Any]]:
     """Props as dicts (kind, variant, x, y, yaw, class). ``mask`` > 0 is a building footprint;
     ``walls`` (segments x0 y0 x1 y1 in tile metres) keep props from standing in a compound wall.
     ``mix`` and ``stream`` pick another kind of prop with its own random draws (the street pass);
-    ``avoid`` are props already placed, which new ones keep their distance from."""
+    ``avoid`` are props already placed, which new ones keep their distance from. With ``quota`` each
+    kind gets its share of the count (more candidates are tried): vehicles must land on the narrow
+    road raster and are rejected far more often than bins, which would otherwise take over a mix."""
     mix = MIX if mix is None else mix
     size_m = side * gsd_m
     n = int(round(density_per_km2 * size_m * size_m / 1e6))
     if n <= 0:
         return []
     rng = substream(seed, stream)
-    count = n * CANDIDATES_PER_PROP
+    count = n * CANDIDATES_PER_PROP * (QUOTA_BOOST if quota else 1)
     kinds = list(mix)
     kind_idx = rng.choice(
         len(kinds), size=count, p=np.asarray(list(mix.values())) / sum(mix.values())
@@ -166,13 +170,17 @@ def sample(
     wears = vary.choice(len(WEAR), size=count, p=WEAR_P)
     chosen: list[dict[str, Any]] = []
     placed = np.array([[p["x"], p["y"]] for p in avoid or []]).reshape(-1, 2)
+    room = {k: math.ceil(n * w / sum(mix.values())) for k, w in mix.items()}
     for i in np.flatnonzero(ok):
         if len(chosen) >= n:
             break
+        if quota and room[kinds[int(kind_idx[i])]] <= 0:
+            continue
         p = np.array([xs[i], ys[i]])
         if len(placed) and np.min(np.hypot(*(placed - p).T)) < MIN_SEPARATION_M:
             continue
         kind = kinds[int(kind_idx[i])]
+        room[kind] -= 1
         placed = np.vstack([placed, p])
         chosen.append(
             {
