@@ -213,3 +213,18 @@ def test_a_kerb_stall_stands_beside_the_road_facing_it_or_is_dropped() -> None:
     assert math.cos(out[0]["yaw"]) > 0.9 > -0.9 > math.cos(out[1]["yaw"])  # facing opposite ways
     mask[:, :] = 1  # buildings on both sides: there is no room
     assert props_scene.align_to_roads([left], roads, mask, GSD, SIDE, 3) == []
+
+
+def test_a_quota_keeps_vehicles_from_being_crowded_out_by_bins() -> None:
+    surface, mask, road = _world()
+    mix = {"car": 0.4, "motorbike": 0.2, "dumpster": 0.2, "rubbish_pile": 0.2}
+    args = (surface, mask, road, GSD, SIDE, 4000.0, 5)
+    plain = props_scene.sample(*args, mix=mix, stream="props:street")
+    quota = props_scene.sample(*args, mix=mix, stream="props:street", quota=True)
+
+    def vehicle_share(props: list[dict[str, object]]) -> float:
+        return sum(p["kind"] in ("car", "motorbike") for p in props) / max(len(props), 1)
+
+    assert vehicle_share(quota) > vehicle_share(plain)  # vehicles only fit on the narrow street
+    assert vehicle_share(quota) >= 0.4
+    assert quota == props_scene.sample(*args, mix=mix, stream="props:street", quota=True)
