@@ -104,11 +104,12 @@ TREE_CLASSES = (10, 20, 30, 40, 50, 60, 95)  # trees stand on vegetation and bar
 # over the road: Manila-Quezon is a third vegetation by area, Nairobi a tenth. Placed from the road
 # centre lines, not scattered, so the avenue is where the camera looks. A biome takes part by
 # having an entry; the others are unchanged.
-STREET_TREES: dict[str, tuple[float, float, float]] = {
-    # (spacing along a side in metres, share of sites planted, crown radius median in metres)
-    "manila_quezon": (11.0, 0.75, 5.0),  # rain trees and mahogany, crowns nearly touching
-    "nairobi_centre": (16.0, 0.55, 4.0),  # jacaranda and other avenue trees
-    "khartoum_city": (22.0, 0.30, 3.2),  # neem, sparse (the photos are 1 to 2% vegetation)
+STREET_TREES: dict[str, tuple[float, float, float, str]] = {
+    # (spacing along a side in metres, share of sites planted, crown radius median in metres,
+    #  species: "canopy" is lush green, "canopy_dry" a dusty olive)
+    "manila_quezon": (11.0, 0.75, 5.0, "canopy"),  # rain trees and mahogany, crowns nearly touching
+    "nairobi_centre": (16.0, 0.55, 4.0, "canopy"),  # jacaranda and other avenue trees
+    "khartoum_city": (22.0, 0.30, 3.2, "canopy_dry"),  # neem; the photos are 1 to 2% vegetation
 }
 STREET_MIN_ROAD_M = 8.0  # narrower roads are lanes: no avenue
 STREET_SETBACK_M = 2.2  # trunk distance beyond the road edge
@@ -134,7 +135,7 @@ def street_trees(
     style = STREET_TREES.get(biome)
     if style is None or density <= 0:
         return []
-    spacing, share, median = style
+    spacing, share, median, species = style
     side = mask.shape[0]
     size_m = side * gsd_m
     lines = [LineString(xy) for xy, _ in roads]
@@ -185,7 +186,7 @@ def street_trees(
                 height = float(
                     np.clip(5.5 + 1.5 * radius * np.exp(rng.normal(0.0, 0.1)), 6.0, 16.0)
                 )
-                out.append([round(x, 2), round(y, 2), round(radius, 2), round(height, 2), "canopy"])
+                out.append([round(x, 2), round(y, 2), round(radius, 2), round(height, 2), species])
     return out
 
 

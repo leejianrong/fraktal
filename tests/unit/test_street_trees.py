@@ -34,7 +34,7 @@ def test_trees_line_both_sides_off_the_carriageway() -> None:
     trees = _trees()
     assert len(trees) > 20
     for _x, y, radius, height, species in trees:
-        assert species == "canopy"
+        assert species == "canopy"  # Manila-Quezon
         assert abs(y - 200.0) >= 14.0 / 2  # never on the road itself
         assert 2.0 <= radius <= 9.0 and 6.0 <= height <= 16.0
     assert {y > 200.0 for _, y, *_ in trees} == {True, False}
@@ -64,3 +64,8 @@ def test_lanes_and_trees_outside_the_tile_are_skipped() -> None:
 def test_cities_differ_in_density() -> None:
     manila, khartoum = _trees(biome="manila_quezon"), _trees(biome="khartoum_city")
     assert len(manila) > 2 * len(khartoum) > 0
+
+
+def test_a_dry_city_gets_dusty_crowns() -> None:
+    assert {t[4] for t in _trees(biome="khartoum_city")} == {"canopy_dry"}
+    assert {t[4] for t in _trees(biome="nairobi_centre")} == {"canopy"}

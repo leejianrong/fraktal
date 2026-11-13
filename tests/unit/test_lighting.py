@@ -26,3 +26,14 @@ def test_the_light_carries_the_eye_level_factors_that_darken_the_street_view() -
     eye = lighting.draw(3, 50.0)["eye_level"]
     assert eye == lighting.EYE_LEVEL and eye["sun"] < 1.0 and eye["fill"] < 1.0
     assert eye["sky_seen"] < lighting.FILL_RANGE[0]  # the visible sky is dimmer than its light
+
+
+def test_a_hazy_city_has_a_paler_sky_and_nairobi_keeps_more_light() -> None:
+    plain, hazy = lighting.draw(5, 50.0), lighting.draw(5, 50.0, "khartoum_city")
+    assert hazy["horizon"][2] < plain["horizon"][2]  # less blue: dust in the air
+    assert hazy["zenith"][2] < plain["zenith"][2]
+    nairobi = lighting.draw(5, 50.0, "nairobi_centre")["eye_level"]
+    assert (
+        nairobi["sun"] > lighting.EYE_LEVEL["sun"] and nairobi["fill"] > lighting.EYE_LEVEL["fill"]
+    )
+    assert lighting.draw(5, 50.0, "dense_urban") == plain  # other biomes are unchanged
