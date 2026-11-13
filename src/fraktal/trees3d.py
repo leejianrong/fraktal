@@ -106,8 +106,8 @@ TREE_CLASSES = (10, 20, 30, 40, 50, 60, 95)  # trees stand on vegetation and bar
 # having an entry; the others are unchanged.
 STREET_TREES: dict[str, tuple[float, float, float]] = {
     # (spacing along a side in metres, share of sites planted, crown radius median in metres)
-    "manila_quezon": (11.0, 0.75, 5.0),  # rain trees and mahogany, crowns nearly touching
-    "nairobi_centre": (16.0, 0.55, 4.0),  # jacaranda and other avenue trees
+    "manila_quezon": (8.0, 0.9, 6.0),  # rain trees and mahogany, crowns nearly touching
+    "nairobi_centre": (13.0, 0.65, 4.6),  # jacaranda and other avenue trees
     "khartoum_city": (22.0, 0.30, 3.2),  # neem, sparse (the photos are 1 to 2% vegetation)
 }
 STREET_MIN_ROAD_M = 8.0  # narrower roads are lanes: no avenue
