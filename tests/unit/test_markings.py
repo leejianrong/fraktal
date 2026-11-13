@@ -99,6 +99,7 @@ def test_pack_gives_a_box_per_part_and_is_repeatable() -> None:
     assert empty["faces"].shape == (0, 3) and len(empty["materials"]) == len(markings.MATERIALS)
 
 
+@pytest.mark.slow
 def test_a_city_export_writes_the_marks_inside_the_tile_and_other_biomes_none(
     tmp_path: Path,
 ) -> None:

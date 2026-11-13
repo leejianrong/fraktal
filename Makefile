@@ -1,5 +1,6 @@
 .DEFAULT_GOAL := help
-.PHONY: help install install-train install-report hooks lint fmt typecheck test test-integration check
+PYTEST_ARGS ?=
+.PHONY: help install install-train install-report hooks lint fmt typecheck test test-fast test-integration check check-fast
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-18s %s\n", $$1, $$2}'
@@ -30,10 +31,15 @@ fmt: ## Apply ruff formatting and safe fixes
 typecheck: ## mypy strict
 	uv run mypy
 
-test: ## Fast layer: no infra, no network
-	uv run pytest -m "not integration"
+test: ## Fast layer: no infra, no network (CI passes PYTEST_ARGS=--durations=30)
+	uv run pytest -m "not integration" $(PYTEST_ARGS)
+
+test-fast: ## As test, without the slow end-to-end tests: seconds, not minutes
+	uv run pytest -m "not integration and not slow"
 
 test-integration: ## Slower layer: subprocesses, external services, network
 	uv run pytest -m integration
 
-check: lint typecheck test ## The pre-push gate; mirrors the cheap CI jobs
+check-fast: lint typecheck ## The pre-push gate: ruff and mypy only. CI runs the tests
+
+check: lint typecheck test ## Everything CI runs for lint, types and unit tests. Slow on the 8 GB machine
