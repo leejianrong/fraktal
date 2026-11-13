@@ -26,6 +26,13 @@ GLOW_RANGE = (0.2, 0.7)  # the warm bloom around the sun
 # sky's light, and how bright the sky looks when seen directly (a multiplier on ``fill``), for
 # perspective frames near the horizon only.
 EYE_LEVEL = {"sun": 0.8, "fill": 0.8, "sky_seen": 0.6}
+# A city can set its own light (FRK-155). Hazy: (least dust, most dust, how far the zenith pales).
+# Khartoum's photos have a pale grey-yellow sky with no blue in it. Nairobi's streets are 18 to 40 m
+# canyons, so its sun and sky are not turned down as far (0.35 against 0.49 in the photos).
+HAZY: dict[str, tuple[float, float, float]] = {"khartoum_city": (0.85, 1.0, 0.8)}
+EYE_LEVEL_BY_BIOME: dict[str, dict[str, float]] = {
+    "nairobi_centre": {"sun": 1.0, "fill": 1.15, "sky_seen": 0.6},
+}
 EYE_LEVEL_MIN_OFF_NADIR_DEG = 75.0  # a camera at least this far from straight down is eye level
 
 
@@ -33,22 +40,23 @@ def _mix(a: tuple[float, ...], b: tuple[float, ...], t: float) -> list[float]:
     return [round(x + (y - x) * t, 4) for x, y in zip(a, b, strict=True)]
 
 
-def draw(seed: int, sun_elevation_deg: float) -> dict[str, Any]:
+def draw(seed: int, sun_elevation_deg: float, biome: str = "") -> dict[str, Any]:
     """Sun colour and strength, sky colours, dust and fill for a scene."""
     rng = substream(seed, "lighting")
     low = max(0.0, min(1.0, (60.0 - sun_elevation_deg) / 45.0))  # 0 at 60 degrees, 1 at 15
     warm = float(min(1.0, max(0.0, low + rng.uniform(-0.15, 0.15))))
-    dust = float(rng.uniform(*DUST_RANGE))
+    lo, hi, pale = HAZY.get(biome, (*DUST_RANGE, 0.35))
+    dust = float(rng.uniform(lo, hi))
     return {
         "sun_colour": _mix(SUN_HIGH, SUN_LOW, warm),
         "sun_strength": round(SUN_STRENGTH * float(rng.uniform(0.92, 1.08)), 3),
-        "zenith": _mix(ZENITH, DUST, dust * 0.35),
+        "zenith": _mix(ZENITH, DUST, dust * pale),
         "horizon": _mix((0.62, 0.72, 0.9), DUST, dust),
         "glow": _mix((1.0, 0.85, 0.62), SUN_LOW, warm),
         "glow_amount": round(float(rng.uniform(*GLOW_RANGE)) * (0.6 + 0.8 * dust), 3),
         "fill": round(float(rng.uniform(*FILL_RANGE)), 3),
-        "eye_level": dict(EYE_LEVEL),
+        "eye_level": dict(EYE_LEVEL_BY_BIOME.get(biome, EYE_LEVEL)),
     }
 
 
-__all__ = ["EYE_LEVEL", "EYE_LEVEL_MIN_OFF_NADIR_DEG", "draw"]
+__all__ = ["EYE_LEVEL", "EYE_LEVEL_BY_BIOME", "HAZY", "EYE_LEVEL_MIN_OFF_NADIR_DEG", "draw"]

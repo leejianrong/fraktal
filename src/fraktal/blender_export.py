@@ -486,7 +486,7 @@ def export_scene(
         "gsd_m": gsd_m,
         "px": side,
         "sun": {"azimuth_deg": sun[0], "elevation_deg": sun[1]},
-        "sky": lighting.draw(seed, sun[1]),
+        "sky": lighting.draw(seed, sun[1], biome),
         "crs": f"EPSG:{epsg}",
         "origin_sw": [west, south],
         "buildings": buildings,

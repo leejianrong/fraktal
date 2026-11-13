@@ -571,6 +571,11 @@ CANOPY = [
     (0.11, 0.29, 0.09),
     (0.20, 0.38, 0.11),
 ]  # fmt: skip  (lush mid-greens: the wet-tropic street trees in the reference photos)
+CANOPY_DRY = [
+    (0.27, 0.31, 0.12),
+    (0.31, 0.34, 0.15),
+    (0.24, 0.29, 0.12),
+]  # fmt: skip  (dusty olive: neem and acacia in a dry city)
 CROWN_LUMP = 0.30  # radial bumpiness of a crown, so it is not a smooth ball
 
 
@@ -614,6 +619,8 @@ def build_trees(scene: dict) -> int:
     mats.append(material("acacia", (0.33, 0.38, 0.14), 0.8, 43))
     for i, c in enumerate(CANOPY):  # street trees of the wet-tropic and highland cities
         mats.append(material(f"canopy{i}", c, 0.8, 44 + i))
+    for i, c in enumerate(CANOPY_DRY):
+        mats.append(material(f"canopy-dry{i}", c, 0.8, 50 + i))
     bark, frond = len(FOLIAGE), len(FOLIAGE) + 1
     neem_mat, acacia_mat = len(FOLIAGE) + 2, len(FOLIAGE) + 3
     canopy_mat = len(FOLIAGE) + 4
@@ -657,12 +664,16 @@ def build_trees(scene: dict) -> int:
                 ]  # fmt: skip
                 bm.faces.new([bm.verts.new(p) for p in pts]).material_index = frond
                 TREE_OWNER.append(k)
-        elif species == "canopy":  # a tall trunk under a wide, flat-topped crown of lobes
+        elif species in (
+            "canopy",
+            "canopy_dry",
+        ):  # a tall trunk under a wide, flat-topped crown of lobes
             top = height * 0.55
             _prism(bm, k, x, y, max(0.18, radius * 0.06), 0.0, top, bark)
             rz = max(1.6, (height - top) * 0.55)
             rng = random.Random(k * 104729 + 7)
-            mat = canopy_mat + (k % len(CANOPY))
+            dry = species == "canopy_dry"
+            mat = canopy_mat + (len(CANOPY) + k % len(CANOPY_DRY) if dry else k % len(CANOPY))
             blob(k, x, y, top + rz * 0.9, radius * 0.75, rz, mat)
             for j in range(7):  # lobes spread the crown out sideways
                 a, d = rng.uniform(0, 2 * math.pi), radius * rng.uniform(0.35, 0.75)
