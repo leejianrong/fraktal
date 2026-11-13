@@ -9,7 +9,9 @@ fix the docs in the same PR.
 
 ```bash
 make install           # uv sync --frozen
-make check             # ruff, mypy --strict, fast tests. SLOW here (see "CI is the full gate")
+make check-fast        # ruff and mypy --strict: the pre-push hook (`make hooks`)
+make test-fast         # unit tests without the `slow` ones, for the code you touched
+make check             # also the whole unit suite: SLOW here (see "CI is the full gate")
 make test-integration  # subprocesses, external services, network
 make fmt               # apply ruff fixes and formatting
 ```

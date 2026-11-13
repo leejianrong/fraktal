@@ -6,7 +6,7 @@ readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Jian Rong Lee" }]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "geopandas>=1.1.4",
     "numba>=0.68.1",
@@ -46,7 +46,10 @@ packages = ["src/fraktal"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
-markers = ["integration: needs subprocesses, external services or network; excluded from the fast gate"]
+markers = [
+  "integration: needs subprocesses, external services or network; excluded from the fast gate",
+  "slow: takes several seconds (an end-to-end export or render); skipped by `make test-fast`",
+]
 
 [tool.ruff]
 line-length = 100
