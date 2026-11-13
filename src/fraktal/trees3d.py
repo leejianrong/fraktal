@@ -100,6 +100,95 @@ HEDGE_OFFSET_M = 0.9
 TREE_CLASSES = (10, 20, 30, 40, 50, 60, 95)  # trees stand on vegetation and bare or built-up ground
 
 
+# Street trees (FRK-154). Along the city streets the photos show big shade trees whose crowns meet
+# over the road: Manila-Quezon is a third vegetation by area, Nairobi a tenth. Placed from the road
+# centre lines, not scattered, so the avenue is where the camera looks. A biome takes part by
+# having an entry; the others are unchanged.
+STREET_TREES: dict[str, tuple[float, float, float]] = {
+    # (spacing along a side in metres, share of sites planted, crown radius median in metres)
+    "manila_quezon": (11.0, 0.75, 5.0),  # rain trees and mahogany, crowns nearly touching
+    "nairobi_centre": (16.0, 0.55, 4.0),  # jacaranda and other avenue trees
+    "khartoum_city": (22.0, 0.30, 3.2),  # neem, sparse (the photos are 1 to 2% vegetation)
+}
+STREET_MIN_ROAD_M = 8.0  # narrower roads are lanes: no avenue
+STREET_SETBACK_M = 2.2  # trunk distance beyond the road edge
+STREET_JUNCTION_M = 6.0  # keep this far, beyond the carriageway, from another road's centre line
+
+
+def street_trees(
+    roads: list[tuple[list[tuple[float, float]], float]],
+    mask: Array,
+    gsd_m: float,
+    biome: str,
+    seed: int,
+    density: float = 1.0,
+) -> list[list[Any]]:
+    """Trees as ``[x, y, radius_m, height_m, "canopy"]`` in tile metres along both road sides.
+
+    ``roads`` are (centre line in tile metres, carriageway width). A site is skipped at a junction,
+    on a building (``mask`` > 0) and by chance (the biome's planted share times ``density``).
+    """
+    from shapely.geometry import LineString, Point
+    from shapely.strtree import STRtree
+
+    style = STREET_TREES.get(biome)
+    if style is None or density <= 0:
+        return []
+    spacing, share, median = style
+    side = mask.shape[0]
+    size_m = side * gsd_m
+    lines = [LineString(xy) for xy, _ in roads]
+    index = STRtree(lines) if lines else None
+    out: list[list[Any]] = []
+    for i, ((_, width), line) in enumerate(zip(roads, lines, strict=True)):
+        if width < STREET_MIN_ROAD_M or line.length < spacing:
+            continue
+        for sgn in (-1.0, 1.0):
+            rng = substream(seed, f"trees:street:{i}:{int(sgn)}")
+            s = float(rng.uniform(0.0, spacing))
+            while s < line.length:
+                step = spacing * float(rng.uniform(0.75, 1.3))
+                roll, jitter = float(rng.uniform()), float(rng.normal(0.0, 0.5))
+                radius = float(np.clip(median * np.exp(rng.normal(0.0, 0.2)), 2.0, 9.0))
+                s += step
+                if roll >= share * density:
+                    continue
+                a, b = (
+                    line.interpolate(max(s - 1.0, 0.0)),
+                    line.interpolate(min(s + 1.0, line.length)),
+                )
+                tx, ty = b.x - a.x, b.y - a.y
+                n = float(np.hypot(tx, ty))
+                p = line.interpolate(min(s, line.length))
+                if n == 0:
+                    continue
+                off = sgn * (width / 2.0 + STREET_SETBACK_M + jitter)
+                x, y = p.x - ty / n * off, p.y + tx / n * off
+                if not (0.0 <= x < size_m and 0.0 <= y < size_m):
+                    continue
+                if (
+                    mask[
+                        int(np.clip((size_m - y) / gsd_m, 0, side - 1)),
+                        int(np.clip(x / gsd_m, 0, side - 1)),
+                    ]
+                    > 0
+                ):
+                    continue
+                if index is not None:  # a junction: another road's carriageway is close
+                    pt = Point(x, y)
+                    near = index.query(pt.buffer(STREET_JUNCTION_M + 12.0))
+                    if any(
+                        k != i and lines[k].distance(pt) < roads[k][1] / 2.0 + STREET_JUNCTION_M
+                        for k in near
+                    ):
+                        continue
+                height = float(
+                    np.clip(5.5 + 1.5 * radius * np.exp(rng.normal(0.0, 0.1)), 6.0, 16.0)
+                )
+                out.append([round(x, 2), round(y, 2), round(radius, 2), round(height, 2), "canopy"])
+    return out
+
+
 def wall_distance(x: Array, y: Array, walls: Array) -> Array:
     """Distance from each point to the nearest wall segment (``walls`` is n x 4: x0 y0 x1 y1)."""
     if len(walls) == 0:
@@ -239,6 +328,8 @@ __all__ = [
     "SHRUB_BELOW_M",
     "scatter",
     "species_for",
+    "street_trees",
+    "STREET_TREES",
     "variety_for",
     "VARIETIES",
     "wall_distance",

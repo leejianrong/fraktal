@@ -365,6 +365,11 @@ def export_scene(
         segments = [seg for c in walls for seg in c["segments"]]
         trees = trees3d.scatter(surface, mask, gsd_m, tree_density, seed, biome, segments)
         trees += trees3d.yard_trees(walls, seed, biome, compounds.YARD_TREE_SHARE * tree_density)
+        trees += trees3d.street_trees(
+            [(list(r.xy), r.width_m) for r in _marking_roads(roads, west, south, side * gsd_m)
+             if r.road_class in ("arterial", "local")],
+            mask, gsd_m, biome, seed, tree_density,
+        )  # fmt: skip
     if field_palms is not None:  # planted rows: every palm of an oil-palm field
         palm_shapes, palm_heights, _ = field_palms
         for (row, col, radius, *_rest), height in zip(palm_shapes, palm_heights, strict=True):
