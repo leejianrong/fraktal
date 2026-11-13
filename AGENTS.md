@@ -9,7 +9,7 @@ fix the docs in the same PR.
 
 ```bash
 make install           # uv sync --frozen
-make check             # the pre-push gate: ruff, mypy --strict, fast tests. Run before pushing
+make check             # ruff, mypy --strict, fast tests. SLOW here (see "CI is the full gate")
 make test-integration  # subprocesses, external services, network
 make fmt               # apply ruff fixes and formatting
 ```
@@ -18,6 +18,12 @@ make fmt               # apply ruff fixes and formatting
 
 - **Jian is the sole author.** No co-author trailers or tool attributions in commits, PRs or files.
 - **Branch per slice, PR only, rebase-merge** so each story keeps its own commit. CI must be green.
+- **CI is the full gate; do not run the whole suite locally.** On the 8 GB dev machine `make check`
+  has taken 15 min to 2 h 25 min and blocks branch switching. Locally run only `ruff check`,
+  `ruff format --check`, `mypy --strict` on the files you changed, and `pytest` on the test
+  files for the code you touched. Then push, open the PR and watch `gh pr checks <n>` while
+  you move on to other work. Merge only when green. A run stuck "queued" with no jobs: close
+  and reopen the PR. Run the full `make check` locally only if Jian asks.
 - **Determinism is a contract** ([ADR-0003](docs/adr/0003-deterministic-worlds-with-stable-ids.md)). Randomness only via
   `fraktal.ids.substream`. No global RNG, wall-clock time or unordered iteration in world generation.
 - **Kernels** ([ADR-0005](docs/adr/0005-python-first-with-a-kernel-seam-for-a-later-rust-core.md)) live in
