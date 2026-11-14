@@ -68,3 +68,17 @@ def test_load_model_explains_a_missing_install(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setitem(sys.modules, "transformers", None)  # an import of it now fails
     with pytest.raises(ValueError, match="install-seg"):
         segment.load_model()
+
+
+def test_the_device_is_the_gpu_when_there_is_one_and_an_explicit_request_wins() -> None:
+    assert segment.resolve_device(None, True) == "cuda"
+    assert segment.resolve_device("auto", False) == "cpu"
+    assert segment.resolve_device("cpu", True) == "cpu"
+    assert segment.resolve_device("cuda", True) == "cuda"
+
+
+def test_asking_for_cuda_without_a_gpu_or_for_an_unknown_device_is_an_error() -> None:
+    with pytest.raises(ValueError, match="no GPU"):
+        segment.resolve_device("cuda", False)
+    with pytest.raises(ValueError, match="tpu"):
+        segment.resolve_device("tpu", True)

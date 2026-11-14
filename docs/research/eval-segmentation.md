@@ -29,6 +29,11 @@ road, pavement, trees, sky and facades on Nairobi and Manila-Quezon photos).
 Cost: about 14 s per image on 16 CPU cores, 38 s to load, 7 GB RAM tight. A city sample (13 photos plus
 40 frames) takes roughly 12 minutes; results are cached per image.
 
+On a GPU it is about 11 times faster: 0.42 s per image against 4.8 s on 20 CPU cores (RTX 3080 Ti Laptop, 512 px
+frames, float32, 1.55 GiB of GPU memory, 2026-11-14). The model picks `cuda` when torch sees a GPU;
+`FRAKTAL_SEG_DEVICE=cpu` forces the CPU, and `cuda` without a GPU is an error. Class shares from the two devices
+agreed to rounding on 15 frames, so one cache serves both.
+
 ## Limits
 
 - COCO "stuff" classes are coarse: `building-other-merged`, `pavement-merged`, `tree-merged`. We group

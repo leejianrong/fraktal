@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -51,8 +52,24 @@ def shares(label_names: Array) -> dict[str, float]:
     return {k: round(v, 5) for k, v in out.items()}
 
 
-def load_model() -> Segmenter:
-    """The OneFormer segmenter. Needs ``transformers`` and ``torch`` (``make install-seg``)."""
+def resolve_device(requested: str | None, cuda_available: bool) -> str:
+    """``cuda`` when there is a GPU, else ``cpu``; ``requested`` (``cpu`` or ``cuda``) overrides it.
+
+    Asking for ``cuda`` without one is an error, not a silent fall back to the CPU."""
+    if requested in (None, "", "auto"):
+        return "cuda" if cuda_available else "cpu"
+    if requested not in ("cpu", "cuda"):
+        raise ValueError(f"segmenter device must be cpu, cuda or auto, not {requested!r}")
+    if requested == "cuda" and not cuda_available:
+        raise ValueError("segmenter device cuda was requested but torch sees no GPU")
+    return requested
+
+
+def load_model(device: str | None = None) -> Segmenter:
+    """The OneFormer segmenter. Needs ``transformers`` and ``torch`` (``make install-seg``).
+
+    ``device`` is ``cpu``, ``cuda`` or ``auto`` (default: ``$FRAKTAL_SEG_DEVICE``, else auto). The
+    weights stay float32 on every device, so shares agree between them and one cache serves both."""
     try:
         import torch
         from transformers import OneFormerForUniversalSegmentation, OneFormerProcessor
@@ -60,15 +77,18 @@ def load_model() -> Segmenter:
         raise ValueError("segmentation needs `make install-seg` (transformers, torch)") from err
     processor: Any = OneFormerProcessor.from_pretrained(MODEL)
     model: Any = OneFormerForUniversalSegmentation.from_pretrained(MODEL)
-    model.eval()
+    where = resolve_device(
+        device or os.environ.get("FRAKTAL_SEG_DEVICE"), torch.cuda.is_available()
+    )
+    model.to(where).eval()
     names = np.array([model.config.id2label[i] for i in range(len(model.config.id2label))])
 
     def run(image: Array) -> Array:
-        inputs = processor(images=image, task_inputs=["semantic"], return_tensors="pt")
+        inputs = processor(images=image, task_inputs=["semantic"], return_tensors="pt").to(where)
         with torch.no_grad():
             out = model(**inputs)
         ids = processor.post_process_semantic_segmentation(out, target_sizes=[image.shape[:2]])[0]
-        labelled: Array = names[ids.numpy()]
+        labelled: Array = names[ids.cpu().numpy()]
         return labelled
 
     return run
@@ -101,5 +121,6 @@ def as_stats(per_image: Mapping[str, float]) -> dict[str, float]:
 
 
 __all__ = [
-    "GROUPS", "NAMES", "Segmenter", "as_stats", "cached_shares", "load_model", "shares",
+    "GROUPS", "NAMES", "Segmenter", "as_stats", "cached_shares", "load_model", "resolve_device",
+    "shares",
 ]  # fmt: skip

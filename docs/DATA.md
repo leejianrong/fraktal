@@ -32,7 +32,7 @@ whole tree. Folders marked **irreplaceable** cannot be regenerated from this rep
 | `eval/ground-reference/` | 247 files: about 120 street-level photos of 11 cities with a `.json` each (source, licence, author, URL) | Wikimedia Commons (own licence per file) and Mapillary (CC BY-SA 4.0, needs `MAPILLARY_TOKEN`) | `uv run python scripts/refboard/pull_ground.py --out data/eval/ground-reference` (the pull is not byte-repeatable: Mapillary results change) |
 | `eval/maxar-reference/` | 47 windows of Maxar satellite, pre and post disaster | Maxar Open Data, CC BY-NC 4.0 | `uv run python scripts/refboard/pull_maxar.py --out data/eval/maxar-reference` |
 | `eval/open-cities-10/` | 90 drone chips averaged to 0.5 m | Open Cities AI (GFDRR, ODbL-1.0), citation in its `EVAL_ONLY.txt` | `fraktal eval-set` |
-| `eval/segmentation/` | Cached class shares from the evaluation segmenter, keyed by pixels and model | OneFormer COCO Swin-L (MIT), see `research/eval-segmentation.md` | Created by `fraktal streets --segment` (needs `make install-seg`; the 840 MB model downloads into `~/.cache/huggingface`; a city takes about 12 minutes on CPU) |
+| `eval/segmentation/` | Cached class shares from the evaluation segmenter, keyed by pixels and model | OneFormer COCO Swin-L (MIT), see `research/eval-segmentation.md` | Created by `fraktal streets --segment` (needs `make install-seg`; the 840 MB model downloads into `~/.cache/huggingface`; a city takes about 12 minutes on CPU, about 1 on a GPU) |
 | `eval/reference-board.html`, `eval/side-by-side-*.jpg` | The looking board and sheets | Made from the sets above | `refboard` module (`research/reference-board.md`) |
 
 `EVAL_ONLY.txt` sits beside each real set and states the terms. Keep it there.
