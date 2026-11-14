@@ -58,13 +58,13 @@ same gaps.
 | | Manila-Quezon (12 photos) | Nairobi centre (18) | Khartoum city (3, a hint) |
 |---|---|---|---|
 | road share | 0.362 (0.268) | 0.411 (0.244) | 0.365 (0.259) |
-| building share | 0.046 (0.053) | 0.346 (0.233) | 0.134 (0.107) |
-| vegetation share | 0.199 (0.337) | 0.050 (0.098) | 0.024 (0.015) |
+| building share | 0.038 (0.053) | 0.331 (0.233) | 0.134 (0.107) |
+| vegetation share | 0.223 (0.337) | 0.067 (0.098) | 0.024 (0.015) |
 | vehicle share | 0.031 (0.090) | 0.011 (0.081) | 0.013 (0.031) |
 | person share | 0.000 (0.006) | 0.001 (0.017) | 0.000 (0.200, one market photo) |
-| brightness | 0.417 (0.486) | 0.430 (0.487) | 0.627 (0.540) |
+| brightness | 0.436 (0.486) | 0.466 (0.487) | 0.627 (0.540) |
 
-Manila-Quezon above is after FRK-161 (setback 10 m, 45% and 30% built in core and edge; it was 2.5 m and 92% and
+Manila-Quezon and Nairobi above include FRK-161, 162 and 164 (Manila setback 10 m, 45% and 30% built in core and edge; it was 2.5 m and 92% and
 80%, which gave building 0.230, vegetation 0.072). Road share does not respond to road width (it stayed near 0.35
 with roads 16 m and 7 m wide); it is set by the camera and field of view, and it is already within one photo standard
 deviation for Manila (Nairobi and Khartoum are at about one). Narrower roads made building share worse.
@@ -73,11 +73,11 @@ Looking at the sheets (before FRK-161 for Manila): Nairobi reads as a canyon of 
 Khartoum is closer in feel but its vehicles are blocky and its road is too wide. The local numbers for Manila-Quezon
 match the pod's from commit ac52cc5 to the third decimal, so local GPU strips are usable for iteration.
 
-Next, in order (FRK-159, 160, then the slices of FRK-156):
+Next, in order:
 
-1. Cut the labels pass of a street strip (FRK-160): about 60 s of a 90 s strip, the same on GPU and CPU.
-2. The proportion pass, in four slices: road and building share (FRK-161), crowns and vegetation (FRK-162),
-   people and vehicles (FRK-163), contrast and brightness (FRK-164).
+1. Finish FRK-163: vehicles are still boxes and people box figures. The mesh and leaf-card trial is FRK-169.
+2. The camera and surface realism steps from [research/hyperrealism-methods.md](research/hyperrealism-methods.md):
+   eye-level camera chain (FRK-165), wall speckle (FRK-166), weathering and decals (FRK-167), light variety (FRK-168).
 3. Pilot iteration cycles: FRK-148 (Khartoum), FRK-149 (Manila-Quezon), FRK-150 (Nairobi centre).
 4. The other eight cities (FRK-151).
 
@@ -94,7 +94,7 @@ fraktal streets data/review/street<tag>_manila_quezon/out/review/fly/frames \
   --city 'manila-quezon' --data-dir data --limit 30 --segment --sheet <sheet>.png
 ```
 
-Locally (WSL, Windows Blender on the GPU, about 2 to 3 minutes a city), with `PATH=$PWD/.venv/bin:$PATH` and
+Locally (WSL, Windows Blender on the GPU, about 45 seconds a city), with `PATH=$PWD/.venv/bin:$PATH` and
 `FRAKTAL_BPY_PYTHON=$PWD/scripts/wsl/winblender.sh`:
 
 ```bash
