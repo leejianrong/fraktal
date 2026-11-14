@@ -51,17 +51,28 @@ Done on `main`: eye-level camera and review harness, segmentation for evaluation
 (FRK-152), road markings and kerbs (153), street trees (154), per-city light and canopy colour (155), street life:
 jeepneys, cars with wheels, kerb stalls, overhead cables (147, code merged).
 
-Measured for Manila-Quezon after FRK-147 (strip of commit ac52cc5, photos in brackets): vehicle share 0.032
-(0.090), brightness 0.417 (0.486), road share 0.373 (0.268), building share 0.230 (0.053), vegetation 0.071
-(0.337), person 0 (0.006). Nairobi and Khartoum strips have **not** been rendered with the street-life code (the
-RunPod balance ran out), and Khartoum rests on only 2 photos, so treat its numbers as hints.
+Measured on current `main` (commit 5ffeebd, local GPU render, 2026-11-14; photos in brackets, z in the harness
+output): the three pilots all show the street-life code (cables, jeepneys, stalls, motorbikes), and all three share the
+same gaps.
 
-Next, in order:
+| | Manila-Quezon (12 photos) | Nairobi centre (18) | Khartoum city (3, a hint) |
+|---|---|---|---|
+| road share | 0.374 (0.268) | 0.411 (0.244) | 0.365 (0.259) |
+| building share | 0.230 (0.053), z 3.2 | 0.346 (0.233) | 0.134 (0.107) |
+| vegetation share | 0.072 (0.337) | 0.050 (0.098) | 0.024 (0.015) |
+| vehicle share | 0.031 (0.090) | 0.011 (0.081) | 0.013 (0.031) |
+| person share | 0.000 (0.006) | 0.001 (0.017) | 0.000 (0.200, one market photo) |
+| brightness | 0.417 (0.486) | 0.430 (0.487) | 0.627 (0.540) |
 
-1. Top up RunPod, then render Nairobi centre and Khartoum city on current `main`, compare with `fraktal streets`,
-   look at the sheets, and close FRK-147.
-2. The proportion pass (FRK-156): too much road and building in frame, low contrast, crowns still low-poly (the segmenter
-   reads dark crowns as building), no people share, vehicles boxy, vegetation far below the photos.
+Looking at the sheets: Nairobi reads as a canyon of tall uniform blocks with sparse boxy cars and a wide empty road;
+Khartoum is closer in feel but its vehicles are blocky and its road is too wide. The local numbers for Manila-Quezon
+match the pod's from commit ac52cc5 to the third decimal, so local GPU strips are usable for iteration.
+
+Next, in order (FRK-159, 160, then the slices of FRK-156):
+
+1. Cut the labels pass of a street strip (FRK-160): about 60 s of a 90 s strip, the same on GPU and CPU.
+2. The proportion pass, in four slices: road and building share (FRK-161), crowns and vegetation (FRK-162),
+   people and vehicles (FRK-163), contrast and brightness (FRK-164).
 3. Pilot iteration cycles: FRK-148 (Khartoum), FRK-149 (Manila-Quezon), FRK-150 (Nairobi centre).
 4. The other eight cities (FRK-151).
 
@@ -77,6 +88,17 @@ cat data/review/cities<tag>_progress.txt   # ends with ALL_DONE
 fraktal streets data/review/street<tag>_manila_quezon/out/review/fly/frames \
   --city 'manila-quezon' --data-dir data --limit 30 --segment --sheet <sheet>.png
 ```
+
+Locally (WSL, Windows Blender on the GPU, about 2 to 3 minutes a city), with `PATH=$PWD/.venv/bin:$PATH` and
+`FRAKTAL_BPY_PYTHON=$PWD/scripts/wsl/winblender.sh`:
+
+```bash
+.venv/bin/python scripts/local/city_strips.py <tag> manila_quezon nairobi_centre khartoum_city
+```
+
+It writes the same `data/review/street<tag>_<biome>/out/review/fly/frames` layout and a `commit.txt` per city
+(HEAD, and "dirty" if the tree had changes), so the `fraktal streets` line above works unchanged. Pod and local
+pixels differ, so compare like with like.
 
 - One batch at a time. Delete the old `driver.log` first, and confirm `pods left: 0` in the new one.
 - Only touch pods this project started. Other projects share the RunPod account.
