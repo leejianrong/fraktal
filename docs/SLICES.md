@@ -199,3 +199,11 @@ Turn generation into something a customer can buy, and prove it scales.
 - Manifest schema validates and rejects missing generator version.
 
 - FRK-54: dense_urban and informal_settlement fill more of each parcel (about 22% and 11% building cover over a 2 km tile). See docs/research/tropical-test-set.md.
+
+## E6 and later: the 3D renderer and city lookalikes (tracked on the board, not slice by slice)
+
+After V5 the work moved to the Blender renderer (ADR-0010, ADR-0012): organic roads, varied buildings, trees,
+props and traffic, drone and eye-level views, and an owned asset library (`assets/`). The current epic
+("City lookalikes at eye level", board 41, epic 535) makes the generator produce realistic lookalikes of 11
+cities, judged by `fraktal streets` against private ground photos. State, measurements and the next steps are in
+[HANDOVER.md](HANDOVER.md); the card list is the build order (FRK-146 and 152 to 155 done, FRK-147 merged but not yet checked in every city, FRK-148 to 151 open).

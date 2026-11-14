@@ -17,16 +17,48 @@ New topic: add a folder and a row here. Name files for what they show, not for t
 
 ## `data/` (git-ignored, local only)
 
-| Path | What it is | Safe to delete? |
-|---|---|---|
-| `eval/` | Real reference imagery and side-by-side sheets. Eval only, never committed or shared | No |
-| `spacenet2/`, `synthetic/`, `dataset_v0/`, `terrain/`, `worlds/` | Inputs and built datasets that docs and scripts name | No |
-| `review/`, `proc_review/`, `reports/` | Review figures and reports | Regenerable |
-| `scratch/` | Deleted 2026-11-09 (see below). New one-off pod output goes here | Yes, once the doc image is committed |
-| `flights/` | Fly-through, dashcam and eye-level renders | Regenerable |
-| `old-synth/` | Deleted 2026-11-09 (see below) | n/a |
+Nothing here is in git. A fresh clone has no `data/`; this table says what each folder is, where it came
+from and how to get it back. "Rebuild" is the command to run on a new machine; "Pod run" means it was made on
+RunPod (see [RUNPOD.md](RUNPOD.md)) and only the downloaded artifact lives here. `FRAKTAL_DATA_DIR` moves the
+whole tree. Folders marked **irreplaceable** cannot be regenerated from this repo.
 
-Put new one-off run output under `scratch/<topic>`, not at the top level of `data/`.
+### Inputs and real reference imagery (eval only: never committed, trained on, conditioned on or shared)
+
+| Path | What it is | Source and licence | Rebuild |
+|---|---|---|---|
+| `spacenet2/` | SpaceNet 2 AOI 5 Khartoum, 650 px chips plus the train and test split | AWS Open Data `spacenet-dataset`, CC BY-SA 4.0 (ADR-0008) | `fraktal ingest --what imagery` (5 GB), then `fraktal split --seed 0` |
+| `terrain/` | Copernicus GLO-30 DEM and ESA WorldCover clipped to the Khartoum AOI | Copernicus (free, open), ESA WorldCover CC BY 4.0 | `fraktal ingest --what terrain` |
+| `worlds/` | `khartoum-skeleton.parquet`, the real-footprint world | Built from the train-split labels only (no test footprints, ADR-0006) | `fraktal generate --seed 0` |
+| `eval/ground-reference/` | 247 files: about 120 street-level photos of 11 cities with a `.json` each (source, licence, author, URL) | Wikimedia Commons (own licence per file) and Mapillary (CC BY-SA 4.0, needs `MAPILLARY_TOKEN`) | `uv run python scripts/refboard/pull_ground.py --out data/eval/ground-reference` (the pull is not byte-repeatable: Mapillary results change) |
+| `eval/maxar-reference/` | 47 windows of Maxar satellite, pre and post disaster | Maxar Open Data, CC BY-NC 4.0 | `uv run python scripts/refboard/pull_maxar.py --out data/eval/maxar-reference` |
+| `eval/open-cities-10/` | 90 drone chips averaged to 0.5 m | Open Cities AI (GFDRR, ODbL-1.0), citation in its `EVAL_ONLY.txt` | `fraktal eval-set` |
+| `eval/segmentation/` | Cached class shares from the evaluation segmenter, keyed by pixels and model | OneFormer COCO Swin-L (MIT), see `research/eval-segmentation.md` | Created by `fraktal streets --segment` (needs `make install-seg`; the 840 MB model downloads into `~/.cache/huggingface`; a city takes about 12 minutes on CPU) |
+| `eval/reference-board.html`, `eval/side-by-side-*.jpg` | The looking board and sheets | Made from the sets above | `refboard` module (`research/reference-board.md`) |
+
+`EVAL_ONLY.txt` sits beside each real set and states the terms. Keep it there.
+
+### Our own synthetic output (regenerable, but pod time costs money)
+
+| Path | What it is | Rebuild |
+|---|---|---|
+| `synthetic/`, `dataset_v0/` | V1 benchmark chips (`fraktal synth`) and the first multi-biome Blender batch (6 biomes, 20 tiles each, contact sheet) | `synth`; `dataset_v0` is a pod run of `render3d-batch` per biome via `scripts/runpod/stage0_run.sh` (`MODE=batch`) |
+| `review/` | Review sheets, street strips and progress files. `review/street<N>_<biome>/` is one strip render of one commit (`scripts/runpod/city_strips.sh`). `review/city_baseline/` holds the compared sheets of the city-lookalike work, named after the card | Pod run; the commit of each strip is in its `driver.log` |
+| `flights/` | Fly-through, dashcam and eye-level renders and the browser demo | Pod runs of `stage0_run.sh` with `MODE=fly` |
+| `trees1/`, `trees2/`, `trees3/`, `walls2/` | Pod artifacts behind the tree and wall work (FRK-111, 132, 134) | Pod runs; `strip.jpg` and `before-after.jpg` are the evidence |
+| `proc_review/`, `reports/` | Procedural-world review renders and the V3 realism report PDF (`fraktal report`) | `fraktal report` from an ablation result; see `scripts/runpod/ablation.sh` |
+
+Anything under `docs/img/` that matters was copied there from these folders and is in git.
+
+### Other things a new machine needs that git does not hold
+
+- **`.env`** (git-ignored) holds only `MAPILLARY_TOKEN`, a read-only Mapillary client token (free developer
+  account). It is read by `pull_ground.py`. Nothing else reads `.env`.
+- **`~/.runpod/config.toml`**: the RunPod API key, written by `runpodctl config`. Read by reference in
+  `scripts/runpod/stage0_run.sh`. The account balance must be positive or no pod starts.
+- **`~/.cache/huggingface`**: the OneFormer model (above).
+- **Pandan board 41** (`pandan` CLI, a token from `pandan login`): the work tracker. Not a file.
+
+Put new one-off run output under `data/scratch/<topic>`, not at the top level of `data/`.
 
 ## Removed on 2026-11-09
 
