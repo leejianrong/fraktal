@@ -37,9 +37,10 @@ def git(*args: str) -> str:
 
 
 def make_world_and_route(
-    work: Path, biome: str, length_m: float
+    work: Path, biome: str, length_m: float, overrides: dict[str, object]
 ) -> tuple[tuple[float, float], str]:
-    generate_world(work / "world", CENTER0, 3, biomes.resolve(biome, {"size_m": 3000.0}))
+    config = biomes.resolve(biome, {"size_m": 3000.0, **overrides})
+    generate_world(work / "world", CENTER0, 3, config)
     roads = procedural.read_roads(work / "world").to_crs(4326)
     weight = roads.length
     centroids = roads.geometry.centroid
@@ -70,6 +71,11 @@ def main() -> int:
     ap.add_argument("--device", choices=["cpu", "gpu"], default="gpu")
     ap.add_argument("--speed", type=float, default=8.0, help="metres between frames at 1 fps")
     ap.add_argument("--length-m", type=float, default=420.0)
+    ap.add_argument(
+        "--override",
+        default="{}",
+        help='JSON of biome settings for every biome, e.g. {"buildings": {"front_setback_m": 6}}',
+    )
     ap.add_argument("--people-per-km", type=float, default=30.0)
     ap.add_argument(
         "--data-dir", type=Path, default=Path(os.environ.get("FRAKTAL_DATA_DIR", ROOT / "data"))
@@ -78,6 +84,8 @@ def main() -> int:
 
     os.environ.setdefault("FRAKTAL_ASSETS", str(ROOT / "assets"))
     commit = git("rev-parse", "HEAD") + (" dirty" if git("status", "--porcelain") else "")
+    if args.override != "{}":
+        commit += f" override={args.override}"
     progress = args.data_dir / "review" / f"cities{args.tag}_progress.txt"
     progress.parent.mkdir(parents=True, exist_ok=True)
     for biome in args.biomes:
@@ -86,7 +94,7 @@ def main() -> int:
         fly = out / "out" / "review" / "fly"
         work.mkdir(parents=True, exist_ok=True)
         t0 = time.time()
-        center, side = make_world_and_route(work, biome, args.length_m)
+        center, side = make_world_and_route(work, biome, args.length_m, json.loads(args.override))
         cmd = [
             "fraktal", "render3d", str(work / "world"), "--out", str(fly),
             "--center", f"{center[0]} {center[1]}", "--size-m", "800", "--gsd-m", "0.5",
