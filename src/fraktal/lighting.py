@@ -31,7 +31,8 @@ EYE_LEVEL = {"sun": 0.8, "fill": 0.8, "sky_seen": 0.6}
 # canyons, so its sun and sky are not turned down as far (0.35 against 0.49 in the photos).
 HAZY: dict[str, tuple[float, float, float]] = {"khartoum_city": (0.85, 1.0, 0.8)}
 EYE_LEVEL_BY_BIOME: dict[str, dict[str, float]] = {
-    "nairobi_centre": {"sun": 1.0, "fill": 1.15, "sky_seen": 0.6},
+    "nairobi_centre": {"sun": 1.1, "fill": 1.3, "sky_seen": 0.6},
+    "manila_quezon": {"sun": 0.9, "fill": 0.92, "sky_seen": 0.6},
 }
 EYE_LEVEL_MIN_OFF_NADIR_DEG = 75.0  # a camera at least this far from straight down is eye level
 
