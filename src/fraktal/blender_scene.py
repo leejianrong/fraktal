@@ -484,7 +484,18 @@ def use_label_look(sc) -> None:
     out = nodes.new("ShaderNodeOutputMaterial")
     links.new(colour.outputs["Color"], emit.inputs["Color"])
     links.new(emit.outputs["Emission"], out.inputs["Surface"])
-    for name in ("ground", "buildings", "trees", "vehicles", "poles", "props", "walls", *AGENTS):
+    for name in (
+        "ground",
+        "buildings",
+        "trees",
+        "vehicles",
+        "poles",
+        "props",
+        "walls",
+        "cables",
+        "markings",
+        *AGENTS,
+    ):  # every object paint_labels paints, or its own lit material shows up in the labels
         if name in bpy.data.objects:
             mesh = bpy.data.objects[name].data
             mesh.materials.clear()
@@ -493,6 +504,10 @@ def use_label_look(sc) -> None:
             mesh.update()
     sc.cycles.samples = 1
     sc.cycles.use_denoising = False
+    # Every face is emissive here, so with the light tree Cycles rebuilt a light structure over
+    # millions of triangles each time the agents moved: 3.5 s a frame instead of 0.4 s. Nothing
+    # is lit in this pass, so the values do not change.
+    sc.cycles.use_light_tree = False
     sc.cycles.filter_width = 0.01  # one sample at the pixel centre, no blur
     sc.render.film_transparent = False
     sc.render.dither_intensity = 0.0  # dither would add +-1 noise to the ids
@@ -1248,6 +1263,7 @@ def main() -> int:
     )
     cycles.render.image_settings.file_format = "PNG"
     cycles.render.image_settings.color_mode = "RGB"
+    cycles.render.use_persistent_data = True  # keep the BVH and meshes between a strip's frames
     t1 = time.time()
     say(
         f"scene_built buildings={n} trees={nt} vehicles={nv} moving={moving} people={walking} "
@@ -1266,16 +1282,26 @@ def main() -> int:
         cycles.render.filepath = str(a.out.resolve())
         bpy.ops.render.render(write_still=True)
     if a.labels:
+        t2 = time.time()
         paint_labels(scene, a.scene_dir)
+        t3 = time.time()
         use_label_look(cycles)
+        say(f"labels_prepared paint={t3 - t2:.1f}s look={time.time() - t3:.1f}s")
+        t4 = time.time()
         if frames:
             a.labels.mkdir(parents=True, exist_ok=True)
             for pose in frames:
+                ta = time.time()
                 pose_camera(cam_obj, pose)
                 set_agents(pose["index"])
+                tb = time.time()
                 name = f"frame_{pose['index']:04d}.png"
                 cycles.render.filepath = str((a.labels / name).resolve())
                 bpy.ops.render.render(write_still=True)
+                say(
+                    f"label {pose['index'] + 1}/{len(frames)} t={time.time() - t4:.1f}s "
+                    f"agents={tb - ta:.2f}s render={time.time() - tb:.2f}s"
+                )
         else:
             cycles.render.filepath = str(a.labels.resolve())
             bpy.ops.render.render(write_still=True)
