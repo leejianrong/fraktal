@@ -299,7 +299,7 @@ def render(
                 graph,
                 times,
                 seed,
-                agents.WalkerConfig(float(traffic["people_per_km"])),  # type: ignore[index]
+                agents.WalkerConfig(float(traffic["people_per_km"]), verge_spread_m=3.0),  # type: ignore[index]
             )
             (out_dir / "scene" / "people.json").write_text(json.dumps(walkers.as_dict()) + "\n")
         if int((traffic or {}).get("drones", 0)) > 0:

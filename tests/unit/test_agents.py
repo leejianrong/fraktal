@@ -298,3 +298,29 @@ def test_cars_and_people_still_route_on_an_organic_informal_settlement(tmp_path:
     cars = agents.simulate_cars(g, times, 3, agents.TrafficConfig(drive_side=side))
     people = agents.simulate_people(g, times, 3)
     assert len(cars.ids) > 5 and len(people.ids) > 5
+
+
+def test_a_verge_spread_moves_people_off_a_single_line_and_zero_changes_nothing() -> None:
+    g = agents.build_graph(CROSS, BOUNDS)
+    times = np.arange(0.0, 20.0, 0.5)
+    plain = agents.simulate_people(g, times, 3, agents.WalkerConfig(people_per_km=40.0))
+    same = agents.simulate_people(
+        g, times, 3, agents.WalkerConfig(people_per_km=40.0, verge_spread_m=0.0)
+    )
+    spread = agents.simulate_people(
+        g, times, 3, agents.WalkerConfig(people_per_km=40.0, verge_spread_m=3.0)
+    )
+    assert np.array_equal(plain.x, same.x) and np.array_equal(plain.y, same.y)
+    assert not np.array_equal(plain.x, spread.x) and len(spread.ids) == len(plain.ids)
+
+    from shapely.geometry import Point
+
+    centre = CROSS.geometry.union_all()
+
+    def distances(p: agents.Tracks) -> np.ndarray:
+        return np.array(
+            [centre.distance(Point(x, y)) for x, y in zip(p.x[:, 0], p.y[:, 0], strict=True)]
+        )
+
+    assert np.ptp(distances(spread)) > np.ptp(distances(plain)) + 1.0  # a spread, not one line
+    assert distances(spread).min() > 0.0  # nobody stands in the carriageway
