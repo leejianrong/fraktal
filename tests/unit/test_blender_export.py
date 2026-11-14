@@ -193,7 +193,20 @@ def test_label_and_depth_looks_cover_every_moving_agent_type_without_a_name_list
 
     source = (Path(__file__).parents[2] / "src/fraktal/blender_scene.py").read_text()
     assert '"traffic", "people")' not in source
-    assert source.count('"props", "walls", *AGENTS)') == 2
+    assert source.count("(*LOOK_OBJECTS, *AGENTS)") == 2
+    # and the static list covers every object the passes paint, or it renders lit (FRK-160)
+    for name in (
+        "ground",
+        "buildings",
+        "trees",
+        "vehicles",
+        "poles",
+        "props",
+        "walls",
+        "cables",
+        "markings",
+    ):
+        assert f'"{name}"' in source.split("LOOK_OBJECTS = (")[1].split(")")[0], name
 
 
 def test_props_are_exported_as_arrays_with_catalogue_classes(tmp_path: Path) -> None:
