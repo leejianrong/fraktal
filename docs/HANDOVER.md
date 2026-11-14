@@ -57,14 +57,19 @@ same gaps.
 
 | | Manila-Quezon (12 photos) | Nairobi centre (18) | Khartoum city (3, a hint) |
 |---|---|---|---|
-| road share | 0.374 (0.268) | 0.411 (0.244) | 0.365 (0.259) |
-| building share | 0.230 (0.053), z 3.2 | 0.346 (0.233) | 0.134 (0.107) |
-| vegetation share | 0.072 (0.337) | 0.050 (0.098) | 0.024 (0.015) |
+| road share | 0.362 (0.268) | 0.411 (0.244) | 0.365 (0.259) |
+| building share | 0.046 (0.053) | 0.346 (0.233) | 0.134 (0.107) |
+| vegetation share | 0.199 (0.337) | 0.050 (0.098) | 0.024 (0.015) |
 | vehicle share | 0.031 (0.090) | 0.011 (0.081) | 0.013 (0.031) |
 | person share | 0.000 (0.006) | 0.001 (0.017) | 0.000 (0.200, one market photo) |
 | brightness | 0.417 (0.486) | 0.430 (0.487) | 0.627 (0.540) |
 
-Looking at the sheets: Nairobi reads as a canyon of tall uniform blocks with sparse boxy cars and a wide empty road;
+Manila-Quezon above is after FRK-161 (setback 10 m, 45% and 30% built in core and edge; it was 2.5 m and 92% and
+80%, which gave building 0.230, vegetation 0.072). Road share does not respond to road width (it stayed near 0.35
+with roads 16 m and 7 m wide); it is set by the camera and field of view, and it is already within one photo standard
+deviation for Manila (Nairobi and Khartoum are at about one). Narrower roads made building share worse.
+
+Looking at the sheets (before FRK-161 for Manila): Nairobi reads as a canyon of tall uniform blocks with sparse boxy cars and a wide empty road;
 Khartoum is closer in feel but its vehicles are blocky and its road is too wide. The local numbers for Manila-Quezon
 match the pod's from commit ac52cc5 to the third decimal, so local GPU strips are usable for iteration.
 
@@ -96,7 +101,8 @@ Locally (WSL, Windows Blender on the GPU, about 2 to 3 minutes a city), with `PA
 .venv/bin/python scripts/local/city_strips.py <tag> manila_quezon nairobi_centre khartoum_city
 ```
 
-It writes the same `data/review/street<tag>_<biome>/out/review/fly/frames` layout and a `commit.txt` per city
+`--override '{"buildings": {"front_setback_m": 6}}'` tries biome settings without editing `biomes.py`. It writes the same
+`data/review/street<tag>_<biome>/out/review/fly/frames` layout and a `commit.txt` per city
 (HEAD, and "dirty" if the tree had changes), so the `fraktal streets` line above works unchanged. Pod and local
 pixels differ, so compare like with like.
 

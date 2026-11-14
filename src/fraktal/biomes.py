@@ -155,10 +155,10 @@ BIOMES: dict[str, Biome] = {
                 block_depth_m=35.0,
             ),
             buildings=BuildingConfig(
-                built_probability_core=0.92,
-                built_probability_edge=0.8,
+                built_probability_core=0.45,
+                built_probability_edge=0.3,
                 core_radius_m=600.0,
-                front_setback_m=2.5,
+                front_setback_m=10.0,  # photos show 5% building in frame; 6 m still gave 16%
                 side_setback_m=0.6,
                 height_core_m=(6.0, 14.0),
                 height_edge_m=(4.0, 9.0),
