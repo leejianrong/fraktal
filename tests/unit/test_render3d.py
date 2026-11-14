@@ -312,3 +312,12 @@ def test_camera_json_marks_eye_level_sequences_only(tmp_path: Path) -> None:
     assert street["eye_level"] is True and street["follow"] == {"agent": "people", "index": 1}
     render3d._write_camera(tmp_path, [pose(35.0)])  # a drone looking 35 degrees off straight down
     assert "eye_level" not in json.loads((tmp_path / "scene" / "camera.json").read_text())
+
+
+def test_the_device_reaches_blender_only_when_not_cpu(world: Path, tmp_path: Path) -> None:
+    script = fake(tmp_path, "import sys\nprint('ARGS', sys.argv)\nsys.exit(3)\n")
+    with pytest.raises(render3d.RenderError, match=r"'--device', 'gpu'"):
+        render3d.render(world, tmp_path / "g", CENTER, 50.0, 1.0, device="gpu", script=script)
+    with pytest.raises(render3d.RenderError) as cpu:
+        render3d.render(world, tmp_path / "c", CENTER, 50.0, 1.0, script=script)
+    assert "--device" not in str(cpu.value)
