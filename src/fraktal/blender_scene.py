@@ -53,6 +53,35 @@ def material(name: str, rgb: tuple[float, float, float], rough: float, seed: int
     return mat
 
 
+def foliage_material(name: str, rgb: tuple[float, float, float], rough: float, seed: int):
+    """Leaf clumps: fine, high-contrast noise from sunlit to shadowed green, bumped the same way."""
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nodes, links = mat.node_tree.nodes, mat.node_tree.links
+    bsdf = nodes["Principled BSDF"]
+    noise = nodes.new("ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value = 14.0 + seed % 5
+    noise.inputs["Detail"].default_value = 10.0
+    noise.inputs["Roughness"].default_value = 0.65
+    stretch = nodes.new("ShaderNodeMapRange")  # clumps rather than a smooth gradient
+    stretch.inputs["From Min"].default_value = 0.35
+    stretch.inputs["From Max"].default_value = 0.65
+    links.new(noise.outputs["Fac"], stretch.inputs["Value"])
+    mix = nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA"
+    mix.inputs[6].default_value = (*(min(c * 1.25, 1.0) for c in rgb), 1.0)
+    mix.inputs[7].default_value = (*(c * 0.45 for c in rgb), 1.0)
+    links.new(stretch.outputs["Result"], mix.inputs[0])
+    links.new(mix.outputs[2], bsdf.inputs["Base Color"])
+    bump = nodes.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = 0.8
+    bump.inputs["Distance"].default_value = 0.15
+    links.new(stretch.outputs["Result"], bump.inputs["Height"])
+    links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+    bsdf.inputs["Roughness"].default_value = rough
+    return mat
+
+
 def write_png(path: str, rgb: np.ndarray) -> None:
     """Write an 8-bit RGB PNG (Blender's own save of a generated image came out black)."""
     h, w, _ = rgb.shape
@@ -626,15 +655,15 @@ def build_trees(scene: dict) -> int:
     if not trees:
         return 0
     verts, faces = _icosphere()
-    mats = [material(f"leaf{i}", c, 0.8, 20 + i) for i, c in enumerate(FOLIAGE)]
+    mats = [foliage_material(f"leaf{i}", c, 0.8, 20 + i) for i, c in enumerate(FOLIAGE)]
     mats.append(material("bark", (0.24, 0.17, 0.11), 0.9, 40))
-    mats.append(material("frond", (0.2, 0.4, 0.14), 0.7, 41))
-    mats.append(material("neem", (0.09, 0.26, 0.1), 0.8, 42))
-    mats.append(material("acacia", (0.33, 0.38, 0.14), 0.8, 43))
+    mats.append(foliage_material("frond", (0.2, 0.4, 0.14), 0.7, 41))
+    mats.append(foliage_material("neem", (0.09, 0.26, 0.1), 0.8, 42))
+    mats.append(foliage_material("acacia", (0.33, 0.38, 0.14), 0.8, 43))
     for i, c in enumerate(CANOPY):  # street trees of the wet-tropic and highland cities
-        mats.append(material(f"canopy{i}", c, 0.8, 44 + i))
+        mats.append(foliage_material(f"canopy{i}", c, 0.8, 44 + i))
     for i, c in enumerate(CANOPY_DRY):
-        mats.append(material(f"canopy-dry{i}", c, 0.8, 50 + i))
+        mats.append(foliage_material(f"canopy-dry{i}", c, 0.8, 50 + i))
     bark, frond = len(FOLIAGE), len(FOLIAGE) + 1
     neem_mat, acacia_mat = len(FOLIAGE) + 2, len(FOLIAGE) + 3
     canopy_mat = len(FOLIAGE) + 4
@@ -654,7 +683,9 @@ def build_trees(scene: dict) -> int:
                 bm.verts.new((x + v.x * rx * bump, y + v.y * rx * bump, zc + v.z * rz * bump))
             )
         for f in faces:
-            bm.faces.new([ring[i] for i in f]).material_index = mat
+            face = bm.faces.new([ring[i] for i in f])
+            face.material_index = mat
+            face.smooth = True  # leaf clumps come from the material, not from facets
             TREE_OWNER.append(k)
 
     for k, tree in enumerate(trees):
