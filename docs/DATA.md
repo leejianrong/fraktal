@@ -49,6 +49,25 @@ whole tree. Folders marked **irreplaceable** cannot be regenerated from this rep
 
 Anything under `docs/img/` that matters was copied there from these folders and is in git.
 
+### Copy `data/` and `.env` from another machine (Tailscale)
+
+When the old machine is on your tailnet, pull over SSH with rsync. Run on the new machine from the repo root.
+`<user>` is the account on the **old** machine (Tailscale refuses SSH as any other user), `<old>` its tailnet name.
+
+```bash
+mkdir -p data
+SRC=<user>@<old>:/path/to/fraktal                 # the repo checkout on the old machine
+rsync -a --partial --checksum --exclude 'maxar-reference-v1/' "$SRC/data/eval/" data/eval/
+(cd data && sha256sum -c eval/SHA256SUMS --quiet; echo "exit=$?")   # 0 means every file matches
+for d in review worlds terrain reports proc_review; do rsync -a --partial --checksum "$SRC/data/$d/" "data/$d/"; done
+(umask 077 && scp "$SRC/.env" .env)               # the token never goes into a bucket or the chat
+```
+
+`--partial` lets an interrupted run resume. Check `exit=` rather than trusting an `&& echo`. The first run
+moved about 1.1 GB in 20 minutes over a Tailscale relay. `spacenet2/` (5 GB) and the other folders are
+rebuildable from the table above, so copy them only if you want them. On the old machine run
+`chmod 600 .env`, and enable access with `sudo tailscale set --ssh` if SSH is refused.
+
 ### Other things a new machine needs that git does not hold
 
 - **`.env`** (git-ignored) holds only `MAPILLARY_TOKEN`, a read-only Mapillary client token (free developer
