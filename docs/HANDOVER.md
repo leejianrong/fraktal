@@ -53,7 +53,7 @@ Next, in order:
 
 1. Top up RunPod, then render Nairobi centre and Khartoum city on current `main`, compare with `fraktal streets`,
    look at the sheets, and close FRK-147.
-2. The proportion pass: too much road and building in frame, low contrast, crowns still low-poly (the segmenter
+2. The proportion pass (FRK-156): too much road and building in frame, low contrast, crowns still low-poly (the segmenter
    reads dark crowns as building), no people share, vehicles boxy, vegetation far below the photos.
 3. Pilot iteration cycles: FRK-148 (Khartoum), FRK-149 (Manila-Quezon), FRK-150 (Nairobi centre).
 4. The other eight cities (FRK-151).
