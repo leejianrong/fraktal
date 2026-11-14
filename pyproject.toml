@@ -66,3 +66,13 @@ exclude = ["src/fraktal/blender_scene\\.py"]  # runs inside Blender; bpy has no 
 [[tool.mypy.overrides]]
 module = ["geopandas.*", "pyarrow.*", "shapely.*", "pandas.*", "rasterio.*", "torch.*", "matplotlib.*", "reportlab.*", "PIL.*", "trimesh.*", "transformers.*", "scipy.*"]
 ignore_missing_imports = true
+
+# torch 2.15's default Linux wheel is CUDA 13.2, whose runtime segfaults on WSL2 with the NVIDIA
+# 595 driver (checked 2026-11-14). The CUDA 13.0 build of 2.14.1 works.
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130", marker = "sys_platform == 'linux'" }
