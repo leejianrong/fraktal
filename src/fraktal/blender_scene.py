@@ -469,6 +469,13 @@ def paint_labels(scene: dict, scene_dir: Path) -> None:
             paint(bpy.data.objects[name], np.full(len(owner), klass), owner + 1)
 
 
+# Every static object the label and depth passes must re-material. One left out renders lit with
+# its own material and smears its labels and depth (cables and markings did). Agents: see AGENTS.
+LOOK_OBJECTS = (
+    "ground", "buildings", "trees", "vehicles", "poles", "props", "walls", "cables", "markings",
+)  # fmt: skip
+
+
 def use_label_look(sc) -> None:
     """Unlit, unfiltered Cycles rendering that returns the face colours unchanged.
 
@@ -484,18 +491,7 @@ def use_label_look(sc) -> None:
     out = nodes.new("ShaderNodeOutputMaterial")
     links.new(colour.outputs["Color"], emit.inputs["Color"])
     links.new(emit.outputs["Emission"], out.inputs["Surface"])
-    for name in (
-        "ground",
-        "buildings",
-        "trees",
-        "vehicles",
-        "poles",
-        "props",
-        "walls",
-        "cables",
-        "markings",
-        *AGENTS,
-    ):  # every object paint_labels paints, or its own lit material shows up in the labels
+    for name in (*LOOK_OBJECTS, *AGENTS):
         if name in bpy.data.objects:
             mesh = bpy.data.objects[name].data
             mesh.materials.clear()
@@ -555,7 +551,7 @@ def use_depth_look(sc, unit_m: float) -> None:
     out = nodes.new("ShaderNodeOutputMaterial")
     links.new(combine.outputs["Color"], emit.inputs["Color"])
     links.new(emit.outputs["Emission"], out.inputs["Surface"])
-    for name in ("ground", "buildings", "trees", "vehicles", "poles", "props", "walls", *AGENTS):
+    for name in (*LOOK_OBJECTS, *AGENTS):
         if name in bpy.data.objects:
             mesh = bpy.data.objects[name].data
             mesh.materials.clear()
