@@ -2,7 +2,7 @@
 
 Procedural world generation for synthetic satellite and geospatial training data. Fraktal builds deterministic, labelled worlds, conditioned on real geography and filled in procedurally, and renders them as satellite imagery with pixel-exact labels.
 
-**Status: early.** The plan is written and the foundations are in place (CLI, world model, stable IDs, data ingest, a crude renderer and the benchmark harness). Whether synthetic pretraining helps is not measured yet. The first milestone is a benchmark that shows whether training on synthetic imagery improves a real building-segmentation model.
+**Status: active, pre-release.** The plan, CLI, world model, stable IDs, data ingest, the 2.5D renderer and the benchmark harness are in place, and a Blender 3D renderer (the product renderer, ADR-0012) produces drone, satellite and eye-level views with exact labels. Current work makes the generator produce realistic lookalikes of 11 African and Southeast Asian cities, judged against real street photos kept locally for evaluation only. Whether synthetic pretraining helps a real model is still open: see the benchmark notes in [open questions](docs/QUESTIONS.md) (Q14). Taking over on a new machine? Start with [docs/HANDOVER.md](docs/HANDOVER.md).
 
 ```mermaid
 flowchart LR
@@ -15,7 +15,7 @@ flowchart LR
 
 ## Quick start
 
-Requires [uv](https://docs.astral.sh/uv/) and Git.
+Requires [uv](https://docs.astral.sh/uv/), Git and Python 3.11 or newer.
 
 ```bash
 git clone https://github.com/leejianrong/fraktal.git
@@ -47,10 +47,13 @@ $ uv run fraktal benchmark --synthetic data/synthetic/chips   # IoU for the thre
 
 ## Documentation
 
+- [Handover](docs/HANDOVER.md): setup on a new machine, current state, how a render run works
+- [Where data lives](docs/DATA.md): every git-ignored folder, where it came from and how to rebuild it
 - [Plan](docs/PLAN.md): problem, scope, requirements, shape, and later bets
 - [Slices](docs/SLICES.md): build order and acceptance tests
 - [Decisions](docs/adr/): why it is built this way
 - [Open questions](docs/QUESTIONS.md): the decision register
+- [Research notes](docs/research/): spikes, city profiles, QA and CI
 
 ## Contributing
 

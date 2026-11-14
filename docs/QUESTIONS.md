@@ -3,7 +3,7 @@
 Statuses: `DECIDED` (user answered) · `ASSUMED` (default taken, correct it if
 wrong) · `FORK` (waiting on the user) · `DEFERRED` (not needed this milestone).
 
-Mode: fresh. Host: WSL2, 20 cores, 31 GB RAM, RTX 3080 Ti Laptop (16 GB VRAM), Python 3.10, Rust 1.97, Go 1.26.
+Mode: fresh. Host (original, until 2026-11): WSL2, RTX 3080 Ti Laptop (16 GB VRAM) nominally, but [RUNPOD.md](RUNPOD.md) records no GPU, and the machine has had about 8 GB of shared RAM, so heavy work runs on RunPod. Work moves to another machine from 2026-11-14 ([HANDOVER](HANDOVER.md)). Python 3.11 or newer.
 
 ## Open forks
 
