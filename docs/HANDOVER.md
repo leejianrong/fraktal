@@ -29,6 +29,13 @@ The old machine had no GPU and 8 GB of RAM, so all heavy work went to RunPod CPU
 render Blender scenes directly (`fraktal render3d`), but keep determinism and the "pods render pushed commits"
 habit for anything you compare across runs. GPU training is a separate matter: see the standing rules.
 
+**WSL with the Windows Blender (checked 2026-11-14, Blender 5.0.0, RTX 3080 Ti Laptop):** set
+`FRAKTAL_BPY_PYTHON=$PWD/scripts/wsl/winblender.sh` and pass `--device gpu` to `fraktal render3d`. Cycles uses OptiX on
+the Windows driver, which does not work from inside WSL. A 15-frame street strip at 32 samples took 90 s on the GPU and
+140 s on the CPU; the beauty pass is 3x faster but the labels pass (about 60 s) is the same either way. GPU pixels differ
+from CPU pixels, and the pods' `bpy` version is not pinned to this Blender, so do not compare across them. In WSL, torch
+needs a CUDA 12.x build: the lockfile's `cu132` build segfaults on `torch.cuda.is_available()` with this driver.
+
 Rebuild the data you need with the table in [DATA.md](DATA.md). For the city work you need only
 `data/eval/ground-reference` (pull it with `scripts/refboard/pull_ground.py`); the segmentation cache refills itself.
 

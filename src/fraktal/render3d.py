@@ -241,6 +241,7 @@ def render(
     seed: int = 0,
     samples: int = 32,
     threads: int = 0,
+    device: str = "cpu",
     bpy_python: str | None = None,
     timeout_s: float = 1800.0,
     script: Path = BLENDER_SCRIPT,
@@ -362,6 +363,8 @@ def render(
         args += ["--depth-unit", str(depths.UNIT_M)]
     if threads:
         args += ["--threads", str(threads)]
+    if device != "cpu":
+        args += ["--device", device]
     blender, wall = run_blender(python, script, args, timeout_s)
     px = int(scene["px"])
     if not poses:

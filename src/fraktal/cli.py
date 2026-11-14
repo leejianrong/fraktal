@@ -406,6 +406,7 @@ def _render3d(args: argparse.Namespace) -> Result:
             seed=args.seed,
             samples=args.samples,
             threads=args.threads,
+            device=args.device,
             bpy_python=args.bpy_python or os.environ.get("FRAKTAL_BPY_PYTHON"),
             timeout_s=args.timeout_s,
             trajectory=(
@@ -490,6 +491,7 @@ def _render3d_batch(args: argparse.Namespace) -> Result:
             specs,
             samples=args.samples,
             threads=args.threads,
+            device=args.device,
             keep_scene=args.keep_scene,
             bpy_python=args.bpy_python or os.environ.get("FRAKTAL_BPY_PYTHON"),
             timeout_s=args.timeout_s,
@@ -690,6 +692,12 @@ def _render3d_batch_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--gsd-m", type=float, default=0.5)
     parser.add_argument("--samples", type=int, default=16)
     parser.add_argument("--threads", type=int, default=0, help="0 means all cores")
+    parser.add_argument(
+        "--device",
+        choices=["cpu", "gpu"],
+        default="cpu",
+        help="Cycles device; gpu fails if Blender sees none (pixels differ from cpu)",
+    )
     parser.add_argument("--min-buildings", type=int, default=1, help="skip empty tile windows")
     parser.add_argument("--bpy-python", help="a Python with bpy (default $FRAKTAL_BPY_PYTHON)")
     parser.add_argument("--timeout-s", type=float, default=1800.0, help="per tile")
@@ -743,6 +751,12 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--samples", type=int, default=32, help="Cycles samples per pixel")
     parser.add_argument("--threads", type=int, default=0, help="0 means all cores")
+    parser.add_argument(
+        "--device",
+        choices=["cpu", "gpu"],
+        default="cpu",
+        help="Cycles device; gpu fails if Blender sees none (pixels differ from cpu)",
+    )
     parser.add_argument("--bpy-python", help="a Python with bpy (default $FRAKTAL_BPY_PYTHON)")
     parser.add_argument("--timeout-s", type=float, default=1800.0)
     parser.add_argument(

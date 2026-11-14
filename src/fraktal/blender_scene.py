@@ -1167,6 +1167,26 @@ def pose_camera(obj, pose: dict) -> None:
     )
 
 
+def use_gpu(device: str) -> bool:
+    """Enable the best GPU backend Cycles offers; fail loudly if there is none, never fall back."""
+    if device != "gpu":
+        return False
+    prefs = bpy.context.preferences.addons["cycles"].preferences
+    for kind in ("OPTIX", "CUDA", "HIP", "METAL", "ONEAPI"):
+        try:
+            prefs.compute_device_type = kind
+        except TypeError:  # this build does not offer that backend
+            continue
+        prefs.get_devices()
+        found = [d for d in prefs.devices if d.type == kind]
+        if found:
+            for d in prefs.devices:
+                d.use = d.type == kind
+            say(f"device {kind}: " + ", ".join(d.name for d in found))
+            return True
+    raise SystemExit("--device gpu: Blender found no GPU for Cycles")
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("scene_dir", type=Path)
@@ -1175,6 +1195,7 @@ def main() -> int:
     p.add_argument("--px", type=int, default=0)
     p.add_argument("--samples", type=int, default=32)
     p.add_argument("--threads", type=int, default=0)
+    p.add_argument("--device", choices=["cpu", "gpu"], default="cpu")
     p.add_argument("--labels", type=Path, default=None, help="also write label images here")
     p.add_argument("--depth", type=Path, default=None, help="also write encoded depth images here")
     p.add_argument("--depth-unit", type=float, default=0.05, help="metres per depth step")
@@ -1216,7 +1237,7 @@ def main() -> int:
         build_camera(scene, px)
     cycles = bpy.context.scene
     cycles.render.engine = "CYCLES"
-    cycles.cycles.device = "CPU"
+    cycles.cycles.device = "GPU" if use_gpu(a.device) else "CPU"
     cycles.cycles.samples = a.samples
     cycles.cycles.use_denoising = False
     if a.threads:
