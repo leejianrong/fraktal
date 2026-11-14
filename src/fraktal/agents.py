@@ -376,6 +376,9 @@ class WalkerConfig:
     walk_speed_mps: float = 1.4
     speed_spread: float = 0.2  # each person's pace is the walking speed times 1 +- this
     verge_m: float = 1.2  # how far outside the road edge people walk
+    verge_spread_m: float = (
+        0.0  # each person walks this much farther out, at most (or 0.8 m nearer)
+    )
     stops_per_min: float = 2.0  # how often someone stops (to chat, look, wait)
     stop_s: tuple[float, float] = (2.0, 8.0)  # how long a stop lasts
 
@@ -406,6 +409,11 @@ def simulate_people(
     reach = config.walk_speed_mps * (1.0 + config.speed_spread) * duration + 30.0
     walkers: list[tuple[_Path, float, float]] = []
     walking = np.ones((n, steps), dtype=bool)
+    # their own stream, so a spread of zero leaves every other draw and the old tracks unchanged
+    spread = config.verge_spread_m
+    lateral = (
+        substream(seed, "pedestrian-lateral").uniform(-0.8, spread, n) if spread else np.zeros(n)
+    )
     for k in range(n):
         e = int(rng.choice(len(lengths), p=lengths / lengths.sum()))
         half = 2 * e + int(rng.integers(0, 2))
@@ -413,7 +421,7 @@ def simulate_people(
         along = along if half % 2 == 0 else lengths[e] - along
         left = bool(rng.integers(0, 2))
         route, leaves = _route(graph, half, along + reach, rng, TrafficConfig())
-        raw = np.vstack([verge(graph, h, left, config.verge_m) for h in route])
+        raw = np.vstack([verge(graph, h, left, config.verge_m + float(lateral[k])) for h in route])
         if leaves:
             away = raw[-1] - raw[-2]
             raw = np.vstack([raw, raw[-1] + away / np.hypot(*away) * reach])

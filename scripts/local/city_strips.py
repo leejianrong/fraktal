@@ -76,7 +76,7 @@ def main() -> int:
         default="{}",
         help='JSON of biome settings for every biome, e.g. {"buildings": {"front_setback_m": 6}}',
     )
-    ap.add_argument("--people-per-km", type=float, default=30.0)
+    ap.add_argument("--people-per-km", type=float, default=200.0, help="the pods use 30")
     ap.add_argument(
         "--data-dir", type=Path, default=Path(os.environ.get("FRAKTAL_DATA_DIR", ROOT / "data"))
     )
