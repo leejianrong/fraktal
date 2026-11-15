@@ -45,6 +45,18 @@ godot --path godot --rendering-driver opengl3 -- --scene data/scene_dense
 .\Godot_v4.7.2-stable_win64.exe --path godot -- --scene C:\fraktal\scene_dense
 ```
 
+What the viewer loads: the relief ground and its colours, buildings with their materials, trees and poles
+(stand-ins), road markings and wear, props (jeepneys, stalls, parked cars from `propgen`), compound walls with
+their plasters, overhead cables, and the box cars parked along the road. Stored colours are display values
+(Blender renders with a raw view), so they are used as sRGB colours here, like the ground. It does not
+simulate or generate anything, and has no labels or depth.
+
+**This machine (WSL2 on Windows, checked 2026-11-15):** WSLg works (`DISPLAY=:0`, 1920x1200), and OpenGL is hardware
+accelerated through Mesa D3D12 on the Intel Iris Xe, so the NVIDIA card stays free for other jobs. Godot 4.7.2 is
+unpacked to `~/.local/opt/godot-4.7.2/` (zip checked against `SHA512-SUMS.txt`). A 500 m Manila-Quezon tile, with
+about 5.5 million primitives, runs at 35 to 65 fps. For a screenshot without driving:
+`godot --path godot --rendering-driver opengl3 -- --scene DIR --bench 6 --shot out.png`.
+
 Keys: W/S throttle and brake, A/D steer, Space handbrake, R reset. Options after `--`:
 `--autodrive` (scripted drive), `--bench SECONDS [--shot out.png]` (frame statistics),
 `--selftest` (headless check, exit code 0 or 1), `--assets DIR`.
