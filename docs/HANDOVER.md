@@ -125,7 +125,7 @@ Moving cars and people (FRK-163) are still built from boxes, but a box may now b
 wheels; a person has two legs, arms, shoulders and a head. Parked cars and jeepneys come from `propgen.py`, not from here.
 
 Trial options (FRK-169, off by default, see [research/trial-assets.md](research/trial-assets.md)): `--car-meshes` swaps the box cars
-for six CC0 car models, `--leaf-cards` adds leaf quads to tree crowns (labels are not exact with it). Objects that exist only for
+for six CC0 car models, `--leaf-cards` (on by default for street strips, `--no-leaf-cards` to turn it off) adds leaf quads to tree crowns; the label and depth passes cut them by the leaf alpha. Objects that exist only for
 the beauty pass (`haze`, `clouds`, `treecards`) must be listed in `LOOK_HIDDEN` or they smear the label and depth passes.
 
 `--override '{"buildings": {"front_setback_m": 6}}'` tries biome settings without editing `biomes.py`. It writes the same

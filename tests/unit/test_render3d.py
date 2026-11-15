@@ -336,3 +336,23 @@ def test_the_eye_level_chain_is_off_unless_asked_for(world: Path, tmp_path: Path
     )  # fmt: skip
     assert cam["eye_sensor"]["dashcam"] is None
     assert (tmp_path / "e" / "frames_raw" / "frame_0000.png").is_file()
+
+
+def test_leaf_cards_are_on_by_default_for_street_strips_only(world: Path, tmp_path: Path) -> None:
+    import json
+
+    opts = {"duration_s": 1.0, "fps": 2.0}
+
+    def cards(name: str, **kw: object) -> bool:
+        out = tmp_path / name
+        render3d.render(
+            world, out, CENTER, 300.0, 1.0, seed=4, script=fake(tmp_path), camera_options=opts,
+            frame_px=64, **kw,  # type: ignore[arg-type]
+        )  # fmt: skip
+        return bool(json.loads((out / "scene" / "camera.json").read_text()).get("leaf_cards"))
+
+    assert cards("street", trajectory="street", waypoints=[(20.0, 20.0), (120.0, 40.0)])
+    assert not cards("street_off", trajectory="street", leaf_cards=False,
+                     waypoints=[(20.0, 20.0), (120.0, 40.0)])  # fmt: skip
+    assert not cards("flight", trajectory="flight")  # other views keep the smooth crowns
+    assert cards("flight_on", trajectory="flight", leaf_cards=True)
