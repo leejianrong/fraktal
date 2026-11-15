@@ -114,6 +114,9 @@ grime as flat parts under the paint, labelled ground like the marks. Textured `w
 streaks in the shader (`add_wall_wear`). Both are procedural, so there are no new assets. About 0.003% of label pixels
 (wheel and foot contact) flip from vehicle or person to ground under the 4 mm wear boxes.
 
+Pavement and kerb wear (FRK-175): `markings._edge_wear` adds dirt up the kerb face, scuffs on its top and, where there is a
+raised pavement (Nairobi), stains, cracks, missing pavers and weeds, as seeded flat parts labelled ground.
+
 Light variety (FRK-168, eye-level frames only): `lighting.variety` adds a per-seed sun height offset (-5 to +8 degrees,
 strength-compensated, warmer when low), cloud shadows (an invisible plane that only the sun's shadow rays see, cover 0 to 0.3,
 40% of the sun blocked) and haze (a bounded scattering box; thicker for Khartoum). `city_strips.py --seed N` picks the seed.
