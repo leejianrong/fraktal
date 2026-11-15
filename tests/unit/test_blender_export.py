@@ -268,9 +268,11 @@ def test_beauty_only_objects_are_hidden_in_the_label_and_depth_passes() -> None:
 
     source = (Path(__file__).parents[2] / "src/fraktal/blender_scene.py").read_text()
     hidden = source.split("LOOK_HIDDEN = (")[1].split(")")[0]
-    for name in ("haze", "clouds"):
+    for name in ("haze", "clouds", "treecards"):
         assert f'"{name}"' in hidden, name
+    for name in ("haze", "clouds"):
         assert f'box.name = "{name}"' in source or f'plane.name = "{name}"' in source, name
+    assert 'TREE_CARDS = "treecards"' in source
     assert (
         source.count("    hide_beauty_only_objects()\n") == 2
     )  # the label look and the depth look

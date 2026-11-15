@@ -1,6 +1,6 @@
 # Spike: Infinigen as an asset generator (FRK-52)
 
-Verdict: **defer.** Nothing here rules it out, but the trial the card asked for (generate assets
+Verdict: **defer.** (Retried in FRK-169, see [trial-assets.md](trial-assets.md): the clone worked, the install was refused again.) Nothing here rules it out, but the trial the card asked for (generate assets
 headless, time them, compare with the CC0 baseline) was not run, so there is no cost or realism
 number. This note is from Infinigen's own docs and repository metadata, read on 2026-11-05.
 

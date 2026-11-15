@@ -28,7 +28,8 @@ A row with `kind: mesh` always needs a `generator` object, whether a model or co
 ADR-0013 decision 5): `model`, `version`, `seed`, `date` and `components`, a list of every part of the
 pipeline (`name`, `version`, `licence` each), for example the image model, the background remover and the 3D
 model, or `fraktal.propgen` for a code-written prop. A mesh from a model also takes licence
-`generated-permissive` and the texture generator keys above. `fraktal assets` (and CI) fails on a mesh
+`generated-permissive` and the texture generator keys above. A downloaded CC0 mesh (the Quaternius cars) records the person who modelled it as `model`, `seed: n/a`, and the pack and its CC0 licence as the one component.
+`fraktal assets` (and CI) fails on a mesh
 without it, and on any component the ADR excludes (TripoSG, TRELLIS, DINOv3, RMBG, Hunyuan3D, Stable Fast
 3D, Cube 3D, FLUX.1 dev, hosted services such as Meshy or Rodin). The list is `EXCLUDED_COMPONENTS` in
 `src/fraktal/assets.py`; change it when the ADR changes.
