@@ -45,6 +45,14 @@ HAZE_DENSITY = (0.0, 0.0003)  # per metre: scattering in the air, a hint of dust
 # Khartoum's dust: 0.0012 per metre is about 800 m of visibility.
 HAZY_DENSITY: dict[str, tuple[float, float]] = {"khartoum_city": (0.0004, 0.0012)}
 SUN_GAIN_MAX = 1.5  # most the sun is strengthened to make up for a lower sun
+# Metering (FRK-171). Across seeds the same city rendered between 0.31 and 0.46 bright (light fill
+# 1.4 to 1.9 moves it by about 0.07, how much sky is in view by about 0.10). A camera meters, so an
+# eye-level strip is pulled this share of the way to the target with one gamma. The target is a
+# mid-bright street (the photos of the three pilots average 0.49, 0.49 and 0.54); it is not a
+# per-city fit. What is left of the spread is the layout and the light's own part of it.
+METER_TARGET = 0.46
+METER_STRENGTH = 0.7
+METER_GAMMA = (0.55, 1.3)  # the gamma never goes outside this
 EYE_LEVEL_MIN_OFF_NADIR_DEG = 75.0  # a camera at least this far from straight down is eye level
 
 

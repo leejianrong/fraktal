@@ -467,6 +467,7 @@ def _render3d(args: argparse.Namespace) -> Result:
             wall_textures=not args.no_wall_textures,
             eye_sensor=args.eye_sensor,
             leaf_cards=args.leaf_cards,
+            meter=args.meter,
         )
     except (OSError, ValueError, render3d.RenderError) as err:
         raise CliError(ExitCode.FAILURE, "render3d_failed", str(err)) from err
@@ -853,6 +854,13 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="leaf-card crowns: on by default for street views, off for other views",
+    )
+    parser.add_argument(
+        "--meter",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="auto-exposure on eye-level strips: pull the mean brightness part of the way to a "
+        "target (default on; --no-meter keeps the render as Blender made it)",
     )
     parser.add_argument(
         "--eye-sensor",

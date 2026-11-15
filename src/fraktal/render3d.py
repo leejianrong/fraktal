@@ -38,7 +38,7 @@ import numpy as np
 import rasterio
 from affine import Affine
 
-from fraktal import agents, flowgt, labels3d, lighting, video
+from fraktal import agents, flowgt, labels3d, lighting, metering, video
 from fraktal import camera as cameras
 from fraktal import depth as depths
 from fraktal import tracks as tracks_mod
@@ -185,6 +185,10 @@ def _write_camera(out_dir: Path, poses: list[cameras.Pose], **extra: Any) -> Non
     (out_dir / "scene" / "camera.json").write_text(json.dumps(data) + "\n")
 
 
+def _is_eye_level(out_dir: Path) -> bool:
+    return bool(json.loads((out_dir / "scene" / "camera.json").read_text()).get("eye_level"))
+
+
 def _ground(scene: dict[str, Any], out_dir: Path) -> Any:
     """``ground(x, y)``: the terrain height in tile metres, zero on a flat tile."""
     if "terrain" not in scene:
@@ -271,6 +275,7 @@ def render(
     follow: dict[str, Any] | None = None,
     eye_sensor: str | None = None,
     leaf_cards: bool | None = None,
+    meter: bool = True,
 ) -> dict[str, Any]:
     """Export the tile, render it in Blender, write the contract files, return ``render.json``."""
     with_depth = with_depth or with_flow  # flow is computed from depth
@@ -400,6 +405,9 @@ def render(
             with rasterio.open(out_dir / "labels.tif", "w", **profile) as dst:
                 dst.write(code)
     extra: dict[str, Any] = {}
+    if meter and poses and _is_eye_level(out_dir):  # auto-exposure (FRK-171), before the chain
+        extra["metering"] = metering.apply(out_dir)
+        emit("render3d_metering", **extra["metering"])
     if eye_sensor and poses:  # phone or dashcam camera (FRK-165); before tracks read the labels
         from fraktal import eyesensor
 

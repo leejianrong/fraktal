@@ -120,8 +120,10 @@ raised pavement (Nairobi), stains, cracks, missing pavers and weeds, as seeded f
 Light variety (FRK-168, eye-level frames only): `lighting.variety` adds a per-seed sun height offset (-5 to +8 degrees,
 strength-compensated, warmer when low), cloud shadows (an invisible plane that only the sun's shadow rays see, cover 0 to 0.3,
 40% of the sun blocked) and haze (a bounded scattering box; thicker for Khartoum). `city_strips.py --seed N` picks the seed.
-Brightness varies a lot between seeds already (Manila seed 13 renders at 0.31 without any variety), so compare against the
-same seed with variety off. No HDRIs yet.
+Brightness varied a lot between seeds (Manila seed 13 rendered at 0.31 without any variety): sky fill and how much sky is in
+view are about equal causes. Eye-level strips are now metered (FRK-171, `metering.py`, `--no-meter` to skip): one gamma pulls the
+strip's mean 70% of the way to 0.46, which took the Manila-Quezon std across 8 seeds from 0.053 to 0.016
+([research/seed-brightness.md](research/seed-brightness.md)). No HDRIs yet.
 Visible clouds (FRK-174): when a seed has cloud cover, the sky shader draws clouds for camera rays only (`add_sky_clouds`),
 at the seed's scale and offset, so a cloudier seed has more of them and of their shadows. Sky light and the label and depth
 passes are unchanged. No HDRIs yet.
