@@ -79,6 +79,25 @@ comments; `mesh_to_sdf` carries its own MIT licence; there are `trees`, `tropic_
 Python 3.11 and `bpy==4.2.0`, so it cannot share our Blender 5 environment. Still not read: the licence of anything
 bundled that a generator loads. The trial plan in `infinigen-spike.md` stands.
 
+## Vehicle sources, second pass (FRK-173, 2026-11-15)
+
+The question: a CC0 or owned jeepney, matatu, pickup or tuk-tuk. Each source's own licence was read.
+
+| Source | Licence read | Has | Verdict |
+|---|---|---|---|
+| Kenney Car Kit v2.0 (`kenney-assets.itch.io/car-kit`, 45 models, OBJ, FBX and GLB) | its own `License.txt` in the zip: "Creative Commons Zero, CC0"; the itch page also says CC0 1.0 | sedan, hatchback, SUV, taxi, **van**, **truck** (an open-bed pickup), **truck-flat** (a flatbed), **delivery** (a box lorry), ambulance, firetruck, garbage truck, tractors, wheels. 2,082 to 2,488 faces a vehicle | **keep** as stand-ins: `truck` for a pickup, `van` for a matatu, `delivery` for a box lorry. Chunky and stylised, so it helps shape, not photo realism. Not added to `assets/` yet (see below) |
+| Quaternius cars (FRK-169) | see above: CC0 in the pack, a custom licence on the site | saloons, SUV, taxi | in use, opt-in |
+| Poly Haven | CC0, no bulk scraping | one covered car | drop, as above |
+| CGTrader, TurboSquid, Sketchfab | per-listing licences; the jeepney, tuk-tuk, minibus and matatu listings found were paid or royalty-free, not CC0 | jeepneys, matatus, tuk-tuks | **drop** (ADR-0010: owned or CC0 only; a paid royalty-free licence is not CC0) |
+| OpenGameArt "free low poly vehicles pack" (rgsdev, listed as CC0, with a pickup and a van) | not read: the site refused the fetch (403) | | **defer**, read the page before use |
+
+There is no CC0 jeepney or tuk-tuk in anything I found. The jeepney and tuk-tuk stay code-made props from `propgen.py`;
+the realistic way to get better ones is to model them ourselves, which is a larger job than this card.
+
+Kenney's models use one shared palette image (`colormap.png`) with a UV per face, not a colour per material like the
+Quaternius ones. The car loader in `blender_scene.py` reads a colour per material, so using them needs it to sample
+the palette by UV. That is the follow-up card; no Kenney file is in `assets/` until then.
+
 ## Poly Haven licence (`polyhaven.com/license`)
 
 All HDRIs, textures and models are CC0 ("effectively public domain"), no attribution, commercial use and
@@ -89,4 +108,4 @@ asset was added.
 ## Next
 
 1. Use the car meshes in a pilot cycle (FRK-148 to 150) and judge them next to the photos.
-2. A jeepney, matatu and pickup are still code-made props; a CC0 source for them has not been found.
+2. A jeepney and tuk-tuk are still code-made props; no CC0 source exists. Kenney's `truck`, `van` and `delivery` could stand in for a pickup, a matatu and a box lorry once the loader reads palette textures.
