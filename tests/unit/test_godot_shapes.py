@@ -1,4 +1,4 @@
-"""The Godot viewer draws cars, people and drones from godot/data/agent_shapes.json, which is
+"""The Godot viewer draws cars, people and drones from godot/shapes/agent_shapes.json, which is
 exported from the part tables in blender_scene.py. This keeps the two from drifting apart."""
 
 import importlib.util
@@ -20,15 +20,15 @@ def _exporter() -> ModuleType:
 
 
 def test_the_committed_shapes_are_what_the_blender_script_defines() -> None:
-    committed = json.loads((ROOT / "godot/data/agent_shapes.json").read_text())
+    committed = json.loads((ROOT / "godot/shapes/agent_shapes.json").read_text())
     assert committed == json.loads(json.dumps(_exporter().shapes())), (
-        "run scripts/godot/export_shapes.py and commit godot/data/agent_shapes.json"
+        "run scripts/godot/export_shapes.py and commit godot/shapes/agent_shapes.json"
     )
 
 
 def test_every_part_has_a_role_the_viewer_can_colour() -> None:
     agents = (ROOT / "godot/scripts/agents.gd").read_text()
-    shapes = json.loads((ROOT / "godot/data/agent_shapes.json").read_text())
+    shapes = json.loads((ROOT / "godot/shapes/agent_shapes.json").read_text())
     assert set(shapes) == {"car", "person", "drone"}
     for kind, parts in shapes.items():
         assert parts, kind

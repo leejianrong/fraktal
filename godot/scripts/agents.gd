@@ -3,11 +3,11 @@ extends Node3D
 ## Replays the simulated cars, people and drones (FRK-94). `fraktal scene --agents` writes their
 ## tracks (`agents.json`, `people.json`, `drones.json`: x, y and heading per agent per sample) beside
 ## the tile; this plays the loop back, interpolating between samples, and generates nothing. Shapes
-## come from `data/agent_shapes.json`, which is exported from blender_scene.py, so a car here is the
+## come from `shapes/agent_shapes.json`, which is exported from blender_scene.py, so a car here is the
 ## rounded car of the Blender scene. Agents do not react to the player and the player does not
 ## collide with them.
 
-const SHAPES := "res://data/agent_shapes.json"
+const SHAPES := "res://shapes/agent_shapes.json"
 const CORNERS := [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]
 const FACES := [[0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7], [4, 5, 6, 7], [3, 2, 1, 0]]
 # Display colours (as in Blender's raw view). "body" and "shirt" are white: the instance colour tints them.
