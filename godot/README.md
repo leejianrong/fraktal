@@ -32,11 +32,11 @@ MIT licence, one executable, no installer. Verify the zip against `SHA512-SUMS.t
 uv run fraktal scene data/worlds/dense --out data/scene_dense --size-m 500 --agents
 ```
 
-`--agents` also writes `agents.json`, `people.json` and `drones.json` (a 120 s loop by default; `--duration-s`,
+`--agents` also writes `agents.json`, `people.json` and `drones.json` (a 300 s loop by default; `--duration-s`,
 `--cars-per-km`, `--people-per-km`, `--drones`, `--seed`). The viewer replays them in a loop: the same rounded cars and
 figures as the Blender scene (`godot/shapes/agent_shapes.json`, written by `scripts/godot/export_shapes.py` from
 `blender_scene.py`), interpolated between samples. The simulation covers the whole world, so cars that are off the tile
-are hidden until they drive back in. They do not react to you and you do not collide with them. `--no-agents` skips them.
+are hidden until they drive back in. This is a replay, not a live simulation: at the end of the loop every agent shrinks to nothing and grows back over a second and a half, rather than all of them jumping. People walk on the pavement (a 1.8 m strip beyond the kerb; Manila-Quezon and Nairobi, 1.5 m in Khartoum), cross a road only at a junction, and go round poles, trunks and parked cars. Cars and people are solid: you stop at them, but they do not react to you. The fine road and pavement wear (patches, stains, cracks) is left out of the viewer; it is for the Blender render. `--no-agents` skips them.
 
 ## 3. Run
 
@@ -72,7 +72,7 @@ about 5.5 million primitives, runs at 35 to 65 fps. For a screenshot without dri
 Three modes; keys 1, 2 and 3 switch, and the new one starts where you are.
 - **1, car:** W/S throttle and brake, A/D steer, Space handbrake. A chase camera.
 - **2, person:** W/S/A/D walk (Shift runs), eye height 1.6 m, first person. Click to capture the mouse for looking, Esc to
-  release it; the arrow keys also turn and tilt. You slide along buildings, compound walls, trunks and poles.
+  release it; the arrow keys also turn and tilt. You slide along buildings, compound walls, trunks, poles, parked cars and the people and cars of the replay; a car stops at all of them too. `--cam X,Y,Z,HEADING,PITCH` fixes the camera for a screenshot.
 - **3, drone:** W/S/A/D fly along where you look, E up, Q down, Shift fast, up to 400 m. It stops at the ground and at a roof,
   can fly over a building but not into its side.
 - R resets to the start. Options after `--`:

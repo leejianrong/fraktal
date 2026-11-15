@@ -41,6 +41,10 @@ var _footprints: Array = []  # {"box": Rect2, "ring": PackedVector2Array, "roof"
 var _textures := {}
 var _grid := {}  # Vector2i cell -> {"segs": [[x0, y0, x1, y1, height]], "posts": [[x, y, radius]]}
 const GRID_M := 8.0
+## Road and pavement wear is fine detail for the Blender render. Drawn here with the other marking
+## colours it shows as long pale bars across the road, so the viewer leaves it out.
+const WEAR_MATERIALS := ["road-patch", "road-patch-pale", "road-stain", "road-polish", "road-crack", "manhole",
+	"kerb-grime", "kerb-scuff", "pavement-stain", "pavement-crack", "pavement-hole", "weed"]
 
 
 static func to_engine(p: Vector3) -> Vector3:
@@ -65,7 +69,7 @@ func load_tile(scene_dir: String, assets_dir: String) -> void:
 	_build_poles()
 	_lap("trees_poles", t)
 	t = Time.get_ticks_msec()
-	_build_packed(scene_dir, assets_dir, "markings", "Markings", scene["markings"]["materials"])
+	_build_packed(scene_dir, assets_dir, "markings", "Markings", scene["markings"]["materials"], {}, false, WEAR_MATERIALS)
 	_lap("markings", t)
 	t = Time.get_ticks_msec()
 	_build_packed(scene_dir, assets_dir, "props", "Props", scene["prop_materials"])
@@ -421,7 +425,7 @@ func _build_poles() -> void:
 ## of [name, colour, roughness, metallic]; `textured` maps a name to [base material, tint] for the
 ## plastered walls. Like Blender, every vertex is lifted onto the ground under it. Faces are flat
 ## shaded (the parts are boxes and ribbons), emitted reversed for Godot's clockwise front faces.
-func _build_packed(dir: String, assets_dir: String, prefix: String, node_name: String, materials: Array, textured: Dictionary = {}, double_sided := false) -> void:
+func _build_packed(dir: String, assets_dir: String, prefix: String, node_name: String, materials: Array, textured: Dictionary = {}, double_sided := false, skip: Array = []) -> void:
 	var co: PackedFloat32Array = Npy.read(dir.path_join(prefix + "_vertices.npy"))["data"]
 	var tri: PackedInt32Array = Npy.read(dir.path_join(prefix + "_faces.npy"))["data"]
 	var face_mat: PackedInt32Array = Npy.read(dir.path_join(prefix + "_face_material.npy"))["data"]
@@ -435,6 +439,8 @@ func _build_packed(dir: String, assets_dir: String, prefix: String, node_name: S
 		pts[v] = Vector3(x, co[v * 3 + 2] + height_at(x, y), -y)
 	var groups := {}  # material index -> {"v", "n"}
 	for f in tri.size() / 3:
+		if skip.has(materials[face_mat[f]][0]):
+			continue
 		var a := pts[tri[f * 3]]
 		var b := pts[tri[f * 3 + 1]]
 		var c := pts[tri[f * 3 + 2]]
@@ -499,6 +505,10 @@ func _build_parked_cars() -> void:
 		body_colours.append(CAR_BODY[int(car[3]) % CAR_BODY.size()])
 		cabins.append(Transform3D(basis * Basis.from_scale(Vector3(2.4, 0.5, 1.7)), centre + back + Vector3(0, 1.25, 0)))
 		cabin_colours.append(Color(0.05, 0.07, 0.1))
+	for car in cars:  # a parked car stops a person or a car: three posts along its length
+		for along in [-1.4, 0.0, 1.4]:
+			_cell_entry(_cell(car[0], car[1]))["posts"].append(
+				[car[0] + cos(car[2]) * along, car[1] + sin(car[2]) * along, 0.95])
 	_multimesh("ParkedCars", box, bodies, body_colours)
 	_multimesh("ParkedCabins", box, cabins, cabin_colours)
 	stats["parked_cars"] = cars.size()
@@ -549,20 +559,37 @@ func _build_obstacles() -> void:
 	stats["posts"] = posts
 
 
-## Whether a person of this radius standing at (x, y) is in something: a building, a wall, a trunk
-## or a pole. Walls count while they are taller than 0.5 m.
+## Whether something of this radius at (x, y) is in a compound wall (while it is taller than 0.5 m),
+## a trunk, a pole or a parked car.
+func static_hit(x: float, y: float, radius: float) -> bool:
+	var entry: Dictionary = _grid.get(_cell(x, y), {})
+	var p := Vector2(x, y)
+	for sg in entry.get("segs", []):
+		if sg[4] > 0.5 and Geometry2D.get_closest_point_to_segment(p, Vector2(sg[0], sg[1]), Vector2(sg[2], sg[3])).distance_to(p) < radius + 0.1:
+			return true
+	var c := _cell(x, y)
+	for dx in [-1, 0, 1]:  # a post is kept in its own cell only, and may reach into the next
+		for dy in [-1, 0, 1]:
+			for post in _grid.get(c + Vector2i(dx, dy), {}).get("posts", []):
+				if p.distance_to(Vector2(post[0], post[1])) < radius + post[2]:
+					return true
+	return false
+
+
+## Whether a moving car or a person is within `radius` of (x, y). Set by main.gd once the agents load.
+var crowd: Agents = null
+
+
+func crowd_hit(x: float, y: float, radius: float) -> bool:
+	return crowd != null and crowd.hit(x, y, radius)
+
+
+## Whether a person of this radius standing at (x, y) is in something: a building, a wall, a trunk,
+## a pole, a parked car, or another person or car.
 func person_blocked(x: float, y: float, radius: float) -> bool:
 	if x < 0.0 or y < 0.0 or x > size_m or y > size_m:
 		return true
 	for d in [Vector2(0, 0), Vector2(radius, 0), Vector2(-radius, 0), Vector2(0, radius), Vector2(0, -radius)]:
 		if roof_at(x + d.x, y + d.y) != NO_ROOF:
 			return true
-	var entry: Dictionary = _grid.get(_cell(x, y), {})
-	var p := Vector2(x, y)
-	for sg in entry.get("segs", []):
-		if sg[4] > 0.5 and Geometry2D.get_closest_point_to_segment(p, Vector2(sg[0], sg[1]), Vector2(sg[2], sg[3])).distance_to(p) < radius + 0.1:
-			return true
-	for post in entry.get("posts", []):
-		if p.distance_to(Vector2(post[0], post[1])) < radius + post[2]:
-			return true
-	return false
+	return static_hit(x, y, radius) or crowd_hit(x, y, radius)

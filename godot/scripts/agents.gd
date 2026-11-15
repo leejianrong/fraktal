@@ -164,15 +164,46 @@ func pose(group: Dictionary, k: int, t: float) -> Array:
 	return [lerpf(group["x"][k][i], group["x"][k][j], f), lerpf(group["y"][k][i], group["y"][k][j], f), heading, z]
 
 
+## The loop's seam: the tracks end and start again, so over this many seconds either side of it every
+## agent shrinks to nothing and grows back, instead of all of them jumping at once.
+const SEAM_S := 1.5
+
+## Where each ground agent is now (x, y, heading, or off the tile), for `hit`.
+var _now := {"car": [], "person": []}
+
+
 func update(t: float, tile: Tile) -> void:
+	var wrapped := fposmod(t, duration_s)
+	var scale := clampf(minf(wrapped, duration_s - wrapped) / SEAM_S, 0.0, 1.0) if duration_s > 4.0 * SEAM_S else 1.0
 	for group in _groups:
+		var here: Array = []
 		for k in group["n"]:
 			var p := pose(group, k, t)
 			var xf := HIDDEN
 			if on_tile(p[0], p[1], tile):
-				xf = Transform3D(Basis(Vector3.UP, p[2]), Vector3(p[0], tile.height_at(p[0], p[1]) + p[3], -p[1]))
+				xf = Transform3D(Basis(Vector3.UP, p[2]).scaled(Vector3.ONE * scale), Vector3(p[0], tile.height_at(p[0], p[1]) + p[3], -p[1]))
+				if scale > 0.5:
+					here.append([p[0], p[1], p[2]])
 			for mm in group["multis"]:
 				mm.set_instance_transform(k, xf)
+		if _now.has(group["kind"]):
+			_now[group["kind"]] = here
+
+
+## Whether a car or a person now standing on the tile is within `radius` of (x, y): a car is its
+## 4.5 by 1.9 m body, a person a post of 0.3 m.
+func hit(x: float, y: float, radius: float) -> bool:
+	for c in _now["car"]:
+		var dx: float = x - c[0]
+		var dy: float = y - c[1]
+		var lx: float = cos(c[2]) * dx + sin(c[2]) * dy
+		var ly: float = -sin(c[2]) * dx + cos(c[2]) * dy
+		if absf(lx) < 2.25 + radius and absf(ly) < 0.95 + radius:
+			return true
+	for c in _now["person"]:
+		if Vector2(x - c[0], y - c[1]).length() < 0.3 + radius:
+			return true
+	return false
 
 
 func on_tile(x: float, y: float, tile: Tile) -> bool:

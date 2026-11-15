@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import shapely
 from shapely import STRtree
 from shapely.geometry import LineString, Point, box
 from shapely.ops import substring
@@ -288,6 +289,15 @@ def verge(graph: Graph, half: int, left: bool, margin_m: float) -> np.ndarray[An
     return _offset(xy, (1.0 if left else -1.0) * (edge.width_m / 2.0 + margin_m))
 
 
+def _densify(points: np.ndarray[Any, Any], step_m: float) -> np.ndarray[Any, Any]:
+    """The polyline with a point at least every ``step_m`` metres (its corners are kept)."""
+    out = [points[:1]]
+    for a, b in zip(points[:-1], points[1:], strict=True):
+        n = max(1, int(math.ceil(float(np.hypot(*(b - a))) / step_m)))
+        out.append(a + (b - a) * (np.arange(1, n + 1) / n)[:, None])
+    return np.vstack(out)
+
+
 def _chaikin(points: np.ndarray[Any, Any], rounds: int) -> np.ndarray[Any, Any]:
     for _ in range(rounds):
         a, b = points[:-1], points[1:]
@@ -377,7 +387,11 @@ class WalkerConfig:
     speed_spread: float = 0.2  # each person's pace is the walking speed times 1 +- this
     verge_m: float = 1.2  # how far outside the road edge people walk
     verge_spread_m: float = (
-        0.0  # each person walks this much farther out, at most (or 0.8 m nearer)
+        0.0  # each person walks this much farther out, at most (or ``verge_near_m`` nearer)
+    )
+    verge_near_m: float = 0.8
+    keep_off_road: bool = (
+        False  # cut the path wherever it runs over a road: cross only at junctions
     )
     stops_per_min: float = 2.0  # how often someone stops (to chat, look, wait)
     stop_s: tuple[float, float] = (2.0, 8.0)  # how long a stop lasts
@@ -409,10 +423,17 @@ def simulate_people(
     reach = config.walk_speed_mps * (1.0 + config.speed_spread) * duration + 30.0
     walkers: list[tuple[_Path, float, float]] = []
     walking = np.ones((n, steps), dtype=bool)
+    road_area = (
+        shapely.union_all([LineString(e.coords).buffer(e.width_m / 2.0) for e in graph.edges])
+        if config.keep_off_road
+        else None
+    )
     # their own stream, so a spread of zero leaves every other draw and the old tracks unchanged
     spread = config.verge_spread_m
     lateral = (
-        substream(seed, "pedestrian-lateral").uniform(-0.8, spread, n) if spread else np.zeros(n)
+        substream(seed, "pedestrian-lateral").uniform(-config.verge_near_m, spread, n)
+        if spread
+        else np.zeros(n)
     )
     for k in range(n):
         e = int(rng.choice(len(lengths), p=lengths / lengths.sum()))
@@ -422,6 +443,11 @@ def simulate_people(
         left = bool(rng.integers(0, 2))
         route, leaves = _route(graph, half, along + reach, rng, TrafficConfig())
         raw = np.vstack([verge(graph, h, left, config.verge_m + float(lateral[k])) for h in route])
+        if road_area is not None:
+            raw = _densify(raw, 1.0)  # so that only the points at a junction fall in the road
+            clear = ~shapely.contains_xy(road_area, raw[:, 0], raw[:, 1])
+            if clear.sum() >= 2:  # the chord between two clear points is the crossing
+                raw = raw[clear]
         if leaves:
             away = raw[-1] - raw[-2]
             raw = np.vstack([raw, raw[-1] + away / np.hypot(*away) * reach])
@@ -451,6 +477,43 @@ def simulate_people(
     ids = [f"person-{k:04d}" for k in range(n)]
     wrapped = (heading_out + math.pi) % (2 * math.pi) - math.pi
     return Tracks(ids, t, x, y, wrapped, speed, kind="person")
+
+
+def keep_clear_of(
+    tracks: Tracks, posts: np.ndarray[Any, Any], radius_m: float, reach_m: float = 0.3
+) -> Tracks:
+    """Move every sample that is within ``radius_m + post radius`` of a post out to that distance.
+
+    ``posts`` is (P, 3): x, y, radius. Used to walk people round lamp posts, trunks and parked cars.
+    A sample is only ever pushed radially, so the path stays continuous.
+    """
+    if len(posts) == 0 or len(tracks.ids) == 0:
+        return tracks
+    from scipy.spatial import cKDTree
+
+    tree = cKDTree(posts[:, :2])
+    x, y = tracks.x.copy(), tracks.y.copy()
+    limit = float(posts[:, 2].max()) + radius_m + reach_m
+    for _ in range(2):  # a second pass catches a push that ended in the next post
+        pts = np.stack([x.ravel(), y.ravel()], axis=1)
+        dist, idx = tree.query(pts, distance_upper_bound=limit)
+        near = np.isfinite(dist)
+        hit = np.zeros(len(pts), dtype=bool)
+        hit[near] = dist[near] < posts[idx[near], 2] + radius_m
+        if not hit.any():
+            break
+        centre = posts[idx[hit], :2]
+        away = pts[hit] - centre
+        norm = np.hypot(away[:, 0], away[:, 1])
+        on_centre = norm < 1e-6  # exactly on the post: any way out will do
+        away[on_centre] = (1.0, 0.0)
+        norm[on_centre] = 1.0
+        want = posts[idx[hit], 2] + radius_m + 0.02
+        pts[hit] = centre + away / norm[:, None] * want[:, None]
+        x, y = pts[:, 0].reshape(x.shape), pts[:, 1].reshape(y.shape)
+    return Tracks(
+        tracks.ids, tracks.t, x, y, tracks.heading, tracks.speed, kind=tracks.kind, z=tracks.z
+    )
 
 
 @dataclass(frozen=True)

@@ -6,14 +6,14 @@ extends Node3D
 
 const HALF_LENGTH := 2.25
 const HALF_WIDTH := 0.95
-const CORNERS := [Vector2(2.2, 0.9), Vector2(2.2, -0.9), Vector2(-2.2, 0.9), Vector2(-2.2, -0.9), Vector2.ZERO]
+const CORNERS := [Vector2(2.2, 0.9), Vector2(2.2, -0.9), Vector2(-2.2, 0.9), Vector2(-2.2, -0.9), Vector2(2.2, 0.0), Vector2(-2.2, 0.0), Vector2(0.0, 0.9), Vector2(0.0, -0.9), Vector2.ZERO]
 
 var x := 0.0
 var y := 0.0
 var heading := 0.0
 var speed := 0.0  # m/s along the heading, negative in reverse
 var steer := 0.0  # front wheel angle, radians
-var wall_hits := 0
+var wall_hits := 0  # hard knocks: a building, wall, pole, trunk, parked car, person or other car
 
 
 func _init() -> void:
@@ -65,7 +65,7 @@ func step(throttle: float, turn: float, handbrake: bool, dt: float, tile: Tile) 
 	for c in CORNERS:
 		var px: float = nx + cos(nh) * c.x - sin(nh) * c.y
 		var py: float = ny + sin(nh) * c.x + cos(nh) * c.y
-		if tile.roof_at(px, py) != Tile.NO_ROOF:
+		if tile.roof_at(px, py) != Tile.NO_ROOF or tile.static_hit(px, py, 0.1) or tile.crowd_hit(px, py, 0.1):
 			hit = true
 			break
 	if hit:
