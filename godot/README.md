@@ -34,7 +34,7 @@ uv run fraktal scene data/worlds/dense --out data/scene_dense --size-m 500 --age
 
 `--agents` also writes `agents.json`, `people.json` and `drones.json` (a 120 s loop by default; `--duration-s`,
 `--cars-per-km`, `--people-per-km`, `--drones`, `--seed`). The viewer replays them in a loop: the same rounded cars and
-figures as the Blender scene (`godot/data/agent_shapes.json`, written by `scripts/godot/export_shapes.py` from
+figures as the Blender scene (`godot/shapes/agent_shapes.json`, written by `scripts/godot/export_shapes.py` from
 `blender_scene.py`), interpolated between samples. The simulation covers the whole world, so cars that are off the tile
 are hidden until they drive back in. They do not react to you and you do not collide with them. `--no-agents` skips them.
 

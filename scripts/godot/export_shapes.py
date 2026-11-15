@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Write godot/data/agent_shapes.json from the part tables in blender_scene.py (FRK-94).
+"""Write godot/shapes/agent_shapes.json from the part tables in blender_scene.py (FRK-94).
 
 The Blender script is the one place the moving cars, people and drones are defined. This reads its
 CAR_PARTS, PERSON_PARTS and DRONE_BOXES (without importing it: it needs bpy) so the Godot viewer
@@ -19,7 +19,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "src" / "fraktal" / "blender_scene.py"
-OUT = ROOT / "godot" / "data" / "agent_shapes.json"
+OUT = ROOT / "godot" / "shapes" / "agent_shapes.json"
 WANTED = ("CAR_PARTS", "PERSON_PARTS", "DRONE_BOXES")
 
 
