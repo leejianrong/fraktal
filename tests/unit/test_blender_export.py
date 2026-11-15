@@ -315,3 +315,13 @@ def test_sky_clouds_are_for_the_camera_only_and_follow_the_seed_cover() -> None:
         source.count('world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.0')
         >= 2
     )
+
+
+def test_a_render_without_traffic_does_not_need_agents_json() -> None:
+    """build_traffic read agents.json before checking it was there, so every aerial render that was
+    not given --traffic crashed in Blender (found while making the drone shots for a demo)."""
+    from pathlib import Path
+
+    source = (Path(__file__).parents[2] / "src/fraktal/blender_scene.py").read_text()
+    body = source.split("def build_traffic(")[1].split("\n    mats = [")[0]
+    assert '(scene_dir / "agents.json").is_file()' in body and "return 0" in body
