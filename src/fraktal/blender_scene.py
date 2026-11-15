@@ -568,6 +568,17 @@ LOOK_OBJECTS = (
 )  # fmt: skip
 
 
+# Objects that exist only to light or fog the beauty pass. The label and depth passes hide them: a
+# fog box left in scatters every label colour, and a cloud plane would shade the depth (FRK-168).
+LOOK_HIDDEN = ("haze", "clouds")
+
+
+def hide_beauty_only_objects() -> None:
+    for name in LOOK_HIDDEN:
+        if name in bpy.data.objects:
+            bpy.data.objects[name].hide_render = True
+
+
 def use_label_look(sc) -> None:
     """Unlit, unfiltered Cycles rendering that returns the face colours unchanged.
 
@@ -583,6 +594,7 @@ def use_label_look(sc) -> None:
     out = nodes.new("ShaderNodeOutputMaterial")
     links.new(colour.outputs["Color"], emit.inputs["Color"])
     links.new(emit.outputs["Emission"], out.inputs["Surface"])
+    hide_beauty_only_objects()
     for name in (*LOOK_OBJECTS, *AGENTS):
         if name in bpy.data.objects:
             mesh = bpy.data.objects[name].data
@@ -643,6 +655,7 @@ def use_depth_look(sc, unit_m: float) -> None:
     out = nodes.new("ShaderNodeOutputMaterial")
     links.new(combine.outputs["Color"], emit.inputs["Color"])
     links.new(emit.outputs["Emission"], out.inputs["Surface"])
+    hide_beauty_only_objects()
     for name in (*LOOK_OBJECTS, *AGENTS):
         if name in bpy.data.objects:
             mesh = bpy.data.objects[name].data
