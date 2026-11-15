@@ -1252,35 +1252,74 @@ def build_agents(
 
 CAR_MESH_DIR = "meshes/quaternius-cars"  # CC0 pack, see assets/manifest.json
 CAR_MESHES = ("NormalCar1", "NormalCar2", "SUV", "SportsCar", "SportsCar2", "Taxi")
+# Kenney Car Kit (CC0, FRK-178): a pickup, a van and a box lorry, one palette image shared by all.
+# They keep the colours baked in the palette; the Quaternius cars are repainted per car.
+KENNEY_DIR = "meshes/kenney-cars"
+KENNEY_MESHES = ("truck", "van", "delivery")
+KENNEY_PALETTE = "colormap.png"
+KENNEY_FORWARD = {"truck": 1.0, "van": 1.0, "delivery": 1.0}  # which way the OBJ's Z points
+# One cycle of model slots: nine cars to one each of pickup, van and lorry, by car index.
+MODEL_CYCLE = (0, 1, 2, 6, 3, 4, 7, 5, 0, 1, 8, 2)  # indices into CAR_MESHES + KENNEY_MESHES
 CAR_FIXED_PARTS = ("Black", "Grey", "Headlights", "TailLights", "Windows")  # the rest is body paint
 
 
-def parse_obj_car(obj_text: str, mtl_text: str) -> dict:
+def palette_colour(palette: np.ndarray, uv: np.ndarray) -> tuple[int, int, int]:
+    """The 8-bit display colour of a palette image at ``uv`` (u right, v up). ``palette`` is
+    (H, W, 3) with row 0 at the bottom, the order Blender's ``image.pixels`` has."""
+    h, w = palette.shape[:2]
+    col = min(w - 1, max(0, int(uv[0] * w)))
+    row = min(h - 1, max(0, int(uv[1] * h)))
+    r, g, b = (int(round(float(c) * 255)) for c in palette[row, col, :3])
+    return r, g, b
+
+
+def parse_obj_car(
+    obj_text: str, mtl_text: str, palette: np.ndarray | None = None, forward: float = 0.0
+) -> dict:
     """A car from a Wavefront OBJ (Y up, length along Z) in the car frame: x forward, y left, z up,
-    centred on its footprint with the wheels on z = 0. Forward is the end with the headlights.
+    centred on its footprint with the wheels on z = 0. Forward is the end with the headlights, or
+    ``forward`` (+1 or -1 along the OBJ's Z) when given.
+
+    With a ``palette`` image (Kenney's packs: one texture, a UV per face) each face takes one flat
+    colour from the palette at the mean of its UVs and its material is named ``pal-RRGGBB``, so
+    the labels and the look passes see flat colours exactly as for the per-material models.
 
     Returns ``verts`` (V, 3), ``polys`` (index tuples), ``poly_mat`` (a material name each) and
-    ``colours`` (name -> display RGB, from the MTL's linear Kd).
+    ``colours`` (name -> display RGB, from the MTL's linear Kd or the palette).
     """
-    raw, polys, poly_mat, current = [], [], [], ""
+    raw, uvs, polys, poly_mat, poly_uv, current = [], [], [], [], [], ""
     for line in obj_text.splitlines():
         parts = line.split()
         if not parts:
             continue
         if parts[0] == "v":
             raw.append([float(v) for v in parts[1:4]])
+        elif parts[0] == "vt":
+            uvs.append([float(v) for v in parts[1:3]])
         elif parts[0] == "usemtl":
             current = parts[1]
         elif parts[0] == "f":
             polys.append(tuple(int(t.split("/")[0]) - 1 for t in parts[1:]))
             poly_mat.append(current)
+            poly_uv.append(
+                [int(t.split("/")[1]) - 1 for t in parts[1:] if "/" in t and t.split("/")[1]]
+            )
     raw = np.asarray(raw, dtype="float64")
+    palette_colours: dict[str, tuple[float, float, float]] = {}
+    if palette is not None:
+        table = np.asarray(uvs, dtype="float64")
+        for k, ids in enumerate(poly_uv):
+            if not ids:
+                raise ValueError("a palette car needs a UV on every face")
+            r, g, b = palette_colour(palette, table[ids].mean(axis=0))
+            poly_mat[k] = f"pal-{r:02x}{g:02x}{b:02x}"
+            palette_colours[poly_mat[k]] = (r / 255.0, g / 255.0, b / 255.0)
     lamps = {i for p, m in zip(polys, poly_mat, strict=True) if m == "Headlights" for i in p}
-    fwd = 1.0 if not lamps or raw[sorted(lamps), 2].mean() >= 0 else -1.0
+    fwd = forward or (1.0 if not lamps or raw[sorted(lamps), 2].mean() >= 0 else -1.0)
     verts = np.stack([fwd * raw[:, 2], fwd * raw[:, 0], raw[:, 1]], axis=1)  # an even permutation
     verts[:, :2] -= (verts[:, :2].min(axis=0) + verts[:, :2].max(axis=0)) / 2.0
     verts[:, 2] -= verts[:, 2].min()
-    colours = {}
+    colours = dict(palette_colours)
     for block in mtl_text.split("newmtl ")[1:]:
         name = block.split("\n")[0].strip()
         for row in block.splitlines():
@@ -1288,6 +1327,22 @@ def parse_obj_car(obj_text: str, mtl_text: str) -> dict:
                 kd = np.clip([float(v) for v in row.split()[1:4]], 0.0, 1.0)
                 colours[name] = tuple(float(v) for v in kd ** (1 / 2.2))  # linear to display
     return {"verts": verts, "polys": polys, "poly_mat": poly_mat, "colours": colours}
+
+
+def load_palette(path: Path) -> np.ndarray:
+    """A palette PNG as (H, W, 3) floats in 0..1 as stored (not linearised), row 0 at the bottom."""
+    img = bpy.data.images.load(str(path))
+    img.colorspace_settings.name = "Non-Color"
+    w, h = img.size
+    return np.asarray(img.pixels[:], dtype="float64").reshape(h, w, 4)[:, :, :3]
+
+
+def model_variants(n: int, models: int) -> np.ndarray:
+    """The model of each of ``n`` cars: cars only (``models`` is 6) cycle by index; with the
+    three Kenney vehicles (``models`` is 9) the cycle in ``MODEL_CYCLE`` keeps them to a quarter."""
+    if models <= len(CAR_MESHES):
+        return np.arange(n) % models
+    return np.asarray(MODEL_CYCLE, dtype="int64")[np.arange(n) % len(MODEL_CYCLE)]
 
 
 def build_mesh_cars(
@@ -1312,13 +1367,26 @@ def build_mesh_cars(
         )
         for c in CAR_MESHES
     ]
+    if (assets / KENNEY_DIR / KENNEY_PALETTE).is_file():  # FRK-178: optional, by file presence
+        palette = load_palette(assets / KENNEY_DIR / KENNEY_PALETTE)
+        cars += [
+            parse_obj_car(
+                (assets / KENNEY_DIR / f"{c}.obj").read_text(), "", palette, KENNEY_FORWARD[c]
+            )
+            for c in KENNEY_MESHES
+        ]
     mats = list(mats_body)
     fixed: dict[str, int] = {}
     for part in CAR_FIXED_PARTS:
         colour = next((c["colours"][part] for c in cars if part in c["colours"]), (0.1, 0.1, 0.1))
         fixed[part] = len(mats)
         mats.append(material(f"mcar-{part}", colour, rough.get(part, 0.5), 140 + len(mats)))
-    variant = np.arange(n) % len(cars)
+    for car in cars[len(CAR_MESHES) :]:  # palette colours: one material each, shared by the cars
+        for name, colour in car["colours"].items():
+            if name.startswith("pal-") and name not in fixed:
+                fixed[name] = len(mats)
+                mats.append(material(f"mcar-{name}", colour, 0.5, 150 + len(mats)))
+    variant = model_variants(n, len(cars))
     offsets, verts_total, loops, loop_total, mat_index, owner = [], 0, [], [], [], []
     for k in range(n):
         car = cars[variant[k]]
