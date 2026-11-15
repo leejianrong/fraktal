@@ -1522,7 +1522,10 @@ def build_light(scene: dict, eye_level: bool = False) -> None:
     links.new(scaled.outputs["Value"], glow.inputs["Fac"])
     links.new(gradient.outputs["Color"], glow.inputs["Color1"])
     glow.inputs["Color2"].default_value = (*sky["glow"], 1.0)
-    links.new(glow.outputs["Color"], bg.inputs["Color"])
+    sky_colour = glow.outputs["Color"]
+    if var and var["cloud"]["cover"] > 0.02:  # the clouds that cast the shadows are seen in the sky
+        sky_colour = add_sky_clouds(nodes, links, split, sky_colour, var["cloud"], scene["size_m"])
+    links.new(sky_colour, bg.inputs["Color"])
     bg.inputs["Strength"].default_value = sky["fill"]
     if eye:  # light the scene at ``fill`` and show the sky to the camera at ``sky_seen``
         ray = nodes.new("ShaderNodeLightPath")
@@ -1585,6 +1588,78 @@ def build_haze(size_m: float, density: float, colour, sky_level: float) -> None:
     box.data.materials.append(mat)
 
 
+def add_sky_clouds(nodes, links, split, base, cloud: dict, size_m: float):
+    """Clouds drawn into the sky for the camera only (FRK-174); returns the new colour socket.
+
+    The cloud layer is the plane of ``build_clouds``: the view direction is projected onto it and
+    the same scale and offset decide where the cloud is, so a cloudier seed has more of both. The
+    sky's noise is coarser than the shadows' (which use the node's default scale). Only camera rays
+    see the clouds: sky light, and the label and depth passes (which swap the world for black),
+    are unchanged. They thin out toward the horizon, brighter at the edge and greyer in the middle.
+    """
+
+    def math(op: str, a, b=None, clamp: bool = False):
+        n = nodes.new("ShaderNodeMath")
+        n.operation, n.use_clamp = op, clamp
+        for i, v in enumerate((a, b)):
+            if v is None:
+                continue
+            if isinstance(v, float):
+                n.inputs[i].default_value = v
+            else:
+                links.new(v, n.inputs[i])
+        return n.outputs["Value"]
+
+    up = math("MAXIMUM", split.outputs["Z"], 0.12)
+    reach = math("DIVIDE", CLOUD_HEIGHT_M, up)  # metres along the view direction to the plane
+    px = math("ADD", math("MULTIPLY", split.outputs["X"], reach), size_m / 2)
+    py = math("ADD", math("MULTIPLY", split.outputs["Y"], reach), size_m / 2)
+    point = nodes.new("ShaderNodeCombineXYZ")
+    links.new(px, point.inputs["X"])
+    links.new(py, point.inputs["Y"])
+    mapping = nodes.new("ShaderNodeMapping")
+    mapping.inputs["Scale"].default_value = (1 / cloud["scale_m"],) * 3
+    mapping.inputs["Location"].default_value = (*cloud["offset_m"], 0.0)
+    links.new(point.outputs["Vector"], mapping.inputs["Vector"])
+    noise = nodes.new("ShaderNodeTexNoise")
+    # the node's default scale of 5 would make the cells a fifth of the size
+    noise.inputs["Scale"].default_value = CLOUD_SKY_NOISE
+    noise.inputs["Detail"].default_value = 4.0
+    links.new(mapping.outputs["Vector"], noise.inputs["Vector"])
+
+    def ramp(value, lo: float, hi: float):
+        r = nodes.new("ShaderNodeMapRange")
+        r.clamp = True
+        r.inputs["From Min"].default_value, r.inputs["From Max"].default_value = lo, hi
+        links.new(value, r.inputs["Value"])
+        return r.outputs["Result"]
+
+    edge = CLOUD_SKY_EDGE - CLOUD_SKY_SLOPE * cloud["cover"]  # more cover lowers the threshold
+    body = ramp(noise.outputs["Fac"], edge, edge + 0.1)
+    core = ramp(noise.outputs["Fac"], edge + 0.1, edge + 0.22)
+    fade = ramp(split.outputs["Z"], 0.03, 0.3)  # thin toward the horizon
+    ray = nodes.new("ShaderNodeLightPath")
+    opacity = math("MULTIPLY", math("MULTIPLY", body, fade), ray.outputs["Is Camera Ray"])
+    shade = nodes.new("ShaderNodeMix")
+    shade.data_type = "RGBA"
+    shade.inputs[6].default_value = CLOUD_EDGE_RGB
+    shade.inputs[7].default_value = CLOUD_CORE_RGB
+    links.new(core, shade.inputs[0])
+    out = nodes.new("ShaderNodeMix")
+    out.data_type = "RGBA"
+    links.new(opacity, out.inputs[0])
+    links.new(base, out.inputs[6])
+    links.new(shade.outputs[2], out.inputs[7])
+    return out.outputs[2]
+
+
+# Sky clouds: the noise level at which cloud starts, how much cover lowers it, and the noise scale
+# (so a cloud is about the seed's ``scale_m`` wide on the layer).
+CLOUD_SKY_EDGE = 0.62
+CLOUD_SKY_SLOPE = 0.45
+CLOUD_SKY_NOISE = 1.0
+CLOUD_EDGE_RGB = (1.0, 1.0, 1.0, 1.0)
+CLOUD_CORE_RGB = (0.72, 0.75, 0.80, 1.0)  # the thick middle is greyer
 CLOUD_HEIGHT_M = 700.0
 
 

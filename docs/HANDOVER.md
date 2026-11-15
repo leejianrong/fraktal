@@ -122,6 +122,9 @@ strength-compensated, warmer when low), cloud shadows (an invisible plane that o
 40% of the sun blocked) and haze (a bounded scattering box; thicker for Khartoum). `city_strips.py --seed N` picks the seed.
 Brightness varies a lot between seeds already (Manila seed 13 renders at 0.31 without any variety), so compare against the
 same seed with variety off. No HDRIs yet.
+Visible clouds (FRK-174): when a seed has cloud cover, the sky shader draws clouds for camera rays only (`add_sky_clouds`),
+at the seed's scale and offset, so a cloudier seed has more of them and of their shadows. Sky light and the label and depth
+passes are unchanged. No HDRIs yet.
 
 Moving cars and people (FRK-163) are still built from boxes, but a box may now be tapered, sloped or offset to one side
 (`CAR_PARTS`, `PERSON_PARTS` in `blender_scene.py`): a car has a sloping bonnet, a tapered glass cabin, a roof panel and four
