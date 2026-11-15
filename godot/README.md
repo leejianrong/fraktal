@@ -26,6 +26,18 @@ MIT licence, one executable, no installer. Verify the zip against `SHA512-SUMS.t
   `godot/project.godot`; the `godot/` folder is all it needs, plus `assets/` next to it (pass
   `--assets DIR` if you move it).
 
+## 1b. Cars, people and drones that move (optional)
+
+```bash
+uv run fraktal scene data/worlds/dense --out data/scene_dense --size-m 500 --agents
+```
+
+`--agents` also writes `agents.json`, `people.json` and `drones.json` (a 120 s loop by default; `--duration-s`,
+`--cars-per-km`, `--people-per-km`, `--drones`, `--seed`). The viewer replays them in a loop: the same rounded cars and
+figures as the Blender scene (`godot/data/agent_shapes.json`, written by `scripts/godot/export_shapes.py` from
+`blender_scene.py`), interpolated between samples. The simulation covers the whole world, so cars that are off the tile
+are hidden until they drive back in. They do not react to you and you do not collide with them. `--no-agents` skips them.
+
 ## 3. Run
 
 The first time, once per checkout, build Godot's script cache (without it `class_name` scripts are not

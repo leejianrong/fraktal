@@ -5,6 +5,7 @@ extends Node3D
 ##   --assets DIR      the repo's assets directory (default: ../assets next to this project)
 ##   --mode MODE       start as car (default), person or drone
 ##   --autodrive       a fixed scripted run of the current mode instead of the keyboard
+##   --no-agents       do not replay the cars, people and drones beside the tile
 ##   --selftest        no window needed: load, drive 60 s of steps, check, print STATE, exit 0 or 1
 ##   --bench SECONDS   autodrive for that long, print frame statistics, exit
 ##   --shot PATH       with --bench, save the last frame as a PNG
@@ -17,6 +18,7 @@ var tile: Tile
 var car: Car
 var walker: Walker
 var drone: Drone
+var agents: Agents
 var mode := "car"
 var camera: Camera3D
 var hud: Label
@@ -41,6 +43,12 @@ func _ready() -> void:
 	add_child(car)
 	var start := _start(scene_dir)
 	car.place(start[0], start[1], start[2], tile)
+	agents = Agents.new()
+	agents.name = "Agents"
+	add_child(agents)
+	if not args.has("no-agents"):
+		agents.load_agents(scene_dir, tile)
+		_log("agents_loaded", agents.stats)
 	walker = Walker.new()
 	add_child(walker)
 	drone = Drone.new()
@@ -166,6 +174,7 @@ func _physics_process(_delta: float) -> void:
 			drone.look(0.0, look_up * 1.2 * DT)
 			drone.step(fwd, side, _axis(KEY_E, KEY_Q), turn, _key(KEY_SHIFT), DT, tile)
 	clock += DT
+	agents.update(clock, tile)
 	if Input.is_key_pressed(KEY_R):
 		var s := _start(args.get("scene", OS.get_environment("FRAKTAL_SCENE")))
 		_place_all(s[0], s[1], s[2])
@@ -363,6 +372,7 @@ func _selftest() -> void:
 	if not rammed:
 		printerr("FAIL: no building was reached head-on")
 		ok = false
+	ok = _selftest_agents() and ok
 	ok = _selftest_person() and ok
 	ok = _selftest_drone() and ok
 	_log("selftest", {"ok": ok, "path_m": snappedf(path, 0.1)})
@@ -466,5 +476,46 @@ func _selftest_drone() -> bool:
 	print("OVER crossed=%s z=%.2f" % [crossed, drone.z])
 	if not crossed:
 		printerr("FAIL: a climbing drone should fly over the building")
+		ok = false
+	return ok
+
+
+## The replay loads, keeps every agent on the tile at every sample and above the ground, and the
+## same time gives the same pose.
+func _selftest_agents() -> bool:
+	if agents.group_count() == 0:
+		print("AGENTS none (no tracks beside the tile)")
+		return true
+	var ok := true
+	var nan := 0
+	var on := {}
+	var total := {}
+	var sum := 0.0
+	for group in agents._groups:
+		for k in group["n"]:
+			for t in range(0, int(agents.duration_s), 5):
+				var p: Array = agents.pose(group, k, float(t))
+				if is_nan(p[0]) or is_nan(p[1]) or is_nan(p[2]):
+					nan += 1
+				total[group["kind"]] = total.get(group["kind"], 0) + 1
+				if agents.on_tile(p[0], p[1], tile):
+					on[group["kind"]] = on.get(group["kind"], 0) + 1
+				sum += p[0] + p[1]
+	var again := 0.0
+	for group in agents._groups:
+		for k in group["n"]:
+			for t in range(0, int(agents.duration_s), 5):
+				var q: Array = agents.pose(group, k, float(t))
+				again += q[0] + q[1]
+	print("AGENTS %d groups, %.3f, on tile %s of %s" % [agents.group_count(), sum, on, total])
+	if nan > 0:
+		printerr("FAIL: %d agent poses are not numbers" % nan)
+		ok = false
+	for kind in total:
+		if on.get(kind, 0) == 0:
+			printerr("FAIL: no %s ever on the tile" % kind)
+			ok = false
+	if sum != again:
+		printerr("FAIL: the replay is not deterministic")
 		ok = false
 	return ok

@@ -91,3 +91,37 @@ def test_scene_exports_a_tile_without_blender(
     assert info["ok"] and info["data"]["buildings"] > 0
     assert (out / "start.json").exists()
     assert (out / "scene.json").exists() and (out / "ground.npy").exists()
+
+
+def test_scene_can_write_the_tracks_the_viewer_replays(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from fraktal import biomes
+    from fraktal.procedural import generate_world
+
+    world = tmp_path / "w"
+    generate_world(world, (104.0, 1.5), 3, biomes.resolve("dense_urban"))
+    base = ["scene", str(world), "--out", "", "--size-m", "300", "--json", "--duration-s", "20"]
+    outs = []
+    for name in ("a", "b"):
+        out = tmp_path / name
+        argv = [*base]
+        argv[argv.index("--out") + 1] = str(out)
+        assert main([*argv, "--agents", "--drones", "2", "--seed", "4"]) == 0
+        outs.append(out)
+    info = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert info["data"]["agents"] == ["agents.json", "drones.json", "people.json"]
+    cars = json.loads((outs[0] / "agents.json").read_text())
+    assert cars["kind"] == "car" and len(cars["t"]) == 80  # 20 s at 0.25 s steps
+    assert all(len(row) == len(cars["t"]) for row in (cars["x"] + cars["y"] + cars["heading"]))
+    assert json.loads((outs[0] / "drones.json").read_text())["kind"] == "drone"
+    assert len(json.loads((outs[0] / "drones.json").read_text())["ids"]) == 2
+    for name in (
+        "agents.json",
+        "people.json",
+        "drones.json",
+    ):  # the same seed replays the same loop
+        assert (outs[0] / name).read_text() == (outs[1] / name).read_text()
+    plain = tmp_path / "plain"
+    assert main(["scene", str(world), "--out", str(plain), "--size-m", "300", "--json"]) == 0
+    assert not (plain / "agents.json").exists()  # off unless asked for
