@@ -321,3 +321,18 @@ def test_the_device_reaches_blender_only_when_not_cpu(world: Path, tmp_path: Pat
     with pytest.raises(render3d.RenderError) as cpu:
         render3d.render(world, tmp_path / "c", CENTER, 50.0, 1.0, script=script)
     assert "--device" not in str(cpu.value)
+
+
+def test_the_eye_level_chain_is_off_unless_asked_for(world: Path, tmp_path: Path) -> None:
+    opts = {"duration_s": 1.0, "fps": 4.0}
+    plain = render3d.render(
+        world, tmp_path / "p", CENTER, 300.0, 1.0, seed=4, script=fake(tmp_path),
+        trajectory="flight", camera_options=opts, frame_px=64,
+    )  # fmt: skip
+    assert "eye_sensor" not in plain and not (tmp_path / "p" / "frames_raw").exists()
+    cam = render3d.render(
+        world, tmp_path / "e", CENTER, 300.0, 1.0, seed=4, script=fake(tmp_path),
+        trajectory="flight", camera_options=opts, frame_px=64, eye_sensor="phone",
+    )  # fmt: skip
+    assert cam["eye_sensor"]["dashcam"] is None
+    assert (tmp_path / "e" / "frames_raw" / "frame_0000.png").is_file()

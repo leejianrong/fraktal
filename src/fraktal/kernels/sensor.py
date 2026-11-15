@@ -165,8 +165,73 @@ def sensor_chain(
     return apply_psf(np.moveaxis(graded, -1, 0), psf_sigma_px)
 
 
+def expose(rgb: Any, ev: float, shoulder: float) -> Any:
+    """Exposure in stops and a soft highlight shoulder on a (3, H, W) uint8 image.
+
+    ``ev`` scales linear light by 2**ev. ``shoulder`` (0 to 1) rolls highlights off like a phone's
+    tone curve: 0 is a hard clip, 1 is a full Reinhard curve. Both are neutral at 0.
+    """
+    if ev == 0.0 and shoulder <= 0.0:
+        return rgb
+    lin = (rgb.astype("float32") / 255.0) ** 2.2 * np.float32(2.0**ev)
+    if shoulder > 0:
+        lin = (1 - shoulder) * np.minimum(lin, 1.0) + shoulder * lin / (1.0 + lin)
+        lin = lin / ((1 - shoulder) + shoulder / 2.0)  # white stays white
+    return np.clip(np.rint(255.0 * np.clip(lin, 0, 1) ** (1 / 2.2)), 0, 255).astype("uint8")
+
+
+def desaturate(rgb: Any, factor: float) -> Any:
+    """Blend a (3, H, W) uint8 image toward its luma: 1 keeps colour, 0 is grey."""
+    if factor >= 1.0:
+        return rgb
+    x = rgb.astype("float32")
+    luma = 0.299 * x[0] + 0.587 * x[1] + 0.114 * x[2]
+    return np.clip(np.rint(luma + (x - luma) * factor), 0, 255).astype("uint8")
+
+
+def add_sensor_noise(rgb: Any, read_sigma: float, shot_gain: float, rng: Any) -> Any:
+    """Read noise plus shot noise: std is ``sqrt(read**2 + shot_gain * value)`` in digital numbers.
+
+    Brighter pixels are noisier in absolute terms and dark ones carry the read floor, as in a real
+    sensor. A luma-shared component gives the grain a little colour correlation.
+    """
+    if read_sigma <= 0 and shot_gain <= 0:
+        return rgb
+    value = rgb.astype("float32")
+    sigma = np.sqrt(read_sigma**2 + shot_gain * value)
+    shape = value.shape
+    grain = rng.standard_normal(shape, dtype=np.float32)
+    shared = rng.standard_normal(shape[1:], dtype=np.float32)
+    noise = (0.7 * grain + 0.7 * shared[None]) * sigma
+    return np.clip(np.rint(value + noise), 0, 255).astype("uint8")
+
+
+def bonnet(
+    h: int, w: int, height_share: float, curve: float, tone: tuple[float, float, float]
+) -> tuple[Any, Any]:
+    """A dashcam's view of the car bonnet: ``(rgb (3, H, W) uint8, mask (H, W) bool)``.
+
+    The bonnet fills the bottom ``height_share`` of the frame with a gently arched top edge
+    (``curve`` is the arch height as a share of the bonnet) and a reflection of the sky that
+    fades with distance. ``mask`` is True where the bonnet hides the scene.
+    """
+    rows, cols = np.indices((h, w), dtype="float32")
+    top = h * (1.0 - height_share)
+    x = (cols - (w - 1) / 2) / (w / 2)
+    edge = top - curve * h * height_share * (1.0 - x**2)
+    mask = rows >= edge
+    depth = np.clip((rows - edge) / max(h * height_share, 1.0), 0, 1)
+    shade = 0.25 + 0.55 * (1.0 - depth) ** 2  # brighter reflection near the far edge
+    rgb = np.stack([shade * 255.0 * t for t in tone]).astype("float32")
+    return np.clip(np.rint(rgb), 0, 255).astype("uint8"), np.asarray(mask)
+
+
 __all__ = [
     "HAZE_RGB",
+    "add_sensor_noise",
+    "bonnet",
+    "desaturate",
+    "expose",
     "add_gaussian_noise",
     "apply_haze",
     "apply_psf",

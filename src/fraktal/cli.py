@@ -463,6 +463,7 @@ def _render3d(args: argparse.Namespace) -> Result:
             prop_density=args.prop_density,
             wall_share=args.wall_share,
             wall_textures=not args.no_wall_textures,
+            eye_sensor=args.eye_sensor,
         )
     except (OSError, ValueError, render3d.RenderError) as err:
         raise CliError(ExitCode.FAILURE, "render3d_failed", str(err)) from err
@@ -771,6 +772,12 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
         help="street: shift the route left (+) or right (default: best of 7)",
     )
     parser.add_argument("--path", type=Path, help="fly through the waypoints in this JSON file")
+    parser.add_argument(
+        "--eye-sensor",
+        choices=["phone", "dashcam"],
+        help="camera chain on frame sequences (raw frames kept in frames_raw/); dashcam adds a "
+        "bonnet and blanks the labels under it",
+    )
     parser.add_argument("--video", action="store_true", help="also write video.mp4 (needs ffmpeg)")
     parser.add_argument("--depth", action="store_true", help="also write 16-bit depth images")
     parser.add_argument(
