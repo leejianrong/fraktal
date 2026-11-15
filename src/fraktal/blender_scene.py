@@ -53,6 +53,9 @@ def material(name: str, rgb: tuple[float, float, float], rough: float, seed: int
     return mat
 
 
+LEAF_LIT, LEAF_SHADE = 1.35, 0.6  # sunlit and shaded leaf clumps, times the crown's green (FRK-156)
+
+
 def foliage_material(name: str, rgb: tuple[float, float, float], rough: float, seed: int):
     """Leaf clumps: fine, high-contrast noise from sunlit to shadowed green, bumped the same way."""
     mat = bpy.data.materials.new(name)
@@ -69,8 +72,8 @@ def foliage_material(name: str, rgb: tuple[float, float, float], rough: float, s
     links.new(noise.outputs["Fac"], stretch.inputs["Value"])
     mix = nodes.new("ShaderNodeMix")
     mix.data_type = "RGBA"
-    mix.inputs[6].default_value = (*(min(c * 1.25, 1.0) for c in rgb), 1.0)
-    mix.inputs[7].default_value = (*(c * 0.45 for c in rgb), 1.0)
+    mix.inputs[6].default_value = (*(min(c * LEAF_LIT, 1.0) for c in rgb), 1.0)
+    mix.inputs[7].default_value = (*(c * LEAF_SHADE for c in rgb), 1.0)
     links.new(stretch.outputs["Result"], mix.inputs[0])
     links.new(mix.outputs[2], bsdf.inputs["Base Color"])
     bump = nodes.new("ShaderNodeBump")
@@ -732,10 +735,10 @@ FOLIAGE = [
     (0.33, 0.35, 0.24),
 ]  # fmt: skip  (olive and grey-green, set by eye against the dry-land reference chips)
 CANOPY = [
-    (0.13, 0.32, 0.07),
-    (0.17, 0.36, 0.09),
-    (0.11, 0.29, 0.09),
-    (0.20, 0.38, 0.11),
+    (0.21, 0.37, 0.12),
+    (0.25, 0.40, 0.14),
+    (0.18, 0.34, 0.13),
+    (0.29, 0.42, 0.16),
 ]  # fmt: skip  (lush mid-greens: the wet-tropic street trees in the reference photos)
 CANOPY_DRY = [
     (0.27, 0.31, 0.12),
@@ -795,18 +798,28 @@ def leaf_card_material(name: str, rgb: tuple[float, float, float], image):
     return mat
 
 
+CARD_SIZE, CARD_COVER, CARD_MAX = 1.0, 1.0, 220  # cards cover the crown surface (FRK-156)
+
+
+def card_budget(rx: float, rz: float) -> tuple[int, float]:
+    """How many leaf cards a crown gets, and their half-size: enough to cover its surface (about
+    4 pi rx rz) once, capped, so it reads as leaves and not as a smooth ball."""
+    size = max(0.6, min(1.3, rx * 0.25)) * CARD_SIZE
+    n = int(max(14, min(CARD_MAX, CARD_COVER * 4.0 * math.pi * rx * rz / (4.0 * size * size))))
+    return n, size
+
+
 def add_leaf_cards(cards, uv_layer, k: int, centre, rx: float, rz: float, mat: int) -> int:
     """Quads on and just outside a crown's ellipsoid, facing out, each rolled at random.
 
     Returns the number of cards. The same tree always gets the same cards."""
     rng = random.Random(k * 15485863 + 5)
-    n = max(14, min(55, int(rx * rz * 0.9) + 10))
-    size = max(0.45, min(1.1, rx * 0.28))
+    n, size = card_budget(rx, rz)
     for _ in range(n):
         d = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1)))
         d.normalize()
         d.z = max(d.z, -0.15)
-        reach = rng.uniform(0.95, 1.25)
+        reach = rng.uniform(0.97, 1.08)
         pos = Vector((centre[0] + d.x * rx * reach, centre[1] + d.y * rx * reach,
                       centre[2] + d.z * rz * reach))  # fmt: skip
         normal = Vector((d.x / rx, d.y / rx, d.z / rz)) + Vector(

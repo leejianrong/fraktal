@@ -134,6 +134,12 @@ wheels; a person has two legs, arms, shoulders and a head. Parked cars and jeepn
 
 Poles stand clear of every road, not only the one they line (`POLE_ROAD_CLEARANCE_M`), and Manila-Quezon and Khartoum now have a pavement strip (1.8 m, 1.5 m) so the people of the Godot replay have somewhere to walk. This changes the Blender renders of those two cities slightly (a raised strip beside the kerb).
 
+Leaf cards cover the crown (FRK-156): each crown gets enough cards to cover its surface about once (`card_budget`, up to 220,
+half-size 0.6 to 1.3 m, hugging the crown), and the canopy greens are lighter. On Manila-Quezon (seed 7, 32 samples) the segmenter's
+vegetation share went 0.136 to 0.206 (photos 0.337), building 0.064 to 0.042, and `seg_other` (the smooth blobs read as food and
+couches) 0.096 to 0.057, for +11% strip time. Bigger crowns made it worse (`seg_other` 0.126); more, smaller cards than cover the
+surface did nothing measurable (a strip's noise is about 0.02). Khartoum's vegetation went 0.036 to 0.043 (photos 0.015, 3 photos).
+
 Trial options (FRK-169, off by default, see [research/trial-assets.md](research/trial-assets.md)): `--car-meshes` swaps the box cars
 for six CC0 car models, `--leaf-cards` (on by default for street strips, `--no-leaf-cards` to turn it off) adds leaf quads to tree crowns; the label and depth passes cut them by the leaf alpha. Objects that exist only for
 the beauty pass (`haze`, `clouds`, `treecards`) must be listed in `LOOK_HIDDEN` or they smear the label and depth passes.
