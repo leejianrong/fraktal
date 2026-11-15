@@ -179,8 +179,7 @@ def sheet(
     scale = colw / props.width
     props = props.resize((colw, round(props.height * scale)), Image.LANCZOS)
     page.paste(props, (x, y + 46))
-    y += 46 + props.height + 24
-    text((x, y), "CC0 car meshes (Quaternius) replace the box cars when asked", 30, DIM)
+    y += 46 + props.height
 
     if viewer is not None:
         y += 50
