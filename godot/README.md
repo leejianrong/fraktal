@@ -89,3 +89,21 @@ PATH or `~/.local/opt/godot-*/`, and is skipped without one. CI does not install
 
 Not the Cycles look, no labels or depth yet, stand-in trees, no agents, no people or drone. See the plan
 doc for what the engine will not reproduce.
+
+## 4. A Windows demo zip
+
+`scripts/godot/make_demo_zip.py` packs the viewer, one tile (with `--agents` tracks) and the official Godot 4.7.2 Windows
+build into one zip that unpacks to a folder with `Run Fraktal.bat` (about 100 MB, nothing to install):
+
+```bash
+godot --headless --path godot --import        # builds the script cache the zip carries
+uv run fraktal scene WORLD --out data/scene_demo --size-m 500 --agents
+uv run python scripts/godot/make_demo_zip.py --scene data/scene_demo \
+    --godot-zip ~/.local/opt/godot-dl/godot-win64.zip --out data/dist/fraktal-demo.zip
+```
+
+The Godot zip and `SHA512-SUMS.txt` come from the 4.7.2-stable release page; the script refuses a zip that does not match the sum.
+Checked on this machine by unpacking it on the Windows side and running the bundled exe: `Fraktal.console.exe --headless --path
+project -- --scene tile --selftest` prints the same STATE, WALK, DIVE and AGENTS lines as the Linux build. Note the Windows
+build picks the discrete GPU by default; on a machine where that GPU is busy, add `--rendering-driver opengl3` and set the
+Windows graphics preference for the exe, or it will share the card.
