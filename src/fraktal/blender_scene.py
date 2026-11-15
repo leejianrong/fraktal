@@ -1342,6 +1342,8 @@ def build_mesh_cars(
 
 
 def build_traffic(scene_dir: Path, first_instance: int, assets: Path | None = None) -> int:
+    if not (scene_dir / "agents.json").is_file():  # a render without --traffic
+        return 0
     mats = [
         material(f"tcar{i}", tuple(c / 255 for c in rgb), 0.35, 90 + i)
         for i, rgb in enumerate(CAR_BODY)

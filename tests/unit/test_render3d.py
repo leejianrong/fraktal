@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 import rasterio
 
-from fraktal import biomes, render3d
+from fraktal import biomes, camera, render3d
 from fraktal.blender_export import terrain_height
 from fraktal.cli import main
 from fraktal.procedural import generate_world
@@ -356,3 +356,13 @@ def test_leaf_cards_are_on_by_default_for_street_strips_only(world: Path, tmp_pa
                      waypoints=[(20.0, 20.0), (120.0, 40.0)])  # fmt: skip
     assert not cards("flight", trajectory="flight")  # other views keep the smooth crowns
     assert cards("flight_on", trajectory="flight", leaf_cards=True)
+
+
+def test_an_aerial_trajectory_ignores_the_street_and_follow_options() -> None:
+    # The command line sends the street options too; an aerial pass takes none of them.
+    sent = {"altitude_m": 250.0, "fov_deg": 40.0, "eye_m": 1.6, "lateral_m": None, "pitch_deg": 0.0}
+    kept = render3d.trajectory_options(sent)
+    assert kept == {"altitude_m": 250.0, "fov_deg": 40.0}
+    poses = camera.trajectory("still", 500.0, 3, **kept)
+    assert len(poses) == 1
+    assert render3d.trajectory_options(None) == {}

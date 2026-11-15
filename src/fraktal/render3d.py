@@ -101,6 +101,15 @@ def _write_depth(out_dir: Path, sequence: bool) -> None:
 CANDIDATES = 40  # how many of the most travelled agents are tried for a clear view
 
 
+def trajectory_options(options: dict[str, Any] | None) -> dict[str, Any]:
+    """The camera options ``camera.trajectory`` takes. The command line always sends the street
+    and follow ones too (eye height, lateral offset, pitch), which an aerial pass has no use for."""
+    import inspect
+
+    known = inspect.signature(cameras.trajectory).parameters
+    return {k: v for k, v in (options or {}).items() if k in known}
+
+
 def _follow(
     follow: dict[str, Any],
     scene: dict[str, Any],
@@ -345,7 +354,7 @@ def render(
         poses = cameras.trajectory(
             trajectory, scene["size_m"], seed, waypoints=waypoints,
             ground=_ground(scene, out_dir) if "terrain" in scene else None,
-            **(camera_options or {}),
+            **trajectory_options(camera_options),
         )  # fmt: skip
         _write_camera(out_dir, poses, **({"leaf_cards": True} if leaf_cards else {}))
     if traffic is not None and follow is None:  # same frame times as the camera
