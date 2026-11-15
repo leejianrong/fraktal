@@ -970,20 +970,38 @@ def build_markings(scene: dict, scene_dir: Path) -> int:
 
 CLASS_PERSON = 6
 CLASS_DRONE = 7
-# Moving things are boxes: (forward shift, half length, half width, z0, z1), one per part.
-CAR_BOXES = (
-    (0.0, 2.2, 0.92, 0.3, 0.95),  # body
-    (-0.1, 1.15, 0.84, 0.95, 1.5),  # glazed cabin
-    (1.35, 0.33, 0.9, 0.0, 0.66),  # front wheels, one dark block across the axle
-    (-1.35, 0.33, 0.9, 0.0, 0.66),  # rear wheels
-    (2.25, 0.08, 0.9, 0.35, 0.6),  # front bumper
-    (-2.25, 0.08, 0.9, 0.35, 0.6),  # rear bumper
+# Moving things are boxes: (forward shift, half length, half width, z0, z1), and optionally a dict
+# that rounds them off (FRK-163): "top_l", "top_w" (the top ring's half length and width, a taper),
+# "top_shift" (the top ring's centre, forward), "z1_front" (height of the top's front edge, a
+# slope) and "side" (the box's centre, to the left). The topology stays eight corners a box.
+CAR_PARTS = (  # (role, box)
+    ("body", (0.0, 2.1, 0.9, 0.28, 0.72, {"top_w": 0.86})),  # lower body, a little tumblehome
+    ("body", (1.5, 0.7, 0.88, 0.72, 0.9, {"z1_front": 0.78, "top_w": 0.82})),  # sloping bonnet
+    ("body", (-1.55, 0.55, 0.88, 0.72, 0.86, {"z1_front": 0.88, "top_w": 0.82})),  # boot lid
+    ("glass", (-0.1, 1.15, 0.84, 0.9, 1.45, {"top_l": 0.7, "top_w": 0.72, "top_shift": -0.15})),
+    ("body", (-0.25, 0.68, 0.74, 1.43, 1.5)),  # roof panel
+    *(
+        ("tyre", (fore * 1.38, 0.33, 0.12, 0.0, 0.66, {"side": left * 0.8, "top_l": 0.2}))
+        for fore in (1.0, -1.0)
+        for left in (1.0, -1.0)
+    ),
+    ("tyre", (2.2, 0.08, 0.9, 0.3, 0.55)),  # front bumper
+    ("tyre", (-2.2, 0.08, 0.9, 0.3, 0.55)),  # rear bumper
 )
-PERSON_BOXES = (
-    (0.0, 0.13, 0.17, 0.0, 0.85),
-    (0.0, 0.12, 0.23, 0.85, 1.45),
-    (0.0, 0.11, 0.11, 1.45, 1.7),
+CAR_BOXES = tuple(box for _, box in CAR_PARTS)
+PERSON_PARTS = (  # (role, box)
+    *(
+        (
+            "trousers",
+            (0.0, 0.07, 0.075, 0.0, 0.86, {"side": s * 0.09, "top_l": 0.09, "top_w": 0.09}),
+        )
+        for s in (1.0, -1.0)
+    ),  # two legs
+    ("shirt", (0.0, 0.1, 0.18, 0.85, 1.45, {"top_l": 0.11, "top_w": 0.22})),  # torso, shoulders
+    *(("shirt", (0.0, 0.05, 0.05, 0.85, 1.4, {"side": s * 0.27})) for s in (1.0, -1.0)),  # arms
+    ("skin", (0.0, 0.09, 0.09, 1.46, 1.68, {"top_l": 0.07, "top_w": 0.07})),  # head
 )
+PERSON_BOXES = tuple(box for _, box in PERSON_PARTS)
 DRONE_BOXES = (  # a small quadcopter: body and two crossed arms
     (0.0, 0.09, 0.09, -0.04, 0.05),
     (0.0, 0.26, 0.025, 0.0, 0.025),
@@ -1006,15 +1024,26 @@ def _box_vertices(x, y, heading, boxes) -> np.ndarray:
     """(n, 8 * len(boxes), 3): the corners of every box of every agent at one frame."""
     ux, uy = np.cos(heading), np.sin(heading)
     out = np.empty((len(x), 8 * len(boxes), 3))
-    for b, (shift, half_l, half_w, z0, z1) in enumerate(boxes):
-        cx, cy = x + ux * shift, y + uy * shift
-        along, across = CORNERS[:, 0] * half_l, CORNERS[:, 1] * half_w
-        px = cx[:, None] + ux[:, None] * along - uy[:, None] * across
-        py = cy[:, None] + uy[:, None] * along + ux[:, None] * across
-        for ring, z in ((0, z0), (4, z1)):
+    for b, spec in enumerate(boxes):
+        shift, half_l, half_w, z0, z1 = spec[:5]
+        opt = spec[5] if len(spec) > 5 else {}
+        side = opt.get("side", 0.0)
+        cx, cy = x + ux * shift - uy * side, y + uy * shift + ux * side
+        rings = (
+            (0, z0, half_l, half_w, 0.0),
+            (4, z1, opt.get("top_l", half_l), opt.get("top_w", half_w), opt.get("top_shift", 0.0)),
+        )
+        for ring, z, hl, hw, along_shift in rings:
+            along = CORNERS[:, 0] * hl + along_shift
+            across = CORNERS[:, 1] * hw
+            px = cx[:, None] + ux[:, None] * along - uy[:, None] * across
+            py = cy[:, None] + uy[:, None] * along + ux[:, None] * across
             out[:, 8 * b + ring : 8 * b + ring + 4, 0] = px
             out[:, 8 * b + ring : 8 * b + ring + 4, 1] = py
-            out[:, 8 * b + ring : 8 * b + ring + 4, 2] = z
+            zs = np.full(4, z)
+            if ring == 4:  # the top's front edge (corners 1 and 2) may sit lower or higher
+                zs[CORNERS[:, 0] > 0] = opt.get("z1_front", z1)
+            out[:, 8 * b + ring : 8 * b + ring + 4, 2] = zs
     return out
 
 
@@ -1069,10 +1098,11 @@ def build_traffic(scene_dir: Path, first_instance: int) -> int:
     mats.append(material("tcar-rubber", (0.03, 0.03, 0.03), 0.9, 101))
     glass, rubber = len(mats) - 2, len(mats) - 1
 
-    def part_material(
-        k: int, b: int
-    ) -> int:  # box 0 is the body, 1 the cabin glass, the rest tyres
-        return (k * 3 + 1) % len(CAR_BODY) if b == 0 else glass if b == 1 else rubber
+    def part_material(k: int, b: int) -> int:
+        role = CAR_PARTS[b][0]
+        return (
+            (k * 3 + 1) % len(CAR_BODY) if role == "body" else glass if role == "glass" else rubber
+        )
 
     return build_agents(
         "traffic",
@@ -1105,7 +1135,9 @@ def build_people(scene_dir: Path) -> int:
     skin, trousers = len(mats) - 2, len(mats) - 1
     return build_agents(
         "people", scene_dir / "people.json", PERSON_BOXES, CLASS_PERSON, 0, mats,
-        lambda k, b: (trousers, k % len(CLOTHES), skin)[b],
+        lambda k, b: {"trousers": trousers, "shirt": k % len(CLOTHES), "skin": skin}[
+            PERSON_PARTS[b][0]
+        ],
     )  # fmt: skip
 
 

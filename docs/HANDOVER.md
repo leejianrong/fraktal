@@ -120,6 +120,10 @@ strength-compensated, warmer when low), cloud shadows (an invisible plane that o
 Brightness varies a lot between seeds already (Manila seed 13 renders at 0.31 without any variety), so compare against the
 same seed with variety off. No HDRIs yet.
 
+Moving cars and people (FRK-163) are still built from boxes, but a box may now be tapered, sloped or offset to one side
+(`CAR_PARTS`, `PERSON_PARTS` in `blender_scene.py`): a car has a sloping bonnet, a tapered glass cabin, a roof panel and four
+wheels; a person has two legs, arms, shoulders and a head. Parked cars and jeepneys come from `propgen.py`, not from here.
+
 `--override '{"buildings": {"front_setback_m": 6}}'` tries biome settings without editing `biomes.py`. It writes the same
 `data/review/street<tag>_<biome>/out/review/fly/frames` layout and a `commit.txt` per city
 (HEAD, and "dirty" if the tree had changes), so the `fraktal streets` line above works unchanged. Pod and local
