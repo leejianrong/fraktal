@@ -114,6 +114,12 @@ grime as flat parts under the paint, labelled ground like the marks. Textured `w
 streaks in the shader (`add_wall_wear`). Both are procedural, so there are no new assets. About 0.003% of label pixels
 (wheel and foot contact) flip from vehicle or person to ground under the 4 mm wear boxes.
 
+Light variety (FRK-168, eye-level frames only): `lighting.variety` adds a per-seed sun height offset (-5 to +8 degrees,
+strength-compensated, warmer when low), cloud shadows (an invisible plane that only the sun's shadow rays see, cover 0 to 0.3,
+40% of the sun blocked) and haze (a bounded scattering box; thicker for Khartoum). `city_strips.py --seed N` picks the seed.
+Brightness varies a lot between seeds already (Manila seed 13 renders at 0.31 without any variety), so compare against the
+same seed with variety off. No HDRIs yet.
+
 `--override '{"buildings": {"front_setback_m": 6}}'` tries biome settings without editing `biomes.py`. It writes the same
 `data/review/street<tag>_<biome>/out/review/fly/frames` layout and a `commit.txt` per city
 (HEAD, and "dirty" if the tree had changes), so the `fraktal streets` line above works unchanged. Pod and local

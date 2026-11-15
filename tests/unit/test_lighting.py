@@ -37,3 +37,34 @@ def test_a_hazy_city_has_a_paler_sky_and_nairobi_keeps_more_light() -> None:
         nairobi["sun"] > lighting.EYE_LEVEL["sun"] and nairobi["fill"] > lighting.EYE_LEVEL["fill"]
     )
     assert lighting.draw(5, 50.0, "dense_urban") == plain  # other biomes are unchanged
+
+
+def test_street_variety_has_its_own_stream_and_leaves_the_old_light_alone() -> None:
+    d = lighting.draw(4, 50.0)
+    assert d["variety"] == lighting.variety(4, 50.0)
+    without = {k: v for k, v in d.items() if k != "variety"}
+    assert without["sun_strength"] == lighting.draw(4, 50.0)["sun_strength"]
+    assert d["variety"] != lighting.draw(5, 50.0)["variety"]
+
+
+def test_street_variety_stays_in_its_stated_ranges() -> None:
+    lo, hi = lighting.SUN_OFFSET_DEG
+    for seed in range(60):
+        v = lighting.variety(seed, 50.0)
+        assert lo - 1e-3 <= v["sun_offset_deg"] <= hi + 1e-3
+        assert lighting.CLOUD_COVER[0] <= v["cloud"]["cover"] <= lighting.CLOUD_COVER[1]
+        assert lighting.CLOUD_SCALE_M[0] <= v["cloud"]["scale_m"] <= lighting.CLOUD_SCALE_M[1]
+        assert lighting.HAZE_DENSITY[0] <= v["haze_density"] <= lighting.HAZE_DENSITY[1]
+        assert all(0.0 <= c <= 1.0 for c in v["sun_colour"])
+
+
+def test_a_lower_sun_is_warmer_and_khartoum_is_hazier() -> None:
+    seeds = sorted(range(60), key=lambda s: lighting.variety(s, 50.0)["sun_offset_deg"])
+    low, high = seeds[:15], seeds[-15:]
+    assert sum(lighting.variety(s, 50.0)["sun_colour"][2] for s in low) < sum(
+        lighting.variety(s, 50.0)["sun_colour"][2] for s in high
+    )
+    plain = [lighting.variety(s, 50.0)["haze_density"] for s in range(30)]
+    hazy = [lighting.variety(s, 50.0, "khartoum_city")["haze_density"] for s in range(30)]
+    assert min(hazy) >= lighting.HAZY_DENSITY["khartoum_city"][0]
+    assert min(hazy) > max(plain)  # even the clearest Khartoum day is hazier than any other city's

@@ -76,6 +76,7 @@ def main() -> int:
         default="{}",
         help='JSON of biome settings for every biome, e.g. {"buildings": {"front_setback_m": 6}}',
     )
+    ap.add_argument("--seed", type=int, default=7, help="world and light seed for the render")
     ap.add_argument("--people-per-km", type=float, default=200.0, help="the pods use 30")
     ap.add_argument("--eye-sensor", choices=["phone", "dashcam"], help="camera chain (FRK-165)")
     ap.add_argument(
@@ -102,7 +103,7 @@ def main() -> int:
             "--path", str(work / "path.json"), "--fov", "75", "--frame-px", "512",
             "--trajectory", "street", "--eye-m", "1.6", "--speed", str(args.speed), "--fps", "1",
             "--traffic", "--cars-per-km", "25", "--people-per-km", str(args.people_per_km),
-            "--samples", str(args.samples), "--seed", "7", "--device", args.device,
+            "--samples", str(args.samples), "--seed", str(args.seed), "--device", args.device,
         ]  # fmt: skip
         if args.eye_sensor:
             cmd += ["--eye-sensor", args.eye_sensor]

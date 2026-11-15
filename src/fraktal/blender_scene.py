@@ -1149,11 +1149,16 @@ def build_light(scene: dict, eye_level: bool = False) -> None:
     az, el = scene["sun"]["azimuth_deg"], scene["sun"]["elevation_deg"]
     sky = scene.get("sky") or {}  # scenes exported before FRK-113 have none: the old flat light
     eye = (sky.get("eye_level") or None) if eye_level else None  # FRK-152: street-level exposure
+    var = (sky.get("variety") or None) if eye_level else None  # FRK-168: street-level variety
     sun = bpy.data.lights.new("sun", "SUN")
     sun.energy = sky.get("sun_strength", 2.6)  # about 0.6 of reflectance at 50 degrees elevation
     if eye:
         sun.energy *= eye["sun"]
     sun.color = sky.get("sun_colour", (1.0, 1.0, 1.0))
+    if var:  # a higher or lower sun, and the colour that goes with its height
+        el = max(8.0, el + var["sun_offset_deg"])
+        sun.color = var["sun_colour"]
+        sun.energy *= var["sun_gain"]
     sun.angle = math.radians(0.53)
     obj = bpy.data.objects.new("sun", sun)
     bpy.context.collection.objects.link(obj)
@@ -1229,6 +1234,100 @@ def build_light(scene: dict, eye_level: bool = False) -> None:
         strength.inputs[1].default_value = sky["fill"]
         links.new(strength.outputs["Value"], bg.inputs["Strength"])
     bpy.context.scene.world = world
+    if var and var["haze_density"] > 0.0:
+        build_haze(
+            scene["size_m"], var["haze_density"], sky["horizon"], sky["fill"] * eye["sky_seen"]
+        )
+    if var and var["cloud"]["cover"] > 0.02:
+        build_clouds(scene["size_m"], var["cloud"])
+
+
+HAZE_HEIGHT_M = 400.0
+AIRLIGHT = 0.35  # the scatter already brightens a little; this is the rest of the way to the sky
+
+
+def build_haze(size_m: float, density: float, colour, sky_level: float) -> None:
+    """Dust in the air (FRK-168): a box of scattering volume around the scene, camera inside.
+
+    A volume on the world itself integrates along rays that never end and renders black, so the
+    haze is bounded. Far buildings pale toward ``colour`` (the sky's horizon); the sky beyond the
+    box is untouched. ``sky_level`` is how bright the sky looks to the camera.
+    """
+    reach = size_m * 0.75  # past the farthest thing a street camera can see
+    bpy.ops.mesh.primitive_cube_add(
+        size=1.0, location=(size_m / 2, size_m / 2, HAZE_HEIGHT_M / 2 - 5.0)
+    )
+    box = bpy.context.object
+    box.name = "haze"
+    box.scale = (2 * reach, 2 * reach, HAZE_HEIGHT_M)
+    mat = bpy.data.materials.new("haze")
+    mat.use_nodes = True
+    nodes, links = mat.node_tree.nodes, mat.node_tree.links
+    for n in list(nodes):
+        nodes.remove(n)
+    scatter = nodes.new("ShaderNodeVolumeScatter")
+    scatter.inputs["Density"].default_value = density
+    scatter.inputs["Anisotropy"].default_value = 0.4
+    scatter.inputs["Color"].default_value = (*colour, 1.0)
+    # Airlight: the haze glows with the sky's colour, so distance fades toward the sky instead of
+    # going dark. Radiance gained per metre is density times the sky's radiance.
+    glow = nodes.new("ShaderNodeEmission")
+    glow.inputs["Color"].default_value = (*colour, 1.0)
+    glow.inputs["Strength"].default_value = AIRLIGHT * density * sky_level
+    both = nodes.new("ShaderNodeAddShader")
+    links.new(scatter.outputs["Volume"], both.inputs[0])
+    links.new(glow.outputs["Emission"], both.inputs[1])
+    out = nodes.new("ShaderNodeOutputMaterial")
+    links.new(both.outputs["Shader"], out.inputs["Volume"])
+    box.data.materials.append(mat)
+
+
+CLOUD_HEIGHT_M = 700.0
+
+
+def build_clouds(size_m: float, cloud: dict) -> None:
+    """Cloud shadows (FRK-168): a plane high above the scene that only the sun's shadow rays see.
+
+    Camera, diffuse sky light and reflections pass straight through, so clouds are never drawn and
+    the sky still lights the shade; only the sun is dimmed where the noise says cloud. The sun is
+    blocked by ``cloud["blocked"]`` there (the rest is the thin edge and the bright gap).
+    """
+    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(size_m / 2, size_m / 2, CLOUD_HEIGHT_M))
+    plane = bpy.context.object
+    plane.name = "clouds"
+    plane.scale = (size_m * 6, size_m * 6, 1.0)
+    for ray in ("camera", "diffuse", "glossy", "transmission", "volume_scatter"):
+        setattr(plane, f"visible_{ray}", False)
+    mat = bpy.data.materials.new("clouds")
+    mat.use_nodes = True
+    nodes, links = mat.node_tree.nodes, mat.node_tree.links
+    for n in list(nodes):
+        nodes.remove(n)
+    where = nodes.new("ShaderNodeNewGeometry")
+    mapping = nodes.new("ShaderNodeMapping")
+    mapping.inputs["Scale"].default_value = (1 / cloud["scale_m"],) * 3
+    mapping.inputs["Location"].default_value = (*cloud["offset_m"], 0.0)
+    links.new(where.outputs["Position"], mapping.inputs["Vector"])
+    noise = nodes.new("ShaderNodeTexNoise")
+    noise.inputs["Detail"].default_value = 4.0
+    links.new(mapping.outputs["Vector"], noise.inputs["Vector"])
+    edge = 1.0 - cloud["cover"]  # more cover lowers the threshold
+    ramp = nodes.new("ShaderNodeMapRange")
+    ramp.inputs["From Min"].default_value = edge - 0.08
+    ramp.inputs["From Max"].default_value = edge + 0.08
+    ramp.inputs["To Max"].default_value = cloud["blocked"]
+    ramp.clamp = True
+    links.new(noise.outputs["Fac"], ramp.inputs["Value"])
+    clear = nodes.new("ShaderNodeBsdfTransparent")
+    shade = nodes.new("ShaderNodeBsdfDiffuse")
+    shade.inputs["Color"].default_value = (0.0, 0.0, 0.0, 1.0)
+    blend = nodes.new("ShaderNodeMixShader")
+    links.new(ramp.outputs["Result"], blend.inputs["Fac"])
+    links.new(clear.outputs["BSDF"], blend.inputs[1])
+    links.new(shade.outputs["BSDF"], blend.inputs[2])
+    out = nodes.new("ShaderNodeOutputMaterial")
+    links.new(blend.outputs["Shader"], out.inputs["Surface"])
+    plane.data.materials.append(mat)
 
 
 def build_camera(scene: dict, px: int) -> None:
