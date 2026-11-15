@@ -39,6 +39,8 @@ var nodes := PackedFloat32Array()  # (cells + 1)^2 heights, row j is y = j * cel
 var stats := {}
 var _footprints: Array = []  # {"box": Rect2, "ring": PackedVector2Array, "roof": float}
 var _textures := {}
+var _grid := {}  # Vector2i cell -> {"segs": [[x0, y0, x1, y1, height]], "posts": [[x, y, radius]]}
+const GRID_M := 8.0
 
 
 static func to_engine(p: Vector3) -> Vector3:
@@ -73,6 +75,9 @@ func load_tile(scene_dir: String, assets_dir: String) -> void:
 	_build_packed(scene_dir, assets_dir, "cables", "Cables", scene["cables"]["materials"], {}, true)
 	_build_parked_cars()
 	_lap("cables_cars", t)
+	t = Time.get_ticks_msec()
+	_build_obstacles()
+	_lap("obstacles", t)
 
 
 func _lap(what: String, since: int) -> void:
@@ -497,3 +502,67 @@ func _build_parked_cars() -> void:
 	_multimesh("ParkedCars", box, bodies, body_colours)
 	_multimesh("ParkedCabins", box, cabins, cabin_colours)
 	stats["parked_cars"] = cars.size()
+
+
+func _cell(x: float, y: float) -> Vector2i:
+	return Vector2i(int(floorf(x / GRID_M)), int(floorf(y / GRID_M)))
+
+
+func _cell_entry(c: Vector2i) -> Dictionary:
+	if not _grid.has(c):
+		_grid[c] = {"segs": [], "posts": []}
+	return _grid[c]
+
+
+## What a person or low drone cannot walk through besides buildings: compound walls (segments from
+## `scene["walls"]`, each with a height), tree trunks and poles (as posts). A grid of 8 m cells keeps
+## the per-step test to a few entries.
+func _build_obstacles() -> void:
+	var segs := 0
+	for wall in scene.get("walls", []):
+		var h: float = wall["height_m"]
+		for sg in wall["segments"]:
+			var seg := [sg[0], sg[1], sg[2], sg[3], h]
+			var steps := int(Vector2(sg[2] - sg[0], sg[3] - sg[1]).length() / (GRID_M * 0.5)) + 1
+			var seen := {}
+			for i in steps + 1:
+				var t := float(i) / steps
+				var c := _cell(lerpf(sg[0], sg[2], t), lerpf(sg[1], sg[3], t))
+				for dx in [-1, 0, 1]:
+					for dy in [-1, 0, 1]:
+						var key := c + Vector2i(dx, dy)
+						if not seen.has(key):
+							seen[key] = true
+							_cell_entry(key)["segs"].append(seg)
+			segs += 1
+	var posts := 0
+	for tree in scene["trees"]:
+		var species: String = tree[4] if tree.size() > 4 else "broadleaf"
+		if species == "shrub":
+			continue
+		_cell_entry(_cell(tree[0], tree[1]))["posts"].append([tree[0], tree[1], maxf(0.14, tree[2] * 0.07)])
+		posts += 1
+	for pole in scene["poles"]:
+		_cell_entry(_cell(pole[0], pole[1]))["posts"].append([pole[0], pole[1], 0.15])
+		posts += 1
+	stats["wall_segments"] = segs
+	stats["posts"] = posts
+
+
+## Whether a person of this radius standing at (x, y) is in something: a building, a wall, a trunk
+## or a pole. Walls count while they are taller than 0.5 m.
+func person_blocked(x: float, y: float, radius: float) -> bool:
+	if x < 0.0 or y < 0.0 or x > size_m or y > size_m:
+		return true
+	for d in [Vector2(0, 0), Vector2(radius, 0), Vector2(-radius, 0), Vector2(0, radius), Vector2(0, -radius)]:
+		if roof_at(x + d.x, y + d.y) != NO_ROOF:
+			return true
+	var entry: Dictionary = _grid.get(_cell(x, y), {})
+	var p := Vector2(x, y)
+	for sg in entry.get("segs", []):
+		if sg[4] > 0.5 and Geometry2D.get_closest_point_to_segment(p, Vector2(sg[0], sg[1]), Vector2(sg[2], sg[3])).distance_to(p) < radius + 0.1:
+			return true
+	for post in entry.get("posts", []):
+		if p.distance_to(Vector2(post[0], post[1])) < radius + post[2]:
+			return true
+	return false

@@ -33,3 +33,29 @@ def test_the_loader_reads_the_files_the_packed_layout_has() -> None:
 def test_walls_take_their_plaster_textures_and_cables_are_double_sided() -> None:
     assert 'scene.get("wall_textures", {})' in TILE
     assert '"cables", "Cables", scene["cables"]["materials"], {}, true' in TILE
+
+
+def test_people_and_drones_are_blocked_by_what_the_exporter_writes() -> None:
+    """Walkers stop at compound walls, trunks and poles from scene.json, and at buildings."""
+    assert (
+        'scene.get("walls", [])' in TILE
+        and 'wall["segments"]' in TILE
+        and 'wall["height_m"]' in TILE
+    )
+    assert 'scene["trees"]' in TILE and 'scene["poles"]' in TILE
+    assert "func person_blocked(" in TILE and "roof_at(" in TILE
+    for key in ('"walls"', '"trees"', '"poles"'):
+        assert key in EXPORT or key.strip('"') in EXPORT, key  # the exporter writes them
+
+
+def test_the_viewer_has_three_modes_with_their_keys() -> None:
+    main = (ROOT / "godot/scripts/main.gd").read_text()
+    for name in ("walker.gd", "drone.gd"):
+        assert (ROOT / "godot/scripts" / name).is_file(), name
+    for fragment in (
+        'KEY_1:\n\t\t\t\t_set_mode("car")',
+        '_set_mode("person")',
+        '_set_mode("drone")',
+    ):
+        assert fragment in main, fragment
+    assert "_selftest_person" in main and "_selftest_drone" in main  # headless checks cover both
