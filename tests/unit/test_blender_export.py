@@ -281,3 +281,19 @@ def test_beauty_only_objects_are_hidden_in_the_label_and_depth_passes() -> None:
     assert (
         source.count("    hide_beauty_only_objects()\n") == 2
     )  # the label look and the depth look
+
+
+def test_sky_clouds_are_for_the_camera_only_and_follow_the_seed_cover() -> None:
+    """Visible clouds must not change the sky's light or the label and depth passes (FRK-174)."""
+    from pathlib import Path
+
+    source = (Path(__file__).parents[2] / "src/fraktal/blender_scene.py").read_text()
+    body = source.split("def add_sky_clouds(")[1].split("\ndef ")[0]
+    assert "Is Camera Ray" in body  # only camera rays see the clouds, so the sky light is unchanged
+    assert 'cloud["cover"]' in body and 'cloud["scale_m"]' in body and 'cloud["offset_m"]' in body
+    assert 'if var and var["cloud"]["cover"] > 0.02:' in source.split("def build_light(")[1]
+    # the label and depth passes replace the world with black, so no cloud can reach them
+    assert (
+        source.count('world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.0')
+        >= 2
+    )
