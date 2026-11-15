@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 from collections.abc import Callable, Sequence
@@ -603,7 +604,7 @@ def _scene(args: argparse.Namespace) -> Result:
     agent_files: list[str] = []
     if args.agents:
         try:
-            agent_files = _scene_agents(world, center, args)
+            agent_files = _scene_agents(world, center, args, scene)
         except (OSError, ValueError, KeyError) as err:
             raise CliError(ExitCode.FAILURE, "scene_failed", str(err)) from err
     info = {
@@ -618,7 +619,9 @@ def _scene(args: argparse.Namespace) -> Result:
     return Result(info, f"wrote the tile to {args.out} ({info['buildings']} buildings)")
 
 
-def _scene_agents(world: Path, center: tuple[float, float], args: argparse.Namespace) -> list[str]:
+def _scene_agents(
+    world: Path, center: tuple[float, float], args: argparse.Namespace, scene: dict[str, Any]
+) -> list[str]:
     """Simulate cars, people and drones over ``--duration-s`` and write the track files the viewer
     replays beside the tile: ``agents.json``, ``people.json``, ``drones.json`` (the format render3d
     writes). Seeded, so the same tile and seed replay the same loop."""
@@ -634,8 +637,22 @@ def _scene_agents(world: Path, center: tuple[float, float], args: argparse.Names
     times = np.arange(0.0, args.duration_s, args.agent_step_s)
     written = {
         "agents.json": agents.simulate_cars(graph, times, args.seed, config).as_dict(),
-        "people.json": agents.simulate_people(
-            graph, times, args.seed, agents.WalkerConfig(args.people_per_km, verge_spread_m=3.0)
+        "people.json": agents.keep_clear_of(
+            agents.simulate_people(
+                graph,
+                times,
+                args.seed,
+                # on the pavement, 0.2 m past the road edge; over a road only at a junction
+                agents.WalkerConfig(
+                    args.people_per_km,
+                    verge_m=1.1,
+                    verge_spread_m=0.5,
+                    verge_near_m=0.5,
+                    keep_off_road=True,
+                ),
+            ),
+            _posts(scene),
+            0.3,
         ).as_dict(),
         "drones.json": agents.simulate_drones(
             float(args.size_m), times, args.seed, agents.DroneConfig(count=args.drones)
@@ -644,6 +661,22 @@ def _scene_agents(world: Path, center: tuple[float, float], args: argparse.Names
     for name, data in written.items():
         (args.out / name).write_text(json.dumps(data) + "\n")
     return sorted(written)
+
+
+def _posts(scene: dict[str, Any]) -> Any:
+    """What a person walks round: poles, tree trunks and parked cars as (x, y, radius) rows."""
+    rows = [(p[0], p[1], 0.15) for p in scene.get("poles", [])]
+    rows += [
+        (t[0], t[1], max(0.14, t[2] * 0.07))
+        for t in scene.get("trees", [])
+        if (t[4] if len(t) > 4 else "broadleaf") != "shrub"
+    ]
+    for car in scene.get("vehicles", []):  # three posts along a car, as the viewer has
+        rows += [
+            (car[0] + math.cos(car[2]) * a, car[1] + math.sin(car[2]) * a, 0.95)
+            for a in (-1.4, 0.0, 1.4)
+        ]
+    return np.array(rows, dtype="float64").reshape(-1, 3)
 
 
 def _player_start(world: Path, center: tuple[float, float], size_m: float) -> list[float]:
@@ -670,7 +703,7 @@ def _scene_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--gsd-m", type=float, default=0.5)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--agents", action="store_true", help="also write the tracks to replay")
-    parser.add_argument("--duration-s", type=float, default=120.0, help="length of the loop")
+    parser.add_argument("--duration-s", type=float, default=300.0, help="length of the loop")
     parser.add_argument("--agent-step-s", type=float, default=0.25, help="seconds between samples")
     parser.add_argument("--cars-per-km", type=float, default=25.0)
     parser.add_argument("--people-per-km", type=float, default=60.0)

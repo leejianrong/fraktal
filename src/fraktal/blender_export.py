@@ -19,7 +19,8 @@ import numpy as np
 import rasterio
 from rasterio.enums import Resampling
 from rasterio.features import rasterize
-from shapely.geometry import LineString
+from shapely import STRtree
+from shapely.geometry import LineString, Point
 
 from fraktal import (
     building_grammar,
@@ -141,6 +142,7 @@ def _tile_heights(world_dir: Path, buildings: Any, profile: str, seed: int) -> d
 POLE_SPACING_M = 40.0
 POLE_HEIGHT_M = 8.0
 POLE_MIN_ROAD_WIDTH_M = 6.0
+POLE_ROAD_CLEARANCE_M = 0.3  # a pole stands at least this far from any road's edge
 MARK_MARGIN_M = 10.0  # roads this far outside the tile still get marks, so edges look continuous
 CAR_LENGTH_M, CAR_WIDTH_M = 4.5, 1.9
 
@@ -177,6 +179,14 @@ def _poles(
     out: list[list[float]] = []
     size = side * gsd_m
     spacing_m, height_m = cables.pole_plan(biome, POLE_SPACING_M, POLE_HEIGHT_M)
+    # The carriageway of every road, not only the one a pole belongs to: a pole beside one street
+    # can land in the middle of a street that crosses it.
+    carriageway = [
+        r.geometry.buffer(r.width_m / 2 + POLE_ROAD_CLEARANCE_M)
+        for _, r in roads.iterrows()
+        if r.road_class != "footpath"
+    ]
+    blocked = STRtree(carriageway)
     for _, r in roads.sort_values("id").iterrows():
         if r.width_m < POLE_MIN_ROAD_WIDTH_M or r.geometry.length < spacing_m:
             continue
@@ -190,8 +200,11 @@ def _poles(
             offset = (r.width_m / 2 + 1.2) * (1 if k % 2 == 0 else -1)
             x, y = p.x - ty / norm * offset - west, p.y + tx / norm * offset - south
             col, row = int(x / gsd_m), int(side - 1 - y / gsd_m)
-            if 0 <= x < size and 0 <= y < size and mask[row, col] == 0:
-                out.append([round(x, 2), round(y, 2), height_m])
+            if not (0 <= x < size and 0 <= y < size and mask[row, col] == 0):
+                continue
+            if len(blocked.query(Point(x + west, y + south), predicate="within")):
+                continue  # on a road
+            out.append([round(x, 2), round(y, 2), height_m])
     return out
 
 

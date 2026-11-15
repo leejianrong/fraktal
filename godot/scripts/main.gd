@@ -8,6 +8,7 @@ extends Node3D
 ##   --no-agents       do not replay the cars, people and drones beside the tile
 ##   --selftest        no window needed: load, drive 60 s of steps, check, print STATE, exit 0 or 1
 ##   --bench SECONDS   autodrive for that long, print frame statistics, exit
+##   --cam X,Y,Z,H,P   a fixed camera (tile metres, heading and pitch in radians), for screenshots
 ##   --shot PATH       with --bench, save the last frame as a PNG
 
 const DT := 1.0 / 60.0
@@ -46,6 +47,7 @@ func _ready() -> void:
 	agents = Agents.new()
 	agents.name = "Agents"
 	add_child(agents)
+	tile.crowd = agents
 	if not args.has("no-agents"):
 		agents.load_agents(scene_dir, tile)
 		_log("agents_loaded", agents.stats)
@@ -253,6 +255,10 @@ func _first_person(at: Vector3, heading: float, pitch: float) -> void:
 
 
 func _follow(weight: float) -> void:
+	if args.has("cam"):  # a fixed camera for screenshots: x,y,z,heading,pitch in tile coordinates
+		var c := String(args["cam"]).split(",")
+		_first_person(Vector3(float(c[0]), float(c[2]), -float(c[1])), float(c[3]), float(c[4]))
+		return
 	if mode == "person":
 		_first_person(walker.eye(tile), walker.heading, walker.pitch)
 		return
@@ -374,6 +380,7 @@ func _selftest() -> void:
 		ok = false
 	ok = _selftest_agents() and ok
 	ok = _selftest_person() and ok
+	ok = _selftest_collisions() and ok
 	ok = _selftest_drone() and ok
 	_log("selftest", {"ok": ok, "path_m": snappedf(path, 0.1)})
 	get_tree().quit(0 if ok else 1)
@@ -433,6 +440,49 @@ func _selftest_person() -> bool:
 	if walker.blocked_steps == 0 or inside > 0:
 		printerr("FAIL: walking at a building should stop at it (blocked %d, inside %d)" % [walker.blocked_steps, inside])
 		ok = false
+	return ok
+
+
+## Poles and the people and cars of the replay are solid: a car driven at a pole stops short of it, and a
+## walker sent at a person stops short of them.
+func _selftest_collisions() -> bool:
+	var ok := true
+	var poles: Array = tile.scene["poles"]
+	if not poles.is_empty():
+		var found := false
+		for pole in poles.slice(0, 30):
+			for k in 8:
+				var ang := k * PI / 4.0
+				var from := Vector2(pole[0], pole[1]) + Vector2(cos(ang), sin(ang)) * 7.0
+				car.place(from.x, from.y, ang + PI, tile)
+				if tile.roof_at(from.x, from.y) != Tile.NO_ROOF or tile.static_hit(from.x, from.y, 2.5):
+					continue
+				found = true
+				var nearest := 99.0
+				for i in 200:
+					car.step(1.0, 0.0, false, DT, tile)
+					nearest = minf(nearest, Vector2(car.x - pole[0], car.y - pole[1]).length())
+				if nearest < 0.9:
+					printerr("FAIL: a car drove to %.2f m of a pole" % nearest)
+					ok = false
+				break
+			if found:
+				break
+		print("POLE_CRASH found=%s" % found)
+	agents.update(10.0, tile)
+	var people: Array = agents._now["person"]
+	if not people.is_empty():
+		var p: Array = people[0]
+		var from := Vector2(p[0], p[1]) + Vector2(3.0, 0.0)
+		walker.place(from.x, from.y, PI, tile)
+		var nearest := 99.0
+		for i in 100:  # the agent stays where it is: update() is not called
+			walker.step(1.0, 0.0, 0.0, false, DT, tile)
+			nearest = minf(nearest, Vector2(walker.x - p[0], walker.y - p[1]).length())
+		print("PERSON_BUMP nearest=%.2f" % nearest)
+		if nearest < 0.55:
+			printerr("FAIL: a walker walked to %.2f m of a person" % nearest)
+			ok = false
 	return ok
 
 

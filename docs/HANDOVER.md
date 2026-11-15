@@ -130,6 +130,8 @@ Moving cars and people (FRK-163) are still built from boxes, but a box may now b
 (`CAR_PARTS`, `PERSON_PARTS` in `blender_scene.py`): a car has a sloping bonnet, a tapered glass cabin, a roof panel and four
 wheels; a person has two legs, arms, shoulders and a head. Parked cars and jeepneys come from `propgen.py`, not from here.
 
+Poles stand clear of every road, not only the one they line (`POLE_ROAD_CLEARANCE_M`), and Manila-Quezon and Khartoum now have a pavement strip (1.8 m, 1.5 m) so the people of the Godot replay have somewhere to walk. This changes the Blender renders of those two cities slightly (a raised strip beside the kerb).
+
 Trial options (FRK-169, off by default, see [research/trial-assets.md](research/trial-assets.md)): `--car-meshes` swaps the box cars
 for six CC0 car models, `--leaf-cards` (on by default for street strips, `--no-leaf-cards` to turn it off) adds leaf quads to tree crowns; the label and depth passes cut them by the leaf alpha. Objects that exist only for
 the beauty pass (`haze`, `clouds`, `treecards`) must be listed in `LOOK_HIDDEN` or they smear the label and depth passes.

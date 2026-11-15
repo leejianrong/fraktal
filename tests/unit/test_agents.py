@@ -324,3 +324,49 @@ def test_a_verge_spread_moves_people_off_a_single_line_and_zero_changes_nothing(
 
     assert np.ptp(distances(spread)) > np.ptp(distances(plain)) + 1.0  # a spread, not one line
     assert distances(spread).min() > 0.0  # nobody stands in the carriageway
+
+
+def test_people_kept_off_the_road_cross_only_at_the_junction() -> None:
+    g = agents.build_graph(CROSS, BOUNDS)
+    times = np.arange(0.0, 120.0, 0.5)
+    cfg = agents.WalkerConfig(people_per_km=40.0, verge_spread_m=0.5, keep_off_road=True)
+    people = agents.simulate_people(g, times, 4, cfg)
+    from shapely.geometry import Point
+
+    road = CROSS.geometry.union_all()
+    wide = CROSS.geometry.iloc[0].buffer(6.0)
+    import shapely
+
+    side = shapely.union_all(
+        [CROSS.geometry.iloc[1].buffer(3.0), CROSS.geometry.iloc[2].buffer(3.0)]
+    )
+    on_road = 0
+    total = 0
+    for x, y in zip(people.x.ravel()[::7], people.y.ravel()[::7], strict=True):
+        if not (5 < x < 495 and 5 < y < 495):
+            continue
+        total += 1
+        p = Point(x, y)
+        if wide.contains(p) or side.contains(p):
+            on_road += 1
+            assert road.distance(Point(250, 250)) == 0.0
+            assert (
+                Point(x, y).distance(Point(250, 250)) < 40.0
+                or abs(y - 250) < 6.0
+                or abs(x - 250) < 3.0
+            )
+    assert total > 100
+    # Without the cut, the path of every person who turns at the junction runs over the road.
+    assert on_road / total < 0.15
+
+
+def test_keep_clear_of_pushes_people_out_of_posts_without_moving_the_rest() -> None:
+    t = np.array([0.0, 1.0, 2.0])
+    tr = agents.Tracks(
+        ["a", "b"], t, np.array([[0.0, 0.05, 5.0], [9.0, 9.0, 9.0]]), np.zeros((2, 3)),
+        np.zeros((2, 3)), np.ones((2, 3)), kind="person",
+    )  # fmt: skip
+    out = agents.keep_clear_of(tr, np.array([[0.0, 0.0, 0.15]]), 0.3)
+    d = np.hypot(out.x[0, :2], out.y[0, :2])
+    assert (d >= 0.45).all() and out.x[0, 2] == 5.0 and (out.x[1] == 9.0).all()
+    assert agents.keep_clear_of(tr, np.zeros((0, 3)), 0.3) is tr

@@ -115,6 +115,24 @@ def test_cars_stand_on_roads_headed_along_them_and_poles_line_wide_streets(tmp_p
     assert none["vehicles"] == [] and none["poles"] == scene["poles"]
 
 
+def test_no_pole_stands_on_any_road(tmp_path: Path) -> None:
+    from shapely.geometry import Point
+
+    from fraktal.procedural import read_roads
+
+    world = tmp_path / "khartoum"
+    generate_world(world, CENTER, 3, biomes.resolve("khartoum"))
+    scene = export_scene(world, tmp_path / "p", CENTER, 400.0, 1.0)
+    roads = read_roads(world).to_crs(scene["crs"])
+    west, south = scene["origin_sw"]
+    assert scene["poles"]
+    for x, y, _ in scene["poles"]:
+        p = Point(x + west, y + south)
+        for r in roads.itertuples():
+            if r.road_class != "footpath":
+                assert r.geometry.distance(p) >= r.width_m / 2, "a pole is on a road"
+
+
 def test_a_car_heading_follows_the_road_direction(tmp_path: Path) -> None:
     from shapely.geometry import Point
 

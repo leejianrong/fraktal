@@ -66,9 +66,13 @@ class Style:
 
 
 STYLES: dict[str, Style] = {
-    "manila_quezon": Style("dashed", True, True, 0.0),  # photos: marked asphalt, little pavement
+    "manila_quezon": Style(
+        "dashed", True, True, 1.8
+    ),  # marked asphalt; a narrow pavement, so people have somewhere to walk
     "nairobi_centre": Style("dashed", True, True, 2.5),  # paver pavements, bollards, markings
-    "khartoum_city": Style("none", False, True, 0.0),  # faint markings, bare edges
+    "khartoum_city": Style(
+        "none", False, True, 1.5
+    ),  # faint markings; a worn pavement strip for people to walk on
 }
 
 Part = tuple[list[tuple[float, float]], float, float, str]  # quad, base z, top z, material
