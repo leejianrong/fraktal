@@ -533,8 +533,10 @@ def paint_labels(scene: dict, scene_dir: Path) -> None:
         owner = np.asarray(TREE_OWNER, dtype="int64")
         paint(obj, np.full(len(owner), CLASS_TREE), owner + 1)
     for name, a in AGENTS.items():  # moving agents: stable instances after any static ones
-        per = len(a["boxes"]) * 6
-        owner = np.repeat(np.arange(a["n"]) + a["first_instance"], per)
+        owner = a.get("face_owner")
+        if owner is None:
+            per = len(a["boxes"]) * 6
+            owner = np.repeat(np.arange(a["n"]) + a["first_instance"], per)
         paint(bpy.data.objects[name], np.full(len(owner), a["class"]), owner + 1)
     if "props" in bpy.data.objects and PROP_FACE_OWNER:
         owner = np.asarray(PROP_FACE_OWNER, dtype="int64")
@@ -570,7 +572,7 @@ LOOK_OBJECTS = (
 
 # Objects that exist only to light or fog the beauty pass. The label and depth passes hide them: a
 # fog box left in scatters every label colour, and a cloud plane would shade the depth (FRK-168).
-LOOK_HIDDEN = ("haze", "clouds")
+LOOK_HIDDEN = ("haze", "clouds", "treecards")  # treecards: leaf cards, which have no alpha label
 
 
 def hide_beauty_only_objects() -> None:
@@ -724,6 +726,63 @@ def _prism(bm, owner: int, x: float, y: float, radius: float, z0: float, z1: flo
         TREE_OWNER.append(owner)
 
 
+LEAF_CARDS: Path | None = None  # the leaf texture, set in main for a --leaf-cards render
+TREE_CARDS = "treecards"  # a separate object: the label and depth passes leave it out
+
+
+def leaf_card_material(name: str, rgb: tuple[float, float, float], image):
+    """Grey leaf cluster tinted ``rgb``, alpha from the image, lit like foliage (FRK-169)."""
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nodes, links = mat.node_tree.nodes, mat.node_tree.links
+    bsdf = nodes["Principled BSDF"]
+    tex = nodes.new("ShaderNodeTexImage")
+    tex.image = image
+    tex.interpolation = "Linear"
+    tint = nodes.new("ShaderNodeMix")
+    tint.data_type, tint.blend_type = "RGBA", "MULTIPLY"
+    tint.inputs[0].default_value = 1.0
+    tint.inputs[7].default_value = (*(min(c * 1.3, 1.0) for c in rgb), 1.0)
+    links.new(tex.outputs["Color"], tint.inputs[6])
+    links.new(tint.outputs[2], bsdf.inputs["Base Color"])
+    links.new(tex.outputs["Alpha"], bsdf.inputs["Alpha"])
+    bsdf.inputs["Roughness"].default_value = 0.8
+    return mat
+
+
+def add_leaf_cards(cards, uv_layer, k: int, centre, rx: float, rz: float, mat: int) -> int:
+    """Quads on and just outside a crown's ellipsoid, facing out, each rolled at random.
+
+    Returns the number of cards. The same tree always gets the same cards."""
+    rng = random.Random(k * 15485863 + 5)
+    n = max(14, min(55, int(rx * rz * 0.9) + 10))
+    size = max(0.45, min(1.1, rx * 0.28))
+    for _ in range(n):
+        d = Vector((rng.gauss(0, 1), rng.gauss(0, 1), rng.gauss(0, 1)))
+        d.normalize()
+        d.z = max(d.z, -0.15)
+        reach = rng.uniform(0.95, 1.25)
+        pos = Vector((centre[0] + d.x * rx * reach, centre[1] + d.y * rx * reach,
+                      centre[2] + d.z * rz * reach))  # fmt: skip
+        normal = Vector((d.x / rx, d.y / rx, d.z / rz)) + Vector(
+            (rng.gauss(0, 0.25), rng.gauss(0, 0.25), rng.gauss(0, 0.25))
+        )
+        normal.normalize()
+        t1 = normal.cross(Vector((0, 0, 1)) if abs(normal.z) < 0.9 else Vector((1, 0, 0)))
+        t1.normalize()
+        t2 = normal.cross(t1)
+        roll = rng.uniform(0, 2 * math.pi)
+        a = t1 * math.cos(roll) + t2 * math.sin(roll)
+        b = normal.cross(a)
+        half = size * rng.uniform(0.8, 1.2)
+        corners = [pos + (a * u + b * v) * half for u, v in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+        face = cards.faces.new([cards.verts.new(c) for c in corners])
+        face.material_index = mat
+        for loop, uv in zip(face.loops, ((0, 0), (1, 0), (1, 1), (0, 1)), strict=True):
+            loop[uv_layer].uv = uv
+    return n
+
+
 def build_trees(scene: dict) -> int:
     """One mesh of trees: round broadleaf crowns on a trunk, palms (trunk and fronds), shrubs."""
     trees = scene.get("trees", [])
@@ -744,6 +803,20 @@ def build_trees(scene: dict) -> int:
     neem_mat, acacia_mat = len(FOLIAGE) + 2, len(FOLIAGE) + 3
     canopy_mat = len(FOLIAGE) + 4
     bm = bmesh.new()
+    cards = bmesh.new() if LEAF_CARDS else None
+    card_uv = cards.loops.layers.uv.new("uv") if cards else None
+    card_image = bpy.data.images.load(str(LEAF_CARDS)) if LEAF_CARDS else None
+    if card_image:
+        card_image.colorspace_settings.name = "Non-Color"  # the greys are display reflectance
+        card_image.alpha_mode = "STRAIGHT"
+    card_mats: list = []
+    rgb_of = {i: c for i, c in enumerate(FOLIAGE)}
+    rgb_of[len(FOLIAGE) + 2], rgb_of[len(FOLIAGE) + 3] = (0.09, 0.26, 0.1), (0.33, 0.38, 0.14)
+    for i, c in enumerate(CANOPY):
+        rgb_of[canopy_mat + i] = c
+    for i, c in enumerate(CANOPY_DRY):
+        rgb_of[canopy_mat + len(CANOPY) + i] = c
+    card_slot: dict[int, int] = {}
 
     def blob(k, x, y, zc, rx, rz, mat):
         rng = random.Random(k * 7919 + 13)  # the same lumps for the same tree, every run
@@ -763,6 +836,11 @@ def build_trees(scene: dict) -> int:
             face.material_index = mat
             face.smooth = True  # leaf clumps come from the material, not from facets
             TREE_OWNER.append(k)
+        if cards is not None and mat in rgb_of:  # leaf cards around the crown (FRK-169)
+            if mat not in card_slot:
+                card_slot[mat] = len(card_mats)
+                card_mats.append(leaf_card_material(f"leafcard{mat}", rgb_of[mat], card_image))
+            add_leaf_cards(cards, card_uv, k, (x, y, zc), rx, rz, card_slot[mat])
 
     for k, tree in enumerate(trees):
         x, y, radius, height = tree[:4]
@@ -829,6 +907,14 @@ def build_trees(scene: dict) -> int:
     bpy.context.collection.objects.link(obj)
     for m in mats:
         mesh.materials.append(m)
+    if cards is not None:
+        cmesh = bpy.data.meshes.new(TREE_CARDS)
+        cards.to_mesh(cmesh)
+        say(f"leaf_cards faces={len(cmesh.polygons)}")
+        cards.free()
+        for m in card_mats:
+            cmesh.materials.append(m)
+        bpy.context.collection.objects.link(bpy.data.objects.new(TREE_CARDS, cmesh))
     return len(trees)
 
 
@@ -1102,11 +1188,118 @@ def build_agents(
     return n
 
 
-def build_traffic(scene_dir: Path, first_instance: int) -> int:
+CAR_MESH_DIR = "meshes/quaternius-cars"  # CC0 pack, see assets/manifest.json
+CAR_MESHES = ("NormalCar1", "NormalCar2", "SUV", "SportsCar", "SportsCar2", "Taxi")
+CAR_FIXED_PARTS = ("Black", "Grey", "Headlights", "TailLights", "Windows")  # the rest is body paint
+
+
+def parse_obj_car(obj_text: str, mtl_text: str) -> dict:
+    """A car from a Wavefront OBJ (Y up, length along Z) in the car frame: x forward, y left, z up,
+    centred on its footprint with the wheels on z = 0. Forward is the end with the headlights.
+
+    Returns ``verts`` (V, 3), ``polys`` (index tuples), ``poly_mat`` (a material name each) and
+    ``colours`` (name -> display RGB, from the MTL's linear Kd).
+    """
+    raw, polys, poly_mat, current = [], [], [], ""
+    for line in obj_text.splitlines():
+        parts = line.split()
+        if not parts:
+            continue
+        if parts[0] == "v":
+            raw.append([float(v) for v in parts[1:4]])
+        elif parts[0] == "usemtl":
+            current = parts[1]
+        elif parts[0] == "f":
+            polys.append(tuple(int(t.split("/")[0]) - 1 for t in parts[1:]))
+            poly_mat.append(current)
+    raw = np.asarray(raw, dtype="float64")
+    lamps = {i for p, m in zip(polys, poly_mat, strict=True) if m == "Headlights" for i in p}
+    fwd = 1.0 if not lamps or raw[sorted(lamps), 2].mean() >= 0 else -1.0
+    verts = np.stack([fwd * raw[:, 2], fwd * raw[:, 0], raw[:, 1]], axis=1)  # an even permutation
+    verts[:, :2] -= (verts[:, :2].min(axis=0) + verts[:, :2].max(axis=0)) / 2.0
+    verts[:, 2] -= verts[:, 2].min()
+    colours = {}
+    for block in mtl_text.split("newmtl ")[1:]:
+        name = block.split("\n")[0].strip()
+        for row in block.splitlines():
+            if row.startswith("Kd "):
+                kd = np.clip([float(v) for v in row.split()[1:4]], 0.0, 1.0)
+                colours[name] = tuple(float(v) for v in kd ** (1 / 2.2))  # linear to display
+    return {"verts": verts, "polys": polys, "poly_mat": poly_mat, "colours": colours}
+
+
+def build_mesh_cars(
+    scene_dir: Path, first_instance: int, assets: Path, mats_body: list, rough: dict
+) -> int:
+    """Moving traffic from the CC0 car meshes: each car is one of the models, in its own paint.
+
+    Same moving-agent contract as the boxes: ``set_agents`` places the template at every frame, and
+    ``face_owner`` gives the instance labels one number per car.
+    """
+    path = scene_dir / "agents.json"
+    if not path.exists():
+        return 0
+    data = json.loads(path.read_text())
+    n = len(data["ids"])
+    if n == 0:
+        return 0
+    cars = [
+        parse_obj_car(
+            (assets / CAR_MESH_DIR / f"{c}.obj").read_text(),
+            (assets / CAR_MESH_DIR / f"{c}.mtl").read_text(),
+        )
+        for c in CAR_MESHES
+    ]
+    mats = list(mats_body)
+    fixed: dict[str, int] = {}
+    for part in CAR_FIXED_PARTS:
+        colour = next((c["colours"][part] for c in cars if part in c["colours"]), (0.1, 0.1, 0.1))
+        fixed[part] = len(mats)
+        mats.append(material(f"mcar-{part}", colour, rough.get(part, 0.5), 140 + len(mats)))
+    variant = np.arange(n) % len(cars)
+    offsets, verts_total, loops, loop_total, mat_index, owner = [], 0, [], [], [], []
+    for k in range(n):
+        car = cars[variant[k]]
+        offsets.append(verts_total)
+        body = (k * 3 + 1) % len(mats_body)
+        for poly, name in zip(car["polys"], car["poly_mat"], strict=True):
+            loops.extend(verts_total + i for i in poly)
+            loop_total.append(len(poly))
+            mat_index.append(fixed.get(name, body))
+            owner.append(k + first_instance)
+        verts_total += len(car["verts"])
+    AGENTS["traffic"] = {
+        "n": n, "first_instance": first_instance, "class": CLASS_VEHICLE,
+        "x": np.array(data["x"]), "y": np.array(data["y"]), "heading": np.array(data["heading"]),
+        "z": None, "face_owner": np.asarray(owner, dtype="int64"),
+        "mesh": {"verts": [c["verts"] for c in cars], "variant": variant, "offsets": offsets,
+                 "total": verts_total},
+    }  # fmt: skip
+    mesh = bpy.data.meshes.new("traffic")
+    mesh.vertices.add(verts_total)
+    mesh.loops.add(len(loops))
+    mesh.loops.foreach_set("vertex_index", np.asarray(loops, dtype="int32"))
+    totals = np.asarray(loop_total, dtype="int32")
+    mesh.polygons.add(len(totals))
+    mesh.polygons.foreach_set("loop_start", (np.cumsum(totals) - totals).astype("int32"))
+    mesh.polygons.foreach_set("loop_total", totals)
+    mesh.polygons.foreach_set("material_index", np.asarray(mat_index, dtype="int32"))
+    mesh.update(calc_edges=True)
+    for m in mats:
+        mesh.materials.append(m)
+    bpy.context.collection.objects.link(bpy.data.objects.new("traffic", mesh))
+    set_agents(0)
+    return n
+
+
+def build_traffic(scene_dir: Path, first_instance: int, assets: Path | None = None) -> int:
     mats = [
         material(f"tcar{i}", tuple(c / 255 for c in rgb), 0.35, 90 + i)
         for i, rgb in enumerate(CAR_BODY)
     ]
+    style = json.loads((scene_dir / "agents.json").read_text()).get("car_style", "boxes")
+    if style == "mesh" and assets is not None and (assets / CAR_MESH_DIR).is_dir():
+        return build_mesh_cars(scene_dir, first_instance, assets, list(mats), {"Windows": 0.1})
     mats.append(material("tcar-glass", (0.05, 0.07, 0.1), 0.1, 100))
     mats.append(material("tcar-rubber", (0.03, 0.03, 0.03), 0.9, 101))
     glass, rubber = len(mats) - 2, len(mats) - 1
@@ -1157,6 +1350,22 @@ def build_people(scene_dir: Path) -> int:
 def set_agents(i: int) -> None:
     """Put every moving agent where its track says at frame ``i`` (and on the ground there)."""
     for name, a in AGENTS.items():
+        if "mesh" in a:  # a template mesh per car, moved rigidly
+            m = a["mesh"]
+            co = np.empty((m["total"], 3))
+            for k in range(a["n"]):
+                t = m["verts"][m["variant"][k]]
+                c, sn = np.cos(a["heading"][k, i]), np.sin(a["heading"][k, i])
+                px = a["x"][k, i] + c * t[:, 0] - sn * t[:, 1]
+                py = a["y"][k, i] + sn * t[:, 0] + c * t[:, 1]
+                pz = t[:, 2] + terrain_z(px, py)
+                if a.get("hide") == k:
+                    pz = pz - 1000.0
+                co[m["offsets"][k] : m["offsets"][k] + len(t)] = np.stack([px, py, pz], axis=1)
+            mesh = bpy.data.objects[name].data
+            mesh.vertices.foreach_set("co", co.astype("float32").ravel())
+            mesh.update()
+            continue
         co = _box_vertices(a["x"][:, i], a["y"][:, i], a["heading"][:, i], a["boxes"])
         co[:, :, 2] += terrain_z(co[:, :, 0], co[:, :, 1])
         if a["z"] is not None:  # flying agents: height above the ground below them
@@ -1437,6 +1646,7 @@ def use_gpu(device: str) -> bool:
 
 
 def main() -> int:
+    global LEAF_CARDS
     p = argparse.ArgumentParser()
     p.add_argument("scene_dir", type=Path)
     p.add_argument("out", type=Path)
@@ -1450,6 +1660,11 @@ def main() -> int:
     p.add_argument("--depth-unit", type=float, default=0.05, help="metres per depth step")
     a = p.parse_args(sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else sys.argv[1:])
     scene = json.loads((a.scene_dir / "scene.json").read_text())
+    cam_file = a.scene_dir / "camera.json"
+    if cam_file.exists() and json.loads(cam_file.read_text()).get("leaf_cards"):
+        leaf = a.assets / "textures" / "leaf-cluster.png"
+        if leaf.exists():
+            LEAF_CARDS = leaf
     ground = np.load(a.scene_dir / "ground.npy")
     px = a.px or scene["px"]
 
@@ -1469,7 +1684,7 @@ def main() -> int:
     ncables = build_cables(scene, a.scene_dir)
     for name in ("trees", "vehicles", "poles", "props", "walls", "markings", "cables"):
         lift_to_terrain(bpy.data.objects.get(name))
-    moving = build_traffic(a.scene_dir, len(scene.get("vehicles", [])))
+    moving = build_traffic(a.scene_dir, len(scene.get("vehicles", [])), a.assets)
     walking = build_people(a.scene_dir)
     build_drones(a.scene_dir)
     camera_file = a.scene_dir / "camera.json"

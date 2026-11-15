@@ -437,6 +437,7 @@ def _render3d(args: argparse.Namespace) -> Result:
                     "people_per_km": args.people_per_km,
                     "drones": args.drones,
                     "drone_scale": args.drone_scale,
+                    "car_meshes": args.car_meshes,
                 }
                 if args.traffic
                 else None
@@ -464,6 +465,7 @@ def _render3d(args: argparse.Namespace) -> Result:
             wall_share=args.wall_share,
             wall_textures=not args.no_wall_textures,
             eye_sensor=args.eye_sensor,
+            leaf_cards=args.leaf_cards,
         )
     except (OSError, ValueError, render3d.RenderError) as err:
         raise CliError(ExitCode.FAILURE, "render3d_failed", str(err)) from err
@@ -773,6 +775,9 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--path", type=Path, help="fly through the waypoints in this JSON file")
     parser.add_argument(
+        "--leaf-cards", action="store_true", help="leaf-card clusters around tree crowns (trial)"
+    )
+    parser.add_argument(
         "--eye-sensor",
         choices=["phone", "dashcam"],
         help="camera chain on frame sequences (raw frames kept in frames_raw/); dashcam adds a "
@@ -785,6 +790,9 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--traffic", action="store_true", help="moving cars, with tracks.json")
     parser.add_argument("--cars-per-km", type=float, default=6.0, help="with --traffic")
+    parser.add_argument(
+        "--car-meshes", action="store_true", help="with --traffic: CC0 car models, not boxes"
+    )
     parser.add_argument("--drones", type=int, default=0, help="flying drones, with --traffic")
     parser.add_argument(
         "--drone-scale",

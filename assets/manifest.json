@@ -935,6 +935,238 @@
       "url": "https://github.com/leejianrong/fraktal",
       "sha256": "07d5adab6b069bb8cc3a509c3bf4322dae01ff977bc92f30ab76c33ef57769fe",
       "verified": true
+    },
+    {
+      "id": "car-normalcar1-obj",
+      "file": "meshes/quaternius-cars/NormalCar1.obj",
+      "kind": "mesh",
+      "source": "Quaternius 'Realistic Car Pack - Nov 2018' (https://quaternius.itch.io/lowpoly-cars), downloaded 2026-11-15; the pack's own License.txt is CC0 1.0. The quaternius.com site now uses a custom licence (QAL v1.0) for newer packs; this pack predates it and carries CC0 in its own files.",
+      "licence": "CC0-1.0",
+      "author": "Quaternius",
+      "url": "https://quaternius.itch.io/lowpoly-cars",
+      "sha256": "02fc7baaa6ea489a1f05c02fd5ef712e78e727f41761ede446cc19d300b442d5",
+      "verified": true,
+      "generator": {
+        "model": "hand-modelled in Blender by Quaternius",
+        "version": "Nov 2018",
+        "seed": "n/a (not generated)",
+        "date": "2018-11",
+        "components": [
+          {
+            "name": "Realistic Car Pack - Nov 2018 (Quaternius)",
+            "version": "Nov 2018",
+            "licence": "CC0-1.0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "car-normalcar1-mtl",
+      "file": "meshes/quaternius-cars/NormalCar1.mtl",
+      "kind": "material",
+      "source": "Quaternius 'Realistic Car Pack - Nov 2018' (https://quaternius.itch.io/lowpoly-cars), downloaded 2026-11-15; the pack's own License.txt is CC0 1.0. The quaternius.com site now uses a custom licence (QAL v1.0) for newer packs; this pack predates it and carries CC0 in its own files.",
+      "licence": "CC0-1.0",
+      "author": "Quaternius",
+      "url": "https://quaternius.itch.io/lowpoly-cars",
+      "sha256": "e8a236ff366cdc3a10451b37de1b64ac34df4c65e072760a90b3145cfff22032",
+      "verified": true
+    },
+    {
+      "id": "car-normalcar2-obj",
+      "file": "meshes/quaternius-cars/NormalCar2.obj",
+      "kind": "mesh",
+      "source": "Quaternius 'Realistic Car Pack - Nov 2018' (https://quaternius.itch.io/lowpoly-cars), downloaded 2026-11-15; the pack's own License.txt is CC0 1.0. The quaternius.com site now uses a custom licence (QAL v1.0) for newer packs; this pack predates it and carries CC0 in its own files.",
+      "licence": "CC0-1.0",
+      "author": "Quaternius",
+      "url": "https://quaternius.itch.io/lowpoly-cars",
+      "sha256": "e845d737c7ff467c55910d68b8fd853578e5de23a2f7f978e1bede3417d95d7e",
+      "verified": true,
+      "generator": {
+        "model": "hand-modelled in Blender by Quaternius",
+        "version": "Nov 2018",
+        "seed": "n/a (not generated)",
+        "date": "2018-11",
+        "components": [
+          {
+            "name": "Realistic Car Pack - Nov 2018 (Quaternius)",
+            "version": "Nov 2018",
+            "licence": "CC0-1.0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "car-normalcar2-mtl",
+      "file": "meshes/quaternius-cars/NormalCar2.mtl",
+      "kind": "material",
+      "source": "Quaternius 'Realistic Car Pack - Nov 2018' (https://quaternius.itch.io/lowpoly-cars), downloaded 2026-11-15; the pack's own License.txt is CC0 1.0. The quaternius.com site now uses a custom licence (QAL v1.0) for newer packs; this pack predates it and carries CC0 in its own files.",
+      "licence": "CC0-1.0",
+      "author": "Quaternius",
+      "url": "https://quaternius.itch.io/lowpoly-cars",
+      "sha256": "a3561392d9b7cc4e1f59ed489f5e2f136bf7c4a93ed011f55fbe6b69e16772f6",
+      "verified": true
+    },
+    {
+      "id": "car-suv-obj",
+      "file": "meshes/quaternius-cars/SUV.obj",
+      "kind": "mesh",
+      "source": "Quaternius 'Realistic Car Pack - Nov 2018' (https://quaternius.itch.io/lowpoly-cars), downloaded 2026-11-15; the pack's own License.txt is CC0 1.0. The quaternius.com site now uses a custom licence (QAL v1.0) for newer packs; this pack predates it and carries CC0 in its own files.",
+      "licence": "CC0-1.0",
+      "author": "Quaternius",
+      "url": "https://quaternius.itch.io/lowpoly-cars",
+      "sha256": "411a23e66d905b861c3d9957ae364fa2711fe9a4ac0c1e9f77920d800fbbf4dd",
+      "verified": true,
+      "generator": {
+        "model": "hand-modelled in Blender by Quaternius",
+        "version": "Nov 2018",
+        "seed": "n/a (not generated)",
+        "date": "2018-11",
+        "components": [
+          {
+            "name": "Realistic Car Pack - Nov 2018 (Quaternius)",
+            "version": "Nov 2018",
+            "licence": "CC0-1.0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "car-suv-mtl",
+      "file": "meshes/quaternius-cars/SUV.mtl",
+      "kind": "material",
+      "source": "Quaternius 'Realistic Car Pack - Nov 2018' (https://quaternius.itch.io/lowpoly-cars), downloaded 2026-11-15; the pack's own License.txt is CC0 1.0. The quaternius.com site now uses a custom licence (QAL v1.0) for newer packs; this pack predates it and carries CC0 in its own files.",
+      "licence": "CC0-1.0",
+      "author": "Quaternius",
+      "url": "https://quaternius.itch.io/lowpoly-cars",
+      "sha256": "fc6f72a057c881856377eca8d7888e9566397b52e457266d55ed631171edc7fa",
+      "verified": true
+    },
+    {
+      "id": "car-sportscar-obj",
+      "file": "meshes/quaternius-cars/SportsCar.obj",
+      "kind": "mesh",
+      "source": "Quaternius 'Realistic Car Pack - Nov 2018' (https://quaternius.itch.io/lowpoly-cars), downloaded 2026-11-15; the pack's own License.txt is CC0 1.0. The quaternius.com site now uses a custom licence (QAL v1.0) for newer packs; this pack predates it and carries CC0 in its own files.",
+      "licence": "CC0-1.0",
+      "author": "Quaternius",
+      "url": "https://quaternius.itch.io/lowpoly-cars",
+      "sha256": "57493fd349a98d07a7a2246ad3a5620cf244db8b13d912eee9c25885e5f375fb",
+      "verified": true,
+      "generator": {
+        "model": "hand-modelled in Blender by Quaternius",
+        "version": "Nov 2018",
+        "seed": "n/a (not generated)",
+        "date": "2018-11",
+        "components": [
+          {
+            "name": "Realistic Car Pack - Nov 2018 (Quaternius)",
+            "version": "Nov 2018",
+            "licence": "CC0-1.0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "car-sportscar-mtl",
+      "file": "meshes/quaternius-cars/SportsCar.mtl",
+      "kind": "material",
+      "source": "Quaternius 'Realistic Car Pack - Nov 2018' (https://quaternius.itch.io/lowpoly-cars), downloaded 2026-11-15; the pack's own License.txt is CC0 1.0. The quaternius.com site now uses a custom licence (QAL v1.0) for newer packs; this pack predates it and carries CC0 in its own files.",
+      "licence": "CC0-1.0",
+      "author": "Quaternius",
+      "url": "https://quaternius.itch.io/lowpoly-cars",
+      "sha256": "b7b9f33f791308e97a1086e481f82e66e69f0ae60feadd7c8146f768670574b1",
+      "verified": true
+    },
+    {
+      "id": "car-sportscar2-obj",
+      "file": "meshes/quaternius-cars/SportsCar2.obj",
+      "kind": "mesh",
+      "source": "Quaternius 'Realistic Car Pack - Nov 2018' (https://quaternius.itch.io/lowpoly-cars), downloaded 2026-11-15; the pack's own License.txt is CC0 1.0. The quaternius.com site now uses a custom licence (QAL v1.0) for newer packs; this pack predates it and carries CC0 in its own files.",
+      "licence": "CC0-1.0",
+      "author": "Quaternius",
+      "url": "https://quaternius.itch.io/lowpoly-cars",
+      "sha256": "57dcbb4807ae0bb673b0cb122022b1f2818d0351a7b420365a969d0f0cd28b96",
+      "verified": true,
+      "generator": {
+        "model": "hand-modelled in Blender by Quaternius",
+        "version": "Nov 2018",
+        "seed": "n/a (not generated)",
+        "date": "2018-11",
+        "components": [
+          {
+            "name": "Realistic Car Pack - Nov 2018 (Quaternius)",
+            "version": "Nov 2018",
+            "licence": "CC0-1.0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "car-sportscar2-mtl",
+      "file": "meshes/quaternius-cars/SportsCar2.mtl",
+      "kind": "material",
+      "source": "Quaternius 'Realistic Car Pack - Nov 2018' (https://quaternius.itch.io/lowpoly-cars), downloaded 2026-11-15; the pack's own License.txt is CC0 1.0. The quaternius.com site now uses a custom licence (QAL v1.0) for newer packs; this pack predates it and carries CC0 in its own files.",
+      "licence": "CC0-1.0",
+      "author": "Quaternius",
+      "url": "https://quaternius.itch.io/lowpoly-cars",
+      "sha256": "861c3c7f878d943069c6a2e8e73c20b5e68cbe7d34873fd93218ae1ac72076a0",
+      "verified": true
+    },
+    {
+      "id": "car-taxi-obj",
+      "file": "meshes/quaternius-cars/Taxi.obj",
+      "kind": "mesh",
+      "source": "Quaternius 'Realistic Car Pack - Nov 2018' (https://quaternius.itch.io/lowpoly-cars), downloaded 2026-11-15; the pack's own License.txt is CC0 1.0. The quaternius.com site now uses a custom licence (QAL v1.0) for newer packs; this pack predates it and carries CC0 in its own files.",
+      "licence": "CC0-1.0",
+      "author": "Quaternius",
+      "url": "https://quaternius.itch.io/lowpoly-cars",
+      "sha256": "acd42602a7e4aada3efb35a54f835d4aa1a2ce2f30f956c641c6e228d582af0e",
+      "verified": true,
+      "generator": {
+        "model": "hand-modelled in Blender by Quaternius",
+        "version": "Nov 2018",
+        "seed": "n/a (not generated)",
+        "date": "2018-11",
+        "components": [
+          {
+            "name": "Realistic Car Pack - Nov 2018 (Quaternius)",
+            "version": "Nov 2018",
+            "licence": "CC0-1.0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "car-taxi-mtl",
+      "file": "meshes/quaternius-cars/Taxi.mtl",
+      "kind": "material",
+      "source": "Quaternius 'Realistic Car Pack - Nov 2018' (https://quaternius.itch.io/lowpoly-cars), downloaded 2026-11-15; the pack's own License.txt is CC0 1.0. The quaternius.com site now uses a custom licence (QAL v1.0) for newer packs; this pack predates it and carries CC0 in its own files.",
+      "licence": "CC0-1.0",
+      "author": "Quaternius",
+      "url": "https://quaternius.itch.io/lowpoly-cars",
+      "sha256": "6a783ff784413b21952eab1a62d79e92be2e196916bbb238cbf0864323fc53ef",
+      "verified": true
+    },
+    {
+      "id": "car-pack-licence",
+      "file": "meshes/quaternius-cars/License.txt",
+      "kind": "licence",
+      "source": "Quaternius 'Realistic Car Pack - Nov 2018' (https://quaternius.itch.io/lowpoly-cars), downloaded 2026-11-15; the pack's own License.txt is CC0 1.0. The quaternius.com site now uses a custom licence (QAL v1.0) for newer packs; this pack predates it and carries CC0 in its own files.",
+      "licence": "CC0-1.0",
+      "author": "Quaternius",
+      "url": "https://quaternius.itch.io/lowpoly-cars",
+      "sha256": "83d8959f9fc56353ed571fbe2dc52e4bcd64508e2399501cd45ac2ce3df0bf8c",
+      "verified": true
+    },
+    {
+      "id": "tex-leaf-cluster",
+      "file": "textures/leaf-cluster.png",
+      "kind": "texture",
+      "source": "fraktal.leafcards.leaf_cluster(seed 0, 256 px), drawn in code by scripts/assets/make_leaf_cards.py",
+      "licence": "owned",
+      "author": "Jian Lee",
+      "url": "https://github.com/leejianrong/fraktal",
+      "sha256": "d5934855784243c1c3e8d11fde0b6fe4d96719a244fdd62a647e0dccf41445ef",
+      "verified": true
     }
   ]
 }

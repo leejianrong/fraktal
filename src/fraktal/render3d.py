@@ -261,6 +261,7 @@ def render(
     traffic: dict[str, Any] | None = None,
     follow: dict[str, Any] | None = None,
     eye_sensor: str | None = None,
+    leaf_cards: bool = False,
 ) -> dict[str, Any]:
     """Export the tile, render it in Blender, write the contract files, return ``render.json``."""
     with_depth = with_depth or with_flow  # flow is computed from depth
@@ -294,7 +295,10 @@ def render(
         )
         graph = agents.build_graph(roads, bounds, config)
         moving = agents.simulate_cars(graph, times, seed, config)
-        (out_dir / "scene" / "agents.json").write_text(json.dumps(moving.as_dict()) + "\n")
+        style = "mesh" if (traffic or {}).get("car_meshes") else "boxes"  # FRK-169
+        (out_dir / "scene" / "agents.json").write_text(
+            json.dumps({**moving.as_dict(), "car_style": style}) + "\n"
+        )
         if float((traffic or {}).get("people_per_km", 0.0)) > 0:
             walkers = agents.simulate_people(
                 graph,
@@ -334,14 +338,14 @@ def render(
             lateral_m=opts.get("lateral_m"), fov_deg=float(opts.get("fov_deg", 90.0)),
             pitch_deg=float(opts.get("pitch_deg", 0.0)),
         )  # fmt: skip
-        _write_camera(out_dir, poses)
+        _write_camera(out_dir, poses, **({"leaf_cards": True} if leaf_cards else {}))
     elif trajectory:  # a perspective sequence instead of the nadir tile (FRK-51)
         poses = cameras.trajectory(
             trajectory, scene["size_m"], seed, waypoints=waypoints,
             ground=_ground(scene, out_dir) if "terrain" in scene else None,
             **(camera_options or {}),
         )  # fmt: skip
-        _write_camera(out_dir, poses)
+        _write_camera(out_dir, poses, **({"leaf_cards": True} if leaf_cards else {}))
     if traffic is not None and follow is None:  # same frame times as the camera
         simulate(np.array([p.t_s for p in poses] or [0.0]))
     digest = scene_sha256(out_dir / "scene")
