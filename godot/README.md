@@ -57,8 +57,14 @@ unpacked to `~/.local/opt/godot-4.7.2/` (zip checked against `SHA512-SUMS.txt`).
 about 5.5 million primitives, runs at 35 to 65 fps. For a screenshot without driving:
 `godot --path godot --rendering-driver opengl3 -- --scene DIR --bench 6 --shot out.png`.
 
-Keys: W/S throttle and brake, A/D steer, Space handbrake, R reset. Options after `--`:
-`--autodrive` (scripted drive), `--bench SECONDS [--shot out.png]` (frame statistics),
+Three modes; keys 1, 2 and 3 switch, and the new one starts where you are.
+- **1, car:** W/S throttle and brake, A/D steer, Space handbrake. A chase camera.
+- **2, person:** W/S/A/D walk (Shift runs), eye height 1.6 m, first person. Click to capture the mouse for looking, Esc to
+  release it; the arrow keys also turn and tilt. You slide along buildings, compound walls, trunks and poles.
+- **3, drone:** W/S/A/D fly along where you look, E up, Q down, Shift fast, up to 400 m. It stops at the ground and at a roof,
+  can fly over a building but not into its side.
+- R resets to the start. Options after `--`:
+`--mode car|person|drone` (start in that mode), `--autodrive` (a scripted run of the current mode), `--bench SECONDS [--shot out.png]` (frame statistics),
 `--selftest` (headless check, exit code 0 or 1), `--assets DIR`.
 
 ## Tests
