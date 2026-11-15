@@ -59,3 +59,13 @@ def test_the_viewer_has_three_modes_with_their_keys() -> None:
     ):
         assert fragment in main, fragment
     assert "_selftest_person" in main and "_selftest_drone" in main  # headless checks cover both
+
+
+def test_the_replay_reads_the_tracks_scene_writes() -> None:
+    agents = (ROOT / "godot/scripts/agents.gd").read_text()
+    cli = (ROOT / "src/fraktal/cli.py").read_text()
+    for name in ("agents.json", "people.json", "drones.json"):
+        assert f'"{name}"' in agents and f'"{name}"' in cli, name
+    for key in ('d["ids"]', 'd["t"]', 'd["x"]', 'd["y"]', 'd["heading"]'):
+        assert key in agents, key  # the fields Tracks.as_dict writes
+    assert "--agents" in cli

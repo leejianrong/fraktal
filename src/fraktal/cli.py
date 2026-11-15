@@ -600,6 +600,12 @@ def _scene(args: argparse.Namespace) -> Result:
     start = _player_start(world, center, args.size_m)
     pose = {"x": start[0], "y": start[1], "heading": start[2]}
     (args.out / "start.json").write_text(json.dumps(pose) + "\n")
+    agent_files: list[str] = []
+    if args.agents:
+        try:
+            agent_files = _scene_agents(world, center, args)
+        except (OSError, ValueError, KeyError) as err:
+            raise CliError(ExitCode.FAILURE, "scene_failed", str(err)) from err
     info = {
         "out": str(args.out),
         "start": start,
@@ -607,8 +613,37 @@ def _scene(args: argparse.Namespace) -> Result:
         "buildings": len(scene["buildings"]),
         "trees": len(scene["trees"]),
         "terrain": scene.get("terrain"),
+        "agents": agent_files,
     }
     return Result(info, f"wrote the tile to {args.out} ({info['buildings']} buildings)")
+
+
+def _scene_agents(world: Path, center: tuple[float, float], args: argparse.Namespace) -> list[str]:
+    """Simulate cars, people and drones over ``--duration-s`` and write the track files the viewer
+    replays beside the tile: ``agents.json``, ``people.json``, ``drones.json`` (the format render3d
+    writes). Seeded, so the same tile and seed replay the same loop."""
+    import json
+
+    import numpy as np
+
+    from fraktal import agents
+
+    roads, bounds, side = agents.tile_roads(world, center, args.size_m, args.gsd_m)
+    config = agents.TrafficConfig(cars_per_km=args.cars_per_km, drive_side=side)
+    graph = agents.build_graph(roads, bounds, config)
+    times = np.arange(0.0, args.duration_s, args.agent_step_s)
+    written = {
+        "agents.json": agents.simulate_cars(graph, times, args.seed, config).as_dict(),
+        "people.json": agents.simulate_people(
+            graph, times, args.seed, agents.WalkerConfig(args.people_per_km, verge_spread_m=3.0)
+        ).as_dict(),
+        "drones.json": agents.simulate_drones(
+            float(args.size_m), times, args.seed, agents.DroneConfig(count=args.drones)
+        ).as_dict(),
+    }
+    for name, data in written.items():
+        (args.out / name).write_text(json.dumps(data) + "\n")
+    return sorted(written)
 
 
 def _player_start(world: Path, center: tuple[float, float], size_m: float) -> list[float]:
@@ -634,6 +669,12 @@ def _scene_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--size-m", type=float, default=500.0)
     parser.add_argument("--gsd-m", type=float, default=0.5)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--agents", action="store_true", help="also write the tracks to replay")
+    parser.add_argument("--duration-s", type=float, default=120.0, help="length of the loop")
+    parser.add_argument("--agent-step-s", type=float, default=0.25, help="seconds between samples")
+    parser.add_argument("--cars-per-km", type=float, default=25.0)
+    parser.add_argument("--people-per-km", type=float, default=60.0)
+    parser.add_argument("--drones", type=int, default=3)
 
 
 def _review(args: argparse.Namespace) -> Result:
