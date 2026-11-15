@@ -9,7 +9,7 @@ read on the same day. Everything here is opt-in and off by default.
 | Option | Verdict | Why |
 |---|---|---|
 | Quaternius CC0 car meshes, six models (`--car-meshes`) | **keep**, opt-in until a pilot cycle checks it | A real change in what a car looks like, labels exact, +23% strip time. Only six models, no jeepney, matatu or pickup |
-| Leaf-card crowns (`--leaf-cards`) | **defer as a default** | A modest gain: ragged edges on near and overhead crowns, little change on distant trees. +4% time. Labels are not exact with it (2.7% of frame pixels) until the label pass reads the alpha |
+| Leaf-card crowns (`--leaf-cards`) | **keep, now the default for street views** (FRK-172) | A modest gain: ragged edges on near and overhead crowns, little change on distant trees. +4% time. Labels and depth now follow the leaf shapes (see below) |
 | Poly Haven models | **drop** for vehicles and trees | One vehicle (a car under a tarp, 12.6k triangles) and trees of 0.3 to 4.7 million triangles. Keep it as a CC0 source for HDRIs and textures |
 | Infinigen | **defer** | The trial was not run: the install was refused by the session's permission check. Licence read, see below |
 
@@ -54,6 +54,22 @@ crown's, exactly as before.
   the label pass alpha-aware (paint the cards as tree, cut by the texture's alpha) is the work before this can be a
   default. I did not do it.
 
+### Update, FRK-172: alpha-aware labels and depth
+
+The label and depth passes now show the cards, cut by the leaf texture's alpha at 0.5 with one unfiltered sample, labelled
+as the tree they sit on (`img/frk172-card-labels.jpg`: beauty on the left, the tree label over it on the right). Measured on
+the same Manila strip (18 frames, CPU, seed 7) with cards off and on:
+
+- Pixels where the beauty frame shows a leaf and the label says something else: 0.317% of the frame at a beauty difference
+  of 40 (it was 2.71%), 0.106% at 80 and 0.032% at 120. The remainder is soft-alpha pixels at the edge of a leaf and
+  denoiser differences between two renders; the card's target was under 0.3%.
+- Depth where a card is over a crown: closer in 13,862 pixels, equal in 2,353, farther in none.
+- Label images still hold only the same classes as without cards: flat colours, no blending.
+- Tree-class pixels per frame rose from 58,627 to 64,527, the leaves that stick out of the crown.
+- Cost: 349 s to 282 s is machine noise (the cards-off run was slower); the earlier measurement was +4%.
+
+`--leaf-cards` is now on by default for street strips (`--no-leaf-cards` turns it off) and off for other views.
+
 ## Infinigen
 
 Not run. The clone worked (`princeton-vl/infinigen`, commit `53033dd`, 2026-11-10) but the minimal install into a Python
@@ -72,6 +88,5 @@ asset was added.
 
 ## Next
 
-1. Alpha-aware labels for the cards, then re-measure the 2.71%. If it holds, leaf cards can be the default.
-2. Use the car meshes in a pilot cycle (FRK-148 to 150) and judge them next to the photos.
-3. A jeepney, matatu and pickup are still code-made props; a CC0 source for them has not been found.
+1. Use the car meshes in a pilot cycle (FRK-148 to 150) and judge them next to the photos.
+2. A jeepney, matatu and pickup are still code-made props; a CC0 source for them has not been found.

@@ -532,6 +532,9 @@ def paint_labels(scene: dict, scene_dir: Path) -> None:
         obj = bpy.data.objects["trees"]
         owner = np.asarray(TREE_OWNER, dtype="int64")
         paint(obj, np.full(len(owner), CLASS_TREE), owner + 1)
+    if TREE_CARDS in bpy.data.objects and CARD_OWNER:  # leaf cards are the tree they sit on
+        owner = np.asarray(CARD_OWNER, dtype="int64")
+        paint(bpy.data.objects[TREE_CARDS], np.full(len(owner), CLASS_TREE), owner + 1)
     for name, a in AGENTS.items():  # moving agents: stable instances after any static ones
         owner = a.get("face_owner")
         if owner is None:
@@ -572,13 +575,53 @@ LOOK_OBJECTS = (
 
 # Objects that exist only to light or fog the beauty pass. The label and depth passes hide them: a
 # fog box left in scatters every label colour, and a cloud plane would shade the depth (FRK-168).
-LOOK_HIDDEN = ("haze", "clouds", "treecards")  # treecards: leaf cards, which have no alpha label
+LOOK_HIDDEN = ("haze", "clouds")
 
 
 def hide_beauty_only_objects() -> None:
     for name in LOOK_HIDDEN:
         if name in bpy.data.objects:
             bpy.data.objects[name].hide_render = True
+
+
+CARD_IMAGE = None  # the leaf texture of a --leaf-cards render, set by build_trees
+CARD_OWNER: list[int] = []  # the tree each leaf card (one face each) belongs to
+
+
+def alpha_cut_look(mat):
+    """A copy of a label or depth look that shows only where the leaf texture's alpha is over 0.5.
+
+    The cards are quads; the leaf shapes are in the texture. Cutting at a hard 0.5 with one sample
+    gives a flat, unfiltered label that agrees with the beauty frame to the pixel, to within the
+    beauty pass's soft alpha at the very edge of a leaf.
+    """
+    cut = mat.copy()
+    nodes, links = cut.node_tree.nodes, cut.node_tree.links
+    out = next(n for n in nodes if n.bl_idname == "ShaderNodeOutputMaterial")
+    shader = out.inputs["Surface"].links[0].from_node
+    tex = nodes.new("ShaderNodeTexImage")
+    tex.image = CARD_IMAGE
+    gate = nodes.new("ShaderNodeMath")
+    gate.operation = "GREATER_THAN"
+    gate.inputs[1].default_value = 0.5
+    links.new(tex.outputs["Alpha"], gate.inputs[0])
+    clear = nodes.new("ShaderNodeBsdfTransparent")
+    mix = nodes.new("ShaderNodeMixShader")
+    links.new(gate.outputs["Value"], mix.inputs["Fac"])
+    links.new(clear.outputs["BSDF"], mix.inputs[1])
+    links.new(shader.outputs[0], mix.inputs[2])
+    links.new(mix.outputs["Shader"], out.inputs["Surface"])
+    return cut
+
+
+def apply_card_look(mat) -> None:
+    """Give the leaf cards the label or depth look, cut by their alpha (FRK-172)."""
+    if TREE_CARDS in bpy.data.objects and CARD_IMAGE is not None:
+        mesh = bpy.data.objects[TREE_CARDS].data
+        mesh.materials.clear()
+        mesh.materials.append(alpha_cut_look(mat))
+        mesh.polygons.foreach_set("material_index", np.zeros(len(mesh.polygons), dtype="int32"))
+        mesh.update()
 
 
 def use_label_look(sc) -> None:
@@ -604,6 +647,7 @@ def use_label_look(sc) -> None:
             mesh.materials.append(mat)
             mesh.polygons.foreach_set("material_index", np.zeros(len(mesh.polygons), dtype="int32"))
             mesh.update()
+    apply_card_look(mat)
     sc.cycles.samples = 1
     sc.cycles.use_denoising = False
     # Every face is emissive here, so with the light tree Cycles rebuilt a light structure over
@@ -665,6 +709,7 @@ def use_depth_look(sc, unit_m: float) -> None:
             mesh.materials.append(mat)
             mesh.polygons.foreach_set("material_index", np.zeros(len(mesh.polygons), dtype="int32"))
             mesh.update()
+    apply_card_look(mat)
     sc.cycles.samples = 1
     sc.cycles.use_denoising = False
     sc.cycles.filter_width = 0.01
@@ -727,7 +772,7 @@ def _prism(bm, owner: int, x: float, y: float, radius: float, z0: float, z1: flo
 
 
 LEAF_CARDS: Path | None = None  # the leaf texture, set in main for a --leaf-cards render
-TREE_CARDS = "treecards"  # a separate object: the label and depth passes leave it out
+TREE_CARDS = "treecards"  # a separate object; the label and depth passes cut it by the leaf alpha
 
 
 def leaf_card_material(name: str, rgb: tuple[float, float, float], image):
@@ -778,6 +823,7 @@ def add_leaf_cards(cards, uv_layer, k: int, centre, rx: float, rz: float, mat: i
         corners = [pos + (a * u + b * v) * half for u, v in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
         face = cards.faces.new([cards.verts.new(c) for c in corners])
         face.material_index = mat
+        CARD_OWNER.append(k)
         for loop, uv in zip(face.loops, ((0, 0), (1, 0), (1, 1), (0, 1)), strict=True):
             loop[uv_layer].uv = uv
     return n
@@ -785,6 +831,7 @@ def add_leaf_cards(cards, uv_layer, k: int, centre, rx: float, rz: float, mat: i
 
 def build_trees(scene: dict) -> int:
     """One mesh of trees: round broadleaf crowns on a trunk, palms (trunk and fronds), shrubs."""
+    global CARD_IMAGE
     trees = scene.get("trees", [])
     TREE_OWNER.clear()
     if not trees:
@@ -806,7 +853,9 @@ def build_trees(scene: dict) -> int:
     cards = bmesh.new() if LEAF_CARDS else None
     card_uv = cards.loops.layers.uv.new("uv") if cards else None
     card_image = bpy.data.images.load(str(LEAF_CARDS)) if LEAF_CARDS else None
+    CARD_OWNER.clear()
     if card_image:
+        CARD_IMAGE = card_image
         card_image.colorspace_settings.name = "Non-Color"  # the greys are display reflectance
         card_image.alpha_mode = "STRAIGHT"
     card_mats: list = []

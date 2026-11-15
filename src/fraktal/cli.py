@@ -775,7 +775,10 @@ def _render3d_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--path", type=Path, help="fly through the waypoints in this JSON file")
     parser.add_argument(
-        "--leaf-cards", action="store_true", help="leaf-card clusters around tree crowns (trial)"
+        "--leaf-cards",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="leaf-card crowns: on by default for street views, off for other views",
     )
     parser.add_argument(
         "--eye-sensor",

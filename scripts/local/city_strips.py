@@ -76,7 +76,11 @@ def main() -> int:
         default="{}",
         help='JSON of biome settings for every biome, e.g. {"buildings": {"front_setback_m": 6}}',
     )
-    ap.add_argument("--leaf-cards", action="store_true", help="leaf cards on tree crowns")
+    ap.add_argument("--depth", action="store_true", help="also write depth frames")
+    ap.add_argument(
+        "--leaf-cards", action=argparse.BooleanOptionalAction, default=None,
+        help="leaf cards on tree crowns (default: on for street strips)",
+    )  # fmt: skip
     ap.add_argument("--car-meshes", action="store_true", help="CC0 car models for traffic")
     ap.add_argument("--seed", type=int, default=7, help="world and light seed for the render")
     ap.add_argument("--people-per-km", type=float, default=200.0, help="the pods use 30")
@@ -107,8 +111,10 @@ def main() -> int:
             "--traffic", "--cars-per-km", "25", "--people-per-km", str(args.people_per_km),
             "--samples", str(args.samples), "--seed", str(args.seed), "--device", args.device,
         ]  # fmt: skip
-        if args.leaf_cards:
-            cmd += ["--leaf-cards"]
+        if args.depth:
+            cmd += ["--depth"]
+        if args.leaf_cards is not None:
+            cmd += ["--leaf-cards" if args.leaf_cards else "--no-leaf-cards"]
         if args.car_meshes:
             cmd += ["--car-meshes"]
         if args.eye_sensor:

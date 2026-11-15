@@ -261,7 +261,7 @@ def render(
     traffic: dict[str, Any] | None = None,
     follow: dict[str, Any] | None = None,
     eye_sensor: str | None = None,
-    leaf_cards: bool = False,
+    leaf_cards: bool | None = None,
 ) -> dict[str, Any]:
     """Export the tile, render it in Blender, write the contract files, return ``render.json``."""
     with_depth = with_depth or with_flow  # flow is computed from depth
@@ -338,7 +338,9 @@ def render(
             lateral_m=opts.get("lateral_m"), fov_deg=float(opts.get("fov_deg", 90.0)),
             pitch_deg=float(opts.get("pitch_deg", 0.0)),
         )  # fmt: skip
-        _write_camera(out_dir, poses, **({"leaf_cards": True} if leaf_cards else {}))
+        # leaf-card crowns are the default at street level (FRK-172); other views keep smooth ones
+        cards = True if leaf_cards is None else leaf_cards
+        _write_camera(out_dir, poses, **({"leaf_cards": True} if cards else {}))
     elif trajectory:  # a perspective sequence instead of the nadir tile (FRK-51)
         poses = cameras.trajectory(
             trajectory, scene["size_m"], seed, waypoints=waypoints,
