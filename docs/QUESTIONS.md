@@ -7,7 +7,38 @@ Mode: fresh. Host (original, until 2026-11): WSL2, RTX 3080 Ti Laptop (16 GB VRA
 
 ## Open forks
 
-None. Round 1 closed.
+Two forks opened on 2026-11-15, from [research/hyperrealism-methods.md](research/hyperrealism-methods.md). Each has a
+recommendation; neither is acted on until Jian rules.
+
+**F8. Image-to-image on our own synthetic frames.** Does guardrail 1 of
+[research/generative-assets-plan.md](research/generative-assets-plan.md) (no image conditioning) also rule out SDXL or
+FLUX img2img on our own renders? Read literally it covers reference imagery, meaning the real photos and the board, so
+our own frames are not named. Recommendation: **yes, as a bounded experiment, not the product path**, with the
+guardrail reworded to say "real photographs and the reference board" so the line is clear. Conditions:
+1. The input is only our own render. No real photo as image, control or style input, and no IP-Adapter style models.
+2. Plain img2img at low strength (0.3 or less) with SDXL base 1.0 or FLUX.1 schnell, both already allowed in ADR-0013.
+   Depth or edge ControlNets are not used until their licences are read.
+3. The labels stay the render's. A refined frame is kept only if the eval segmenter, run on it, agrees with the render's
+   labels (per-class IoU of at least 0.9, an assumption to tune); otherwise it is dropped and listed.
+4. Stills only. Per-frame refinement flickers in a video strip.
+5. It is its own dataset variant ("refined"), with a manifest `generator` block, so a benchmark arm can compare raw against
+   refined (ADR-0009: steer, and train only at big milestones). It starts after FRK-171 and alpha-aware labels for leaf cards.
+
+**F9. Street photographs the project owns.** Can anyone capture street photos or short videos for the project?
+Recommendation: **yes, start small.** It is the one thing no procedural tool replaces. It buys two things: an owned
+reference set (today's board is Mapillary material, for looking and evaluation only) and raw material for owned assets
+(wall, road and pavement textures, facades, signs, stalls, vehicles) through photogrammetry or splats. A plan:
+1. A half day with a phone in one nearby tropical street, not necessarily one of the 11 cities. The point is to prove the
+   capture, process and asset path on one prop and one wall before asking anyone to travel.
+2. Then ask contacts in Manila and Nairobi, with a short written CC0 dedication from each photographer. I would not ask
+   anyone to photograph in Khartoum while the war lasts: the risk to them is not worth a pilot city's statistics.
+3. Capture notes: fixed exposure, 4K video orbits or about 60% overlap stills, date, place and weather in a sidecar file,
+   no faces or number plates kept, no private interiors. Photographs are stored off the repo with a manifest row of kind
+   `photo`, licence `owned`.
+4. Whether owned photos may also feed a generator (loosening guardrail 1 for owned photos only) is a separate decision;
+   leave it off until Jian rules.
+5. Pipeline licences, from memory and not read: COLMAP and Meshroom look permissive, the original Inria Gaussian-splat code is
+   non-commercial. Read them before adopting any of them.
 
 ## Register
 
