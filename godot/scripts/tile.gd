@@ -1,6 +1,7 @@
 class_name Tile
 extends Node3D
-## One exported tile: relief ground, buildings, trees and poles, built from the files
+## One exported tile: relief ground, buildings, trees and poles, road markings and wear, props,
+## compound walls, overhead cables and parked cars, built from the files
 ## `fraktal scene` writes. Tile coordinates are x east, y north, z up, in metres from the
 ## south-west corner; the engine's are (x, z, -y), a rotation, so polygon winding carries over.
 ## Godot draws clockwise faces as front faces, so triangles are emitted reversed.
@@ -13,6 +14,10 @@ const BARK := Color(0.24, 0.17, 0.11)
 const FROND := Color(0.2, 0.4, 0.14)
 const POLE := Color(0.33, 0.33, 0.35)
 const NO_ROOF := -1.0e9
+const MAX_SURFACES := 200
+const CAR_BODY := [  # the Blender palette for parked cars, 0 to 255
+	Color8(235, 235, 235), Color8(40, 40, 45), Color8(150, 30, 30), Color8(170, 175, 180), Color8(30, 60, 120),
+]
 
 const GROUND_SHADER := """
 shader_type spatial;
@@ -57,6 +62,17 @@ func load_tile(scene_dir: String, assets_dir: String) -> void:
 	_build_trees()
 	_build_poles()
 	_lap("trees_poles", t)
+	t = Time.get_ticks_msec()
+	_build_packed(scene_dir, assets_dir, "markings", "Markings", scene["markings"]["materials"])
+	_lap("markings", t)
+	t = Time.get_ticks_msec()
+	_build_packed(scene_dir, assets_dir, "props", "Props", scene["prop_materials"])
+	_build_packed(scene_dir, assets_dir, "walls", "Walls", scene["wall_materials"], scene.get("wall_textures", {}))
+	_lap("props_walls", t)
+	t = Time.get_ticks_msec()
+	_build_packed(scene_dir, assets_dir, "cables", "Cables", scene["cables"]["materials"], {}, true)
+	_build_parked_cars()
+	_lap("cables_cars", t)
 
 
 func _lap(what: String, since: int) -> void:
@@ -270,10 +286,10 @@ static func _bounds(ring: PackedVector2Array) -> Rect2:
 
 
 ## The asset manifest's material (`assets/materials/NAME.json`): a colour, or a texture mapped in
-## world metres and tinted. Blender reads the stored colours as linear values; Godot decodes an
-## albedo colour from sRGB, so colours go through linear_to_srgb to land on the same linear value.
-## (A texture is still decoded as sRGB, which Blender's non-colour image is not; see the plan doc.)
-func _material(name: String, assets_dir: String) -> StandardMaterial3D:
+## world metres and tinted. Blender renders with its raw view transform, so a stored colour is the
+## value shown on screen; Godot decodes an albedo colour from sRGB and tone maps, so the stored
+## colour is used as an sRGB colour, as the ground shader and the textures already do.
+func _material(name: String, assets_dir: String, tint_override: Array = []) -> StandardMaterial3D:
 	var spec: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(assets_dir.path_join("materials/%s.json" % name)))
 	var mat := StandardMaterial3D.new()
 	mat.roughness = spec.get("roughness", 0.8)
@@ -289,11 +305,11 @@ func _material(name: String, assets_dir: String) -> StandardMaterial3D:
 		mat.uv1_world_triplanar = true
 		mat.uv1_triplanar_sharpness = 4.0
 		mat.uv1_scale = Vector3.ONE / float(spec["scale_m"])
-		var tint: Array = spec["tint"]
-		mat.albedo_color = Color(tint[0], tint[1], tint[2]).linear_to_srgb()
+		var tint: Array = tint_override if not tint_override.is_empty() else spec["tint"]
+		mat.albedo_color = Color(tint[0], tint[1], tint[2])
 	else:
 		var c: Array = spec["color"]
-		mat.albedo_color = Color(c[0], c[1], c[2]).linear_to_srgb()
+		mat.albedo_color = Color(c[0], c[1], c[2])
 	return mat
 
 
@@ -393,3 +409,91 @@ func _build_poles() -> void:
 		colours.append(POLE)
 	_multimesh("Poles", box, parts, colours)
 	stats["poles"] = scene["poles"].size()
+
+
+## One mesh from the packed arrays Blender builds from (`<prefix>_vertices.npy`, `_faces.npy` for
+## triangles and `_face_material.npy`), with a surface per material. `materials` is the scene's list
+## of [name, colour, roughness, metallic]; `textured` maps a name to [base material, tint] for the
+## plastered walls. Like Blender, every vertex is lifted onto the ground under it. Faces are flat
+## shaded (the parts are boxes and ribbons), emitted reversed for Godot's clockwise front faces.
+func _build_packed(dir: String, assets_dir: String, prefix: String, node_name: String, materials: Array, textured: Dictionary = {}, double_sided := false) -> void:
+	var co: PackedFloat32Array = Npy.read(dir.path_join(prefix + "_vertices.npy"))["data"]
+	var tri: PackedInt32Array = Npy.read(dir.path_join(prefix + "_faces.npy"))["data"]
+	var face_mat: PackedInt32Array = Npy.read(dir.path_join(prefix + "_face_material.npy"))["data"]
+	if tri.is_empty():
+		return
+	var pts := PackedVector3Array()
+	pts.resize(co.size() / 3)
+	for v in pts.size():
+		var x := co[v * 3]
+		var y := co[v * 3 + 1]
+		pts[v] = Vector3(x, co[v * 3 + 2] + height_at(x, y), -y)
+	var groups := {}  # material index -> {"v", "n"}
+	for f in tri.size() / 3:
+		var a := pts[tri[f * 3]]
+		var b := pts[tri[f * 3 + 1]]
+		var c := pts[tri[f * 3 + 2]]
+		var n := (b - a).cross(c - a).normalized()
+		var g: Dictionary = groups.get(face_mat[f], {})
+		if g.is_empty():
+			g = {"v": PackedVector3Array(), "n": PackedVector3Array()}
+			groups[face_mat[f]] = g
+		g["v"].append_array(PackedVector3Array([a, c, b]))
+		g["n"].append_array(PackedVector3Array([n, n, n]))
+	var keys := groups.keys()
+	keys.sort()
+	var chunks := 0
+	for start in range(0, keys.size(), MAX_SURFACES):  # a mesh holds at most 256 surfaces
+		var mesh := ArrayMesh.new()
+		for key in keys.slice(start, start + MAX_SURFACES):
+			var g: Dictionary = groups[key]
+			var arrays := []
+			arrays.resize(Mesh.ARRAY_MAX)
+			arrays[Mesh.ARRAY_VERTEX] = g["v"]
+			arrays[Mesh.ARRAY_NORMAL] = g["n"]
+			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+			var m: Array = materials[key]
+			var mat: StandardMaterial3D
+			if textured.has(m[0]):
+				mat = _material(textured[m[0]][0], assets_dir, textured[m[0]][1])
+			else:
+				mat = StandardMaterial3D.new()
+				mat.albedo_color = Color(m[1][0], m[1][1], m[1][2])  # display values, like the ground
+				mat.roughness = m[2]
+				mat.metallic = m[3]
+			if double_sided:
+				mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+			mesh.surface_set_material(mesh.get_surface_count() - 1, mat)
+		var node := MeshInstance3D.new()
+		node.name = node_name if chunks == 0 else "%s%d" % [node_name, chunks + 1]
+		node.mesh = mesh
+		add_child(node)
+		chunks += 1
+	stats[prefix + "_triangles"] = tri.size() / 3
+
+
+## The cars parked along the road (`scene["vehicles"]`: x, y, heading, colour): a body and a glass
+## cabin, as boxes, like the Blender scene's before it swaps them for moving traffic.
+func _build_parked_cars() -> void:
+	var cars: Array = scene.get("vehicles", [])
+	var box := BoxMesh.new()
+	box.size = Vector3.ONE
+	var bodies: Array[Transform3D] = []
+	var body_colours := PackedColorArray()
+	var cabins: Array[Transform3D] = []
+	var cabin_colours := PackedColorArray()
+	for car in cars:
+		var x: float = car[0]
+		var y: float = car[1]
+		var heading: float = car[2]
+		var basis := Basis(Vector3.UP, heading)
+		var ground := height_at(x, y)
+		var centre := Vector3(x, ground, -y)
+		var back: Vector3 = basis * Vector3(-0.2, 0.0, 0.0)
+		bodies.append(Transform3D(basis * Basis.from_scale(Vector3(4.5, 0.75, 1.9)), centre + Vector3(0, 0.625, 0)))
+		body_colours.append(CAR_BODY[int(car[3]) % CAR_BODY.size()])
+		cabins.append(Transform3D(basis * Basis.from_scale(Vector3(2.4, 0.5, 1.7)), centre + back + Vector3(0, 1.25, 0)))
+		cabin_colours.append(Color(0.05, 0.07, 0.1))
+	_multimesh("ParkedCars", box, bodies, body_colours)
+	_multimesh("ParkedCabins", box, cabins, cabin_colours)
+	stats["parked_cars"] = cars.size()
