@@ -489,17 +489,22 @@ def keep_clear_of(
     """
     if len(posts) == 0 or len(tracks.ids) == 0:
         return tracks
-    from scipy.spatial import cKDTree
-
-    tree = cKDTree(posts[:, :2])
+    tree = STRtree(shapely.points(posts[:, :2]))
     x, y = tracks.x.copy(), tracks.y.copy()
     limit = float(posts[:, 2].max()) + radius_m + reach_m
     for _ in range(2):  # a second pass catches a push that ended in the next post
         pts = np.stack([x.ravel(), y.ravel()], axis=1)
-        dist, idx = tree.query(pts, distance_upper_bound=limit)
-        near = np.isfinite(dist)
+        found, dist = tree.query_nearest(
+            shapely.points(pts), max_distance=limit, return_distance=True, all_matches=False
+        )
+        idx = np.zeros(len(pts), dtype=int)
+        idx[found[0]] = found[1]
+        near = np.zeros(len(pts), dtype=bool)
+        near[found[0]] = True
+        gap = np.full(len(pts), np.inf)
+        gap[found[0]] = dist
         hit = np.zeros(len(pts), dtype=bool)
-        hit[near] = dist[near] < posts[idx[near], 2] + radius_m
+        hit[near] = gap[near] < posts[idx[near], 2] + radius_m
         if not hit.any():
             break
         centre = posts[idx[hit], :2]

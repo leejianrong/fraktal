@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,15 @@ def test_a_biome_without_a_style_gets_no_marks() -> None:
     assert markings.build([_road(0, 0, 100, 0, 10)], NONE, "dense_urban") == []
 
 
+@pytest.fixture(autouse=True)
+def _bare_manila(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Manila-Quezon without its pavement strip: these tests look at the kerb and road alone."""
+    if "export" in request.node.name:
+        return
+    style = markings.STYLES["manila_quezon"]
+    monkeypatch.setitem(markings.STYLES, "manila_quezon", replace(style, pavement_m=0.0))
+
+
 def test_a_local_street_gets_a_dashed_centre_and_kerbs_on_both_sides() -> None:
     parts = markings.build([_road(0, 0, 100, 0, 10)], NONE, "manila_quezon")
     assert _count(parts, "line-white") == int((100 - markings.DASH_M) // markings.PERIOD_M) + 1
@@ -36,7 +46,9 @@ def test_a_local_street_gets_a_dashed_centre_and_kerbs_on_both_sides() -> None:
     assert min(kerb_y) < -5 and max(kerb_y) > 5  # a kerb at plus and minus half the width
     assert all(top == markings.KERB_HEIGHT_M for _, _, top, m in parts if m == "kerb")
     assert all(top == markings.PAINT_M for _, _, top, m in parts if m == "line-white")
-    assert _count(parts, "pavement") == 0  # Manila-Quezon: kerbs, no raised pavement
+    assert _count(parts, "pavement") == 0  # no raised pavement without a strip
+    walked = markings.build([_road(0, 0, 100, 0, 10)], NONE, "khartoum_city")
+    assert _count(walked, "pavement") > 0  # the pilot cities have one for people to walk on
 
 
 def test_a_wide_arterial_gets_lane_lines_and_a_solid_yellow_centre() -> None:
@@ -113,8 +125,8 @@ def test_a_city_export_writes_the_marks_inside_the_tile_and_other_biomes_none(
     verts = np.load(tmp_path / "a" / "markings_vertices.npy")
     assert len(verts) == 8 * scene["markings"]["parts"]
     assert (
-        markings.KERB_HEIGHT_M <= verts[:, 2].max() <= markings.KERB_HEIGHT_M + 0.01
-    )  # wear on top of it
+        markings.KERB_HEIGHT_M <= verts[:, 2].max() <= markings.KERB_HEIGHT_M + 0.07
+    )  # wear on top of a kerb or pavement, and weeds up to a few centimetres
     margin = 10.0 + 13.0  # the clip margin and half the widest road
     assert verts[:, :2].min() >= -margin and verts[:, :2].max() <= 300.0 + margin
     wires = scene["cables"][
