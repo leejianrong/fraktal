@@ -259,3 +259,18 @@ def test_wall_textures_can_be_switched_off(tmp_path: Path) -> None:
     off = export_scene(world, tmp_path / "off", CENTER, 200.0, 1.0, wall_textures=False)
     assert on["wall_textures"] and off["wall_textures"] is None
     assert on["walls"] == off["walls"]  # only the look changes, not the geometry
+
+
+def test_beauty_only_objects_are_hidden_in_the_label_and_depth_passes() -> None:
+    """The haze box and the cloud plane (FRK-168) smeared every label until the passes hid them: any
+    object that is not in LOOK_OBJECTS or AGENTS and is made for the beauty pass must be listed."""
+    from pathlib import Path
+
+    source = (Path(__file__).parents[2] / "src/fraktal/blender_scene.py").read_text()
+    hidden = source.split("LOOK_HIDDEN = (")[1].split(")")[0]
+    for name in ("haze", "clouds"):
+        assert f'"{name}"' in hidden, name
+        assert f'box.name = "{name}"' in source or f'plane.name = "{name}"' in source, name
+    assert (
+        source.count("    hide_beauty_only_objects()\n") == 2
+    )  # the label look and the depth look
