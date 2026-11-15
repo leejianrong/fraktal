@@ -1281,7 +1281,10 @@ def main() -> int:
     cycles.render.engine = "CYCLES"
     cycles.cycles.device = "GPU" if use_gpu(a.device) else "CPU"
     cycles.cycles.samples = a.samples
-    cycles.cycles.use_denoising = False
+    # At 32 samples every eye-level wall shows coloured Monte-Carlo grain (FRK-166); denoise the
+    # beauty pass. Labels and depth are separate passes with their own settings.
+    cycles.cycles.use_denoising = bool(camera_data.get("eye_level"))
+    cycles.cycles.denoiser = "OPENIMAGEDENOISE"
     if a.threads:
         cycles.render.threads_mode = "FIXED"
         cycles.render.threads = a.threads
