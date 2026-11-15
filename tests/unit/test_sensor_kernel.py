@@ -67,3 +67,37 @@ def test_lens_effects_golden_output() -> None:
 
     out = lens_effects(_picture(), vignette=0.3, ca_px=1.2, jpeg_quality=70)
     assert hashlib.sha256(out.tobytes()).hexdigest()[:16] == "5692cd3ec8aa09cf"
+
+
+def test_exposure_and_noise_are_neutral_at_zero_and_move_the_image() -> None:
+    from fraktal.kernels.sensor import add_sensor_noise, expose
+
+    img = _picture()
+    assert np.array_equal(expose(img, 0.0, 0.0), img)
+    assert expose(img, 1.0, 0.0).mean() > img.mean() > expose(img, -1.0, 0.0).mean()
+    soft = expose(np.full((3, 4, 4), 250, dtype="uint8"), 1.0, 0.5)
+    assert (
+        soft.max() <= 255 and soft.min() > 200
+    )  # the shoulder keeps highlights from clipping flat
+    assert np.array_equal(add_sensor_noise(img, 0, 0, substream(0, "n")), img)
+    noisy = add_sensor_noise(img, 2.0, 0.3, substream(0, "n"))
+    assert np.array_equal(noisy, add_sensor_noise(img, 2.0, 0.3, substream(0, "n")))
+    assert not np.array_equal(noisy, img)
+
+
+def test_bonnet_covers_the_bottom_and_nothing_above_it() -> None:
+    from fraktal.kernels.sensor import bonnet
+
+    rgb, mask = bonnet(100, 160, 0.15, 0.1, (1.0, 1.0, 1.0))
+    assert rgb.shape == (3, 100, 160) and mask.shape == (100, 160)
+    assert not mask[:80].any() and mask[-1].all()
+    assert 0.10 < mask.mean() < 0.17
+
+
+def test_desaturate_goes_to_grey_and_is_neutral_at_one() -> None:
+    from fraktal.kernels.sensor import desaturate
+
+    img = _picture()
+    assert np.array_equal(desaturate(img, 1.0), img)
+    grey = desaturate(img, 0.0).astype("int16")
+    assert np.abs(grey[0] - grey[1]).max() <= 1 and np.abs(grey[1] - grey[2]).max() <= 1

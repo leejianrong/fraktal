@@ -101,6 +101,11 @@ Locally (WSL, Windows Blender on the GPU, about 45 seconds a city), with `PATH=$
 .venv/bin/python scripts/local/city_strips.py <tag> manila_quezon nairobi_centre khartoum_city
 ```
 
+`--eye-sensor phone|dashcam` (FRK-165) runs the camera chain over the frames: exposure and highlight shoulder,
+softness, fringe, vignette, shot and read noise, JPEG loss, and for `dashcam` a bonnet with the labels blanked under
+it. The raw frames stay in `frames_raw/`, the rig in `eye_sensor.json`. It is off by default; compare chain-on strips
+with chain-on photos stats only (it moves brightness, contrast and edge energy).
+
 `--override '{"buildings": {"front_setback_m": 6}}'` tries biome settings without editing `biomes.py`. It writes the same
 `data/review/street<tag>_<biome>/out/review/fly/frames` layout and a `commit.txt` per city
 (HEAD, and "dirty" if the tree had changes), so the `fraktal streets` line above works unchanged. Pod and local

@@ -260,6 +260,7 @@ def render(
     with_flow: bool = False,
     traffic: dict[str, Any] | None = None,
     follow: dict[str, Any] | None = None,
+    eye_sensor: str | None = None,
 ) -> dict[str, Any]:
     """Export the tile, render it in Blender, write the contract files, return ``render.json``."""
     with_depth = with_depth or with_flow  # flow is computed from depth
@@ -384,6 +385,11 @@ def render(
             with rasterio.open(out_dir / "labels.tif", "w", **profile) as dst:
                 dst.write(code)
     extra: dict[str, Any] = {}
+    if eye_sensor and poses:  # phone or dashcam camera (FRK-165); before tracks read the labels
+        from fraktal import eyesensor
+
+        extra["eye_sensor"] = eyesensor.apply(out_dir, seed, dashcam=eye_sensor == "dashcam")
+        emit("render3d_eye_sensor", mode=eye_sensor, frames=len(poses))
     parked = len(scene["vehicles"])
     if moving is not None:
         extra["traffic"] = {
