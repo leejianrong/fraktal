@@ -39,6 +39,13 @@ MATERIALS: dict[str, tuple[tuple[float, float, float], float, float]] = {
     "road-polish": ((0.35, 0.35, 0.35), 0.8, 0.0),  # tyre tracks worn smooth
     "road-crack": ((0.11, 0.11, 0.11), 0.95, 0.0),
     "manhole": ((0.19, 0.19, 0.19), 0.5, 0.0),
+    # Kerb and pavement wear (FRK-175), set against the kerb (0.58) and pavement (0.50, 0.46, 0.42).
+    "kerb-grime": ((0.22, 0.20, 0.18), 0.95, 0.0),  # road dirt up the face of a kerb
+    "kerb-scuff": ((0.74, 0.72, 0.66), 0.9, 0.0),  # paint and concrete scraped bright on top
+    "pavement-stain": ((0.34, 0.31, 0.28), 0.95, 0.0),
+    "pavement-crack": ((0.12, 0.11, 0.10), 0.95, 0.0),
+    "pavement-hole": ((0.20, 0.18, 0.16), 0.95, 0.0),  # a missing paver
+    "weed": ((0.22, 0.38, 0.12), 0.9, 0.0),
 }
 LINE_M = 0.15  # width of a painted line
 PAINT_M = 0.015  # paint stands this high above the road
@@ -70,6 +77,9 @@ WEAR_TOP_M = 0.004  # wear lies under the paint (PAINT_M) and is staggered so ov
 TRACK_OFFSET_M, TRACK_WIDTH_M, TRACK_STEP_M = 0.85, 0.65, 3.0
 PATCH_EVERY_M, MANHOLE_EVERY_M, CRACK_EVERY_M = 25.0, 70.0, 30.0
 GUTTER_M = 0.4  # grime on the road beside a kerb
+KERB_GRIME_M = 0.03  # thickness of the dirt on a kerb's road-side face
+PAVEMENT_STAIN_EVERY_M, PAVEMENT_CRACK_EVERY_M, PAVEMENT_HOLE_EVERY_M = 6.0, 9.0, 14.0
+WEED_EVERY_M = 3.0
 
 
 @dataclass(frozen=True)
@@ -212,11 +222,15 @@ def _wear(
     parts: list[Part] = []
     count = 0
 
-    def add(quad: list[tuple[float, float]], material: str, zone: Any = keep_out) -> None:
+    def add(
+        quad: list[tuple[float, float]], material: str, zone: Any = keep_out, base: float = 0.0,
+        height: float | None = None,
+    ) -> None:  # fmt: skip
         nonlocal count
         if _cut(quad, zone) or _cut(quad, junction_zone):
             return
-        parts.append((quad, 0.0, WEAR_TOP_M + 0.0005 * (count % 6), material))
+        top = base + (WEAR_TOP_M if height is None else height) + 0.0005 * (count % 6)
+        parts.append((quad, base, top, material))
         count += 1
 
     for lane in (-half / 2.0, half / 2.0):  # two lanes, tracks under the wheels, oil between
@@ -269,7 +283,71 @@ def _wear(
             mx, my = (px + nx) / 2.0, (py + ny) / 2.0
             add(_rect(mx, my, seg / 2.0 + 0.02, 0.02, heading), "road-crack")
             px, py = nx, ny
+    if style.kerb:
+        _edge_wear(ln, half, style, rng, add)
     return parts
+
+
+def _edge_wear(ln: LineString, half: float, style: Style, rng: Any, add: Any) -> None:
+    """Wear on the kerb and pavement of one road: dirt up the kerb face, scuffs on its top and,
+    where there is a raised pavement, stains, cracks, missing pavers and weeds in the joint."""
+    length = ln.length
+    for side in (-1.0, 1.0):
+        s = 0.0
+        while s + STEP_M <= length:  # the road-side face of the kerb and its top, piece by piece
+            if rng.uniform() < 0.7:
+                face = _quad(ln, s, s + STEP_M, side * (half - KERB_GRIME_M), side * half)
+                add(face, "kerb-grime", base=0.0, height=KERB_HEIGHT_M)
+            if rng.uniform() < 0.35:
+                a = s + float(rng.uniform(0.0, STEP_M * 0.5))
+                b = a + float(rng.uniform(0.4, 1.0))
+                top = _quad(
+                    ln, a, min(b, s + STEP_M), side * (half + 0.03), side * (half + KERB_M - 0.03)
+                )
+                add(top, "kerb-scuff", base=KERB_HEIGHT_M)
+            s += STEP_M
+        if style.pavement_m <= 0:
+            continue
+        near, far = half + KERB_M, half + KERB_M + style.pavement_m
+        for _ in range(int(rng.poisson(length / PAVEMENT_STAIN_EVERY_M))):  # stains
+            s0 = float(rng.uniform(0, max(length - 2.0, 0.1)))
+            w0 = float(rng.uniform(near + 0.1, far - 0.7))
+            w1 = min(w0 + float(rng.uniform(0.4, 1.4)), far - 0.05)  # never past the pavement edge
+            patch = _quad(ln, s0, s0 + float(rng.uniform(0.6, 2.2)), side * w0, side * w1)
+            add(patch, "pavement-stain", base=KERB_HEIGHT_M)
+        for _ in range(int(rng.poisson(length / PAVEMENT_HOLE_EVERY_M))):  # a missing paver
+            s0 = float(rng.uniform(0, max(length - 1.0, 0.1)))
+            w0 = float(rng.uniform(near + 0.1, far - 0.5))
+            add(
+                _quad(ln, s0, s0 + 0.2, side * w0, side * (w0 + 0.2)),
+                "pavement-hole",
+                base=KERB_HEIGHT_M,
+            )
+        for _ in range(
+            int(rng.poisson(length / PAVEMENT_CRACK_EVERY_M))
+        ):  # a crack across the joints
+            s0 = float(rng.uniform(0, max(length - 2.5, 0.1)))
+            w0 = float(rng.uniform(near + 0.1, far - 0.1))
+            for _step in range(int(rng.integers(4, 9))):
+                ds, dw = float(rng.uniform(0.1, 0.4)), float(rng.normal(0.0, 0.15))
+                w1 = min(max(w0 + dw, near + 0.05), far - 0.05)
+                add(
+                    _quad(ln, s0, s0 + ds, side * min(w0, w1), side * (max(w0, w1) + 0.03)),
+                    "pavement-crack",
+                    base=KERB_HEIGHT_M,
+                )
+                s0, w0 = s0 + ds, w1
+        for _ in range(
+            int(rng.poisson(length / WEED_EVERY_M))
+        ):  # weeds where the pavement meets the kerb
+            s0 = float(rng.uniform(0, max(length - 0.3, 0.1)))
+            w0 = near + float(rng.uniform(0.0, 0.15))
+            add(
+                _quad(ln, s0, s0 + float(rng.uniform(0.1, 0.3)), side * w0, side * (w0 + 0.12)),
+                "weed",
+                base=KERB_HEIGHT_M,
+                height=0.06,
+            )
 
 
 def _zebras(

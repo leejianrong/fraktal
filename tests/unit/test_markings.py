@@ -112,7 +112,9 @@ def test_a_city_export_writes_the_marks_inside_the_tile_and_other_biomes_none(
     )
     verts = np.load(tmp_path / "a" / "markings_vertices.npy")
     assert len(verts) == 8 * scene["markings"]["parts"]
-    assert verts[:, 2].max() == pytest.approx(markings.KERB_HEIGHT_M)
+    assert (
+        markings.KERB_HEIGHT_M <= verts[:, 2].max() <= markings.KERB_HEIGHT_M + 0.01
+    )  # wear on top of it
     margin = 10.0 + 13.0  # the clip margin and half the widest road
     assert verts[:, :2].min() >= -margin and verts[:, :2].max() <= 300.0 + margin
     wires = scene["cables"][
@@ -129,7 +131,10 @@ def test_a_city_export_writes_the_marks_inside_the_tile_and_other_biomes_none(
     assert other["markings"]["parts"] == 0 and other["cables"]["wires"] == 0
 
 
-WEAR = {"road-patch", "road-patch-pale", "road-stain", "road-polish", "road-crack", "manhole"}
+ROAD_WEAR = {"road-patch", "road-patch-pale", "road-stain", "road-polish", "road-crack", "manhole"}
+EDGE_WEAR = {"kerb-grime", "kerb-scuff"}
+PAVEMENT_WEAR = {"pavement-stain", "pavement-crack", "pavement-hole", "weed"}
+WEAR = ROAD_WEAR | EDGE_WEAR | PAVEMENT_WEAR
 
 
 def _worn(seed: int | None) -> list[markings.Part]:
@@ -143,8 +148,8 @@ def test_wear_is_off_without_a_seed() -> None:
 def test_a_seeded_road_gets_every_kind_of_wear_and_it_stays_under_the_paint() -> None:
     parts = _worn(7)
     kinds = {m for _, _, _, m in parts if m in WEAR}
-    assert kinds == WEAR
-    assert all(top < markings.PAINT_M for _, _, top, m in parts if m in WEAR)
+    assert kinds == ROAD_WEAR | EDGE_WEAR  # Manila-Quezon has kerbs and no raised pavement
+    assert all(top < markings.PAINT_M for _, _, top, m in parts if m in ROAD_WEAR)
     marks = [p for p in parts if p[3] not in WEAR]
     assert marks == _worn(None)  # the marks and kerbs are exactly what they were
 
@@ -155,7 +160,7 @@ def test_wear_is_deterministic_and_changes_with_the_seed() -> None:
 
 
 def test_wear_stays_on_the_carriageway_and_out_of_buildings() -> None:
-    ys = [y for q, _, _, m in _worn(7) if m in WEAR for _, y in q]
+    ys = [y for q, _, _, m in _worn(7) if m in ROAD_WEAR for _, y in q]
     assert max(ys) <= 5.0 + 0.1 and min(ys) >= -5.0 - 0.1  # within half the road width
     ring = [(100.0, -20.0), (160.0, -20.0), (160.0, 20.0), (100.0, 20.0), (100.0, -20.0)]
     blocked = markings.build(
@@ -163,3 +168,36 @@ def test_wear_stays_on_the_carriageway_and_out_of_buildings() -> None:
     )
     inside = [q for q, _, _, m in blocked if m in WEAR and 100 < _centre(q)[0] < 160]
     assert inside == []
+
+
+def _nairobi(seed: int | None) -> list[markings.Part]:
+    return markings.build([_road(0, 0, 300, 0, 10)], NONE, "nairobi_centre", seed)
+
+
+def test_a_raised_pavement_gets_stains_cracks_missing_pavers_and_weeds() -> None:
+    parts = _nairobi(7)
+    kinds = {m for _, _, _, m in parts if m in WEAR}
+    assert kinds == WEAR  # every kind, on a biome with kerbs and a raised pavement
+    for quad, base, top, m in parts:
+        if m in PAVEMENT_WEAR:
+            assert base == markings.KERB_HEIGHT_M and top > base  # lying on top of the pavement
+            assert top - base < 0.07  # a weed is the tallest, at 6 cm
+            ys = [abs(y) for _, y in quad]  # inside the pavement band, beyond the kerb
+            assert min(ys) >= 5.0 + markings.KERB_M - 0.01 and max(ys) <= 5.0 + 0.2 + 2.5 + 0.05
+    marks = [p for p in parts if p[3] not in WEAR]
+    assert marks == _nairobi(None)  # kerbs, pavements and paint are what they were
+
+
+def test_kerb_wear_sits_on_the_kerb_and_is_seeded() -> None:
+    parts = _worn(7)
+    for quad, base, top, m in parts:
+        if m == "kerb-grime":
+            assert base == 0.0 and top >= markings.KERB_HEIGHT_M  # up the face
+            assert all(4.9 <= abs(y) <= 5.01 for _, y in quad)  # the road side of the kerb
+        if m == "kerb-scuff":
+            assert base == markings.KERB_HEIGHT_M  # on the kerb's top
+            assert all(5.0 < abs(y) < 5.0 + markings.KERB_M for _, y in quad)
+    assert _nairobi(7) == _nairobi(7) and _nairobi(7) != _nairobi(8)
+    assert not any(
+        m in EDGE_WEAR | PAVEMENT_WEAR for _, _, _, m in _worn(None)
+    )  # off without a seed
