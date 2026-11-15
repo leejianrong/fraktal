@@ -486,6 +486,7 @@ def export_scene(
         _marking_roads(roads, west, south, side * gsd_m),
         camera.obstacles(buildings, [g for c in walls for g in c["segments"]]),
         biome,
+        seed,
     )
     packed_marks = markings.pack(surface_parts)
     for key in ("vertices", "faces", "face_material", "face_owner"):

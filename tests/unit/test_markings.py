@@ -107,7 +107,9 @@ def test_a_city_export_writes_the_marks_inside_the_tile_and_other_biomes_none(
     manila = tmp_path / "m"
     generate_world(manila, centre, 3, biomes.resolve("manila_quezon", {"size_m": 1000.0}))
     scene = export_scene(manila, tmp_path / "a", centre, 300.0, 1.0)
-    assert scene["markings"]["parts"] > 100 and len(scene["markings"]["materials"]) == 4
+    assert scene["markings"]["parts"] > 100 and len(scene["markings"]["materials"]) == len(
+        markings.MATERIALS
+    )
     verts = np.load(tmp_path / "a" / "markings_vertices.npy")
     assert len(verts) == 8 * scene["markings"]["parts"]
     assert verts[:, 2].max() == pytest.approx(markings.KERB_HEIGHT_M)
@@ -125,3 +127,39 @@ def test_a_city_export_writes_the_marks_inside_the_tile_and_other_biomes_none(
     generate_world(plain, centre, 3, biomes.resolve("dense_urban", {"size_m": 1000.0}))
     other = export_scene(plain, tmp_path / "c", centre, 300.0, 1.0)
     assert other["markings"]["parts"] == 0 and other["cables"]["wires"] == 0
+
+
+WEAR = {"road-patch", "road-patch-pale", "road-stain", "road-polish", "road-crack", "manhole"}
+
+
+def _worn(seed: int | None) -> list[markings.Part]:
+    return markings.build([_road(0, 0, 300, 0, 10)], NONE, "manila_quezon", seed)
+
+
+def test_wear_is_off_without_a_seed() -> None:
+    assert not any(m in WEAR for _, _, _, m in _worn(None))
+
+
+def test_a_seeded_road_gets_every_kind_of_wear_and_it_stays_under_the_paint() -> None:
+    parts = _worn(7)
+    kinds = {m for _, _, _, m in parts if m in WEAR}
+    assert kinds == WEAR
+    assert all(top < markings.PAINT_M for _, _, top, m in parts if m in WEAR)
+    marks = [p for p in parts if p[3] not in WEAR]
+    assert marks == _worn(None)  # the marks and kerbs are exactly what they were
+
+
+def test_wear_is_deterministic_and_changes_with_the_seed() -> None:
+    assert _worn(7) == _worn(7)
+    assert _worn(7) != _worn(8)
+
+
+def test_wear_stays_on_the_carriageway_and_out_of_buildings() -> None:
+    ys = [y for q, _, _, m in _worn(7) if m in WEAR for _, y in q]
+    assert max(ys) <= 5.0 + 0.1 and min(ys) >= -5.0 - 0.1  # within half the road width
+    ring = [(100.0, -20.0), (160.0, -20.0), (160.0, 20.0), (100.0, 20.0), (100.0, -20.0)]
+    blocked = markings.build(
+        [_road(0, 0, 300, 0, 10)], camera.obstacles([{"ring": ring}], []), "manila_quezon", 7
+    )
+    inside = [q for q, _, _, m in blocked if m in WEAR and 100 < _centre(q)[0] < 160]
+    assert inside == []

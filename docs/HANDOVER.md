@@ -109,6 +109,11 @@ with chain-on photos stats only (it moves brightness, contrast and edge energy).
 Eye-level beauty frames are denoised (OpenImageDenoise, FRK-166): at 32 samples the walls otherwise show coloured grain.
 Labels and depth are separate passes and are unchanged. Aerial renders are not denoised.
 
+Road wear and wall grime (FRK-167): `markings.build(..., seed)` adds tyre tracks, oil, patches, manholes, cracks and gutter
+grime as flat parts under the paint, labelled ground like the marks. Textured `wall-*` materials get base grime and rain
+streaks in the shader (`add_wall_wear`). Both are procedural, so there are no new assets. About 0.003% of label pixels
+(wheel and foot contact) flip from vehicle or person to ground under the 4 mm wear boxes.
+
 `--override '{"buildings": {"front_setback_m": 6}}'` tries biome settings without editing `biomes.py`. It writes the same
 `data/review/street<tag>_<biome>/out/review/fly/frames` layout and a `commit.txt` per city
 (HEAD, and "dirty" if the tree had changes), so the `fraktal streets` line above works unchanged. Pod and local

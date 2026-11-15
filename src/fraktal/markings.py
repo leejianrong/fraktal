@@ -23,6 +23,8 @@ import shapely
 from shapely.geometry import LineString, Point
 from shapely.ops import unary_union
 
+from fraktal.ids import substream
+
 Array = np.ndarray[Any, Any]
 
 MATERIALS: dict[str, tuple[tuple[float, float, float], float, float]] = {
@@ -30,6 +32,13 @@ MATERIALS: dict[str, tuple[tuple[float, float, float], float, float]] = {
     "line-yellow": ((0.78, 0.62, 0.10), 0.7, 0.0),
     "kerb": ((0.58, 0.56, 0.53), 0.9, 0.0),
     "pavement": ((0.50, 0.46, 0.42), 0.95, 0.0),
+    # Road wear (FRK-167), set against the asphalt grey of ground_soil.SEALED_LOCAL_RGB (0.33).
+    "road-patch": ((0.21, 0.21, 0.22), 0.9, 0.0),  # a fresh dark patch over a trench
+    "road-patch-pale": ((0.41, 0.40, 0.38), 0.95, 0.0),  # an old sun-bleached one
+    "road-stain": ((0.24, 0.24, 0.24), 0.8, 0.0),  # oil, and the grime along a gutter
+    "road-polish": ((0.35, 0.35, 0.35), 0.8, 0.0),  # tyre tracks worn smooth
+    "road-crack": ((0.11, 0.11, 0.11), 0.95, 0.0),
+    "manhole": ((0.19, 0.19, 0.19), 0.5, 0.0),
 }
 LINE_M = 0.15  # width of a painted line
 PAINT_M = 0.015  # paint stands this high above the road
@@ -56,6 +65,11 @@ STYLES: dict[str, Style] = {
 }
 
 Part = tuple[list[tuple[float, float]], float, float, str]  # quad, base z, top z, material
+
+WEAR_TOP_M = 0.004  # wear lies under the paint (PAINT_M) and is staggered so overlaps do not fight
+TRACK_OFFSET_M, TRACK_WIDTH_M, TRACK_STEP_M = 0.85, 0.65, 3.0
+PATCH_EVERY_M, MANHOLE_EVERY_M, CRACK_EVERY_M = 25.0, 70.0, 30.0
+GUTTER_M = 0.4  # grime on the road beside a kerb
 
 
 @dataclass(frozen=True)
@@ -95,10 +109,14 @@ def _cut(quad: list[tuple[float, float]], zone: Any) -> bool:
     return bool(zone is not None and not zone.is_empty and zone.contains(Point(cx, cy)))
 
 
-def build(roads: Sequence[RoadLine], hazards: Any, biome: str) -> list[Part]:
+def build(
+    roads: Sequence[RoadLine], hazards: Any, biome: str, seed: int | None = None
+) -> list[Part]:
     """Marks and raised edges for ``roads`` in a biome with a ``STYLES`` entry, else none.
 
     ``hazards`` is a shapely geometry (building footprints, walls) that raised edges keep out of.
+    With a ``seed`` the road also gets wear (patches, cracks, stains, manholes, tyre tracks),
+    drawn from the world seed so the same world wears the same way.
     """
     style = STYLES.get(biome)
     if style is None:
@@ -156,8 +174,101 @@ def build(roads: Sequence[RoadLine], hazards: Any, biome: str) -> list[Part]:
                     if not _cut(q, keep_out):
                         parts.append((q, 0.0, KERB_HEIGHT_M, material))
                     s += STEP_M
+        if seed is not None:
+            parts += _wear(ln, r, style, keep_out, junction_zone, seed, i)
     if style.zebra:
         parts += _zebras(paved, lines, carriage)
+    return parts
+
+
+def _rect(
+    x: float, y: float, half_along: float, half_across: float, angle: float
+) -> list[tuple[float, float]]:
+    """A rectangle centred on (x, y), its long side along ``angle`` radians."""
+    c, s = math.cos(angle), math.sin(angle)
+    return [
+        (x + c * a - s * b, y + s * a + c * b)
+        for a, b in (
+            (-half_along, -half_across),
+            (half_along, -half_across),
+            (half_along, half_across),
+            (-half_along, half_across),
+        )
+    ]
+
+
+def _wear(
+    ln: LineString,
+    road: RoadLine,
+    style: Style,
+    keep_out: Any,
+    junction_zone: Any,
+    seed: int,
+    index: int,
+) -> list[Part]:
+    """Wear on one carriageway: tyre tracks and oil, patches, manholes, cracks and gutter grime."""
+    rng = substream(seed, f"road-wear:{index}")
+    half, length = road.width_m / 2.0, ln.length
+    parts: list[Part] = []
+    count = 0
+
+    def add(quad: list[tuple[float, float]], material: str, zone: Any = keep_out) -> None:
+        nonlocal count
+        if _cut(quad, zone) or _cut(quad, junction_zone):
+            return
+        parts.append((quad, 0.0, WEAR_TOP_M + 0.0005 * (count % 6), material))
+        count += 1
+
+    for lane in (-half / 2.0, half / 2.0):  # two lanes, tracks under the wheels, oil between
+        s = 0.0
+        while s + TRACK_STEP_M <= length:
+            for side in (-1.0, 1.0):
+                if rng.uniform() < 0.9:
+                    c = lane + side * TRACK_OFFSET_M
+                    track = _quad(
+                        ln, s, s + TRACK_STEP_M, c - TRACK_WIDTH_M / 2, c + TRACK_WIDTH_M / 2
+                    )
+                    add(track, "road-polish")
+            if rng.uniform() < 0.4:
+                add(_quad(ln, s, s + TRACK_STEP_M, lane - 0.15, lane + 0.15), "road-stain")
+            s += TRACK_STEP_M
+    if style.kerb:
+        for side in (-1.0, 1.0):
+            s = 0.0
+            while s + STEP_M <= length:
+                if rng.uniform() < 0.8:
+                    add(
+                        _quad(ln, s, s + STEP_M, side * (half - GUTTER_M), side * half),
+                        "road-stain",
+                    )
+                s += STEP_M
+    for _ in range(int(rng.poisson(length / PATCH_EVERY_M))):
+        x, y, tx, ty = _frame(ln, float(rng.uniform(0, length)))
+        off = float(rng.uniform(-half + 1.4, half - 1.4))  # the whole patch stays on the road
+        cx, cy = x - ty * off, y + tx * off
+        pale = rng.uniform() < 0.4
+        add(_rect(cx, cy, float(rng.uniform(0.8, 2.5)), float(rng.uniform(0.4, 1.3)),
+                  math.atan2(ty, tx)), "road-patch-pale" if pale else "road-patch")  # fmt: skip
+    for _ in range(int(rng.poisson(length / MANHOLE_EVERY_M))):
+        x, y, tx, ty = _frame(ln, float(rng.uniform(0, length)))
+        off = float(rng.choice([-half / 2.0, half / 2.0]) + rng.uniform(-0.5, 0.5))
+        cx, cy = x - ty * off, y + tx * off
+        for turn in (0.0, math.pi / 4):  # two squares make an octagon
+            add(_rect(cx, cy, 0.35, 0.35, math.atan2(ty, tx) + turn), "manhole")
+    for _ in range(int(rng.poisson(length / CRACK_EVERY_M))):
+        x, y, tx, ty = _frame(ln, float(rng.uniform(0, length)))
+        off = float(rng.uniform(-half + 0.5, half - 0.5))
+        px, py = x - ty * off, y + tx * off
+        heading = float(rng.uniform(0, 2 * math.pi))
+        for _step in range(int(rng.integers(6, 13))):
+            heading += float(rng.normal(0.0, 0.5))
+            seg = float(rng.uniform(0.4, 0.9))
+            nx, ny = px + seg * math.cos(heading), py + seg * math.sin(heading)
+            if Point(nx, ny).distance(ln) > half - 0.2:  # a crack ends at the road edge
+                break
+            mx, my = (px + nx) / 2.0, (py + ny) / 2.0
+            add(_rect(mx, my, seg / 2.0 + 0.02, 0.02, heading), "road-crack")
+            px, py = nx, ny
     return parts
 
 

@@ -244,6 +244,67 @@ def build_ground(
     plane.data.materials.append(mat)
 
 
+GRIME_HEIGHT_M = 2.0  # walls darken toward the ground over about this height (FRK-167)
+GRIME_DARKEST = 0.4  # share of the colour left at the very base
+STREAK_DARKEST = 0.78  # rain streaks run down a facade this much darker than clean plaster
+
+
+def add_wall_wear(mat, bsdf, base_out) -> None:
+    """Wall-base grime and rain streaks, multiplied over the wall colour.
+
+    Grime: world height from 0 to GRIME_HEIGHT_M maps to GRIME_DARKEST to 1, its edge broken up by
+    noise so it is not a straight line. Streaks: a noise stretched vertically (high frequency
+    across, low along), thresholded to thin dark runs. Both use world position, so the packed
+    building mesh needs no UVs.
+    """
+    nodes, links = mat.node_tree.nodes, mat.node_tree.links
+    where = nodes.new("ShaderNodeNewGeometry")
+    split = nodes.new("ShaderNodeSeparateXYZ")
+    links.new(where.outputs["Position"], split.inputs["Vector"])
+
+    def noise(scale: float, stretch: float = 1.0):
+        mapping = nodes.new("ShaderNodeMapping")
+        mapping.inputs["Scale"].default_value = (scale, scale, scale * stretch)
+        links.new(where.outputs["Position"], mapping.inputs["Vector"])
+        n = nodes.new("ShaderNodeTexNoise")
+        n.inputs["Detail"].default_value = 3.0
+        links.new(mapping.outputs["Vector"], n.inputs["Vector"])
+        return n.outputs["Fac"]
+
+    def math_node(op: str, a, b=None, clamp: bool = False):
+        m = nodes.new("ShaderNodeMath")
+        m.operation, m.use_clamp = op, clamp
+        for i, v in enumerate((a, b)):
+            if v is None:
+                continue
+            if isinstance(v, float):
+                m.inputs[i].default_value = v
+            else:
+                links.new(v, m.inputs[i])
+        return m.outputs["Value"]
+
+    # height plus up to +-0.4 m of noise, over the grime height, as 0 (dirty) to 1 (clean)
+    broken = math_node(
+        "ADD",
+        split.outputs["Z"],
+        math_node("MULTIPLY", math_node("SUBTRACT", noise(1.5), 0.5), 0.8),
+    )
+    clean = math_node("DIVIDE", broken, GRIME_HEIGHT_M, clamp=True)
+    grime = math_node("MULTIPLY", clean, 1.0 - GRIME_DARKEST)
+    grime = math_node("ADD", grime, GRIME_DARKEST)
+    # streaks: thin runs where the stretched noise is high, 1 (clean) down to STREAK_DARKEST
+    run = math_node("SUBTRACT", noise(5.0, 0.08), 0.5)
+    dark = math_node("MULTIPLY", math_node("MULTIPLY", run, 6.0, clamp=True), 1.0 - STREAK_DARKEST)
+    streak = math_node("SUBTRACT", 1.0, dark)
+    gain = math_node("MULTIPLY", grime, streak)
+    mix = nodes.new("ShaderNodeMix")
+    mix.data_type, mix.blend_type = "RGBA", "MULTIPLY"
+    mix.inputs[0].default_value = 1.0
+    links.new(base_out, mix.inputs[6])
+    links.new(gain, mix.inputs[7])
+    links.new(mix.outputs[2], bsdf.inputs["Base Color"])
+
+
 def load_material(name: str, assets: Path, tint: list[float] | None = None):
     """A Blender material from ``assets/materials/<name>.json``: a tinted texture or a colour."""
     spec = json.loads((assets / "materials" / f"{name}.json").read_text())
@@ -275,6 +336,8 @@ def load_material(name: str, assets: Path, tint: list[float] | None = None):
     links.new(mapping.outputs["Vector"], tex.inputs["Vector"])
     links.new(tex.outputs["Color"], tint.inputs[6])
     links.new(tint.outputs[2], bsdf.inputs["Base Color"])
+    if name.startswith("wall-"):  # facades only: grime at the base, rain streaks (FRK-167)
+        add_wall_wear(mat, bsdf, tint.outputs[2])
 
     def data_map(key: str):  # a normal or roughness map: raw numbers, same world-metre mapping
         image = bpy.data.images.load(str(assets / spec[key]))
