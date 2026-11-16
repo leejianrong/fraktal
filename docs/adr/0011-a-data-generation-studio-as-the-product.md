@@ -1,6 +1,6 @@
 # ADR-0011: A data generation studio is the product
 
-- Status: Accepted (2026-11-05, Jian); amends ADR-0007; phase 4 amended by [ADR-0012](0012-blender-is-the-product-renderer-godot-is-a-demo-viewer.md)
+- Status: Accepted (2026-11-05, Jian); amends ADR-0007; "engine stays private" is paused for the launch phase by [ADR-0014](0014-launch-phase-public-and-loud.md); phase 4 amended by [ADR-0012](0012-blender-is-the-product-renderer-godot-is-a-demo-viewer.md)
 - Date: 2026-11-05
 - Deciders: Jian
 
