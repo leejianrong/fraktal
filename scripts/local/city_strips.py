@@ -81,9 +81,13 @@ def main() -> int:
         "--leaf-cards", action=argparse.BooleanOptionalAction, default=None,
         help="leaf cards on tree crowns (default: on for street strips)",
     )  # fmt: skip
-    ap.add_argument("--car-meshes", action="store_true", help="CC0 car models for traffic")
+    ap.add_argument(
+        "--car-meshes", action=argparse.BooleanOptionalAction, default=True,
+        help="CC0 car models for traffic (default; --no-car-meshes for the boxes)",
+    )  # fmt: skip
+    ap.add_argument("--cars-per-km", type=float, default=60.0, help="the pods use 25")
     ap.add_argument("--seed", type=int, default=7, help="world and light seed for the render")
-    ap.add_argument("--people-per-km", type=float, default=200.0, help="the pods use 30")
+    ap.add_argument("--people-per-km", type=float, default=600.0, help="the pods use 30")
     ap.add_argument("--eye-sensor", choices=["phone", "dashcam"], help="camera chain (FRK-165)")
     ap.add_argument(
         "--data-dir", type=Path, default=Path(os.environ.get("FRAKTAL_DATA_DIR", ROOT / "data"))
@@ -108,7 +112,8 @@ def main() -> int:
             "--center", f"{center[0]} {center[1]}", "--size-m", "800", "--gsd-m", "0.5",
             "--path", str(work / "path.json"), "--fov", "75", "--frame-px", "512",
             "--trajectory", "street", "--eye-m", "1.6", "--speed", str(args.speed), "--fps", "1",
-            "--traffic", "--cars-per-km", "25", "--people-per-km", str(args.people_per_km),
+            "--traffic", "--cars-per-km", str(args.cars_per_km),
+            "--people-per-km", str(args.people_per_km),
             "--samples", str(args.samples), "--seed", str(args.seed), "--device", args.device,
         ]  # fmt: skip
         if args.depth:

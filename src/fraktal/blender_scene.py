@@ -1176,7 +1176,14 @@ CLOTHES = [
     (0.85, 0.8, 0.7),
     (0.2, 0.5, 0.25),
     (0.9, 0.6, 0.1),
+    (0.1, 0.1, 0.12),
+    (0.55, 0.55, 0.58),
+    (0.55, 0.3, 0.55),
+    (0.3, 0.55, 0.6),
+    (0.5, 0.33, 0.2),
 ]
+SKINS = [(0.55, 0.38, 0.28), (0.36, 0.23, 0.17), (0.7, 0.5, 0.38), (0.22, 0.14, 0.11)]
+TROUSERS = [(0.14, 0.15, 0.2), (0.3, 0.27, 0.22), (0.08, 0.08, 0.09), (0.25, 0.32, 0.45)]
 # name -> {"n", "first_instance", "x", "y", "heading", "boxes", "class"}; empty until built
 AGENTS: dict[str, dict] = {}
 
@@ -1466,17 +1473,34 @@ def build_drones(scene_dir: Path) -> int:
     )  # fmt: skip
 
 
+def _frac(k: int, mult: int) -> float:
+    """A repeatable number in [0, 1) from an index (a multiplicative hash): no random state."""
+    return ((k + 1) * mult % 2**32) / 2**32
+
+
+def person_look(k: int) -> dict:
+    """What person ``k`` wears and how big they are: indices into CLOTHES, SKINS and TROUSERS, and
+    ``scale`` (height, build) about the feet. A pure function of the index (FRK-163)."""
+    return {
+        "shirt": int(_frac(k, 2654435761) * len(CLOTHES)),
+        "skin": int(_frac(k, 2246822519) * len(SKINS)),
+        "trousers": int(_frac(k, 3266489917) * len(TROUSERS)),
+        "scale": (0.9 + 0.18 * _frac(k, 668265263), 0.9 + 0.35 * _frac(k, 374761393)),
+    }
+
+
 def build_people(scene_dir: Path) -> int:
     mats = [material(f"shirt{i}", c, 0.9, 110 + i) for i, c in enumerate(CLOTHES)]
-    mats.append(material("skin", (0.55, 0.38, 0.28), 0.8, 120))
-    mats.append(material("trousers", (0.14, 0.15, 0.2), 0.9, 121))
-    skin, trousers = len(mats) - 2, len(mats) - 1
-    return build_agents(
+    mats += [material(f"skin{i}", c, 0.8, 130 + i) for i, c in enumerate(SKINS)]
+    mats += [material(f"trousers{i}", c, 0.9, 150 + i) for i, c in enumerate(TROUSERS)]
+    base = {"shirt": 0, "skin": len(CLOTHES), "trousers": len(CLOTHES) + len(SKINS)}
+    n = build_agents(
         "people", scene_dir / "people.json", PERSON_BOXES, CLASS_PERSON, 0, mats,
-        lambda k, b: {"trousers": trousers, "shirt": k % len(CLOTHES), "skin": skin}[
-            PERSON_PARTS[b][0]
-        ],
+        lambda k, b: base[PERSON_PARTS[b][0]] + person_look(k)[PERSON_PARTS[b][0]],
     )  # fmt: skip
+    if n:
+        AGENTS["people"]["scale"] = np.array([person_look(k)["scale"] for k in range(n)])
+    return n
 
 
 def set_agents(i: int) -> None:
@@ -1499,6 +1523,11 @@ def set_agents(i: int) -> None:
             mesh.update()
             continue
         co = _box_vertices(a["x"][:, i], a["y"][:, i], a["heading"][:, i], a["boxes"])
+        sc = a.get("scale")
+        if sc is not None:  # each agent its own height and build, about its feet
+            c0 = np.stack([a["x"][:, i], a["y"][:, i]], axis=1)[:, None, :]
+            co[:, :, :2] = c0 + (co[:, :, :2] - c0) * sc[:, 1][:, None, None]
+            co[:, :, 2] *= sc[:, 0][:, None]
         co[:, :, 2] += terrain_z(co[:, :, 0], co[:, :, 1])
         if a["z"] is not None:  # flying agents: height above the ground below them
             co[:, :, 2] += a["z"][:, i][:, None]

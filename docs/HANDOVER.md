@@ -141,7 +141,8 @@ couches) 0.096 to 0.057, for +11% strip time. Bigger crowns made it worse (`seg_
 surface did nothing measurable (a strip's noise is about 0.02). Khartoum's vegetation went 0.036 to 0.043 (photos 0.015, 3 photos).
 
 Trial options (FRK-169, off by default, see [research/trial-assets.md](research/trial-assets.md)): `--car-meshes` swaps the box cars
-for six CC0 car models, `--leaf-cards` (on by default for street strips, `--no-leaf-cards` to turn it off) adds leaf quads to tree crowns; the label and depth passes cut them by the leaf alpha. Objects that exist only for
+for nine CC0 car models (six Quaternius, plus Kenney's truck, van and delivery, FRK-178; on by default in `scripts/local/city_strips.py`), `--leaf-cards` (on by default for street strips, `--no-leaf-cards` to turn it off) adds leaf quads to tree crowns; the label and depth passes cut them by the leaf alpha.
+The pilot strips default to 60 cars and 600 people per km (the pods use 25 and 30): people are spread evenly over the whole street network, so at 200 per km only 0.7 were within 15 m of the camera and person share was 0.002 to 0.003 (FRK-163). At 600 and with a per-person look (height, build, skin, shirt, trousers) person share is 0.005 and vehicle share 0.039 (Nairobi), 0.064 (Manila), 0.055 (Khartoum, a little high). Objects that exist only for
 the beauty pass (`haze`, `clouds`, `treecards`) must be listed in `LOOK_HIDDEN` or they smear the label and depth passes.
 
 `--override '{"buildings": {"front_setback_m": 6}}'` tries biome settings without editing `biomes.py`. It writes the same
