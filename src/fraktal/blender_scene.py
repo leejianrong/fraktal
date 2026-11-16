@@ -735,11 +735,11 @@ FOLIAGE = [
     (0.33, 0.35, 0.24),
 ]  # fmt: skip  (olive and grey-green, set by eye against the dry-land reference chips)
 CANOPY = [
-    (0.21, 0.37, 0.12),
-    (0.25, 0.40, 0.14),
-    (0.18, 0.34, 0.13),
-    (0.29, 0.42, 0.16),
-]  # fmt: skip  (lush mid-greens: the wet-tropic street trees in the reference photos)
+    (0.229, 0.361, 0.156),
+    (0.268, 0.391, 0.178),
+    (0.2, 0.331, 0.159),
+    (0.305, 0.412, 0.198),
+]  # fmt: skip  (lush mid-greens, 18% toward grey: crowns were the most saturated class, FRK-149)
 CANOPY_DRY = [
     (0.27, 0.31, 0.12),
     (0.31, 0.34, 0.15),
@@ -1736,7 +1736,8 @@ def add_sky_clouds(nodes, links, split, base, cloud: dict, size_m: float):
     noise = nodes.new("ShaderNodeTexNoise")
     # the node's default scale of 5 would make the cells a fifth of the size
     noise.inputs["Scale"].default_value = CLOUD_SKY_NOISE
-    noise.inputs["Detail"].default_value = 4.0
+    noise.inputs["Detail"].default_value = CLOUD_SKY_DETAIL
+    noise.inputs["Roughness"].default_value = CLOUD_SKY_ROUGH
     links.new(mapping.outputs["Vector"], noise.inputs["Vector"])
 
     def ramp(value, lo: float, hi: float):
@@ -1747,8 +1748,8 @@ def add_sky_clouds(nodes, links, split, base, cloud: dict, size_m: float):
         return r.outputs["Result"]
 
     edge = CLOUD_SKY_EDGE - CLOUD_SKY_SLOPE * cloud["cover"]  # more cover lowers the threshold
-    body = ramp(noise.outputs["Fac"], edge, edge + 0.1)
-    core = ramp(noise.outputs["Fac"], edge + 0.1, edge + 0.22)
+    body = ramp(noise.outputs["Fac"], edge, edge + CLOUD_SKY_SOFT)
+    core = ramp(noise.outputs["Fac"], edge + CLOUD_SKY_SOFT, edge + 2.2 * CLOUD_SKY_SOFT)
     fade = ramp(split.outputs["Z"], 0.03, 0.3)  # thin toward the horizon
     ray = nodes.new("ShaderNodeLightPath")
     opacity = math("MULTIPLY", math("MULTIPLY", body, fade), ray.outputs["Is Camera Ray"])
@@ -1769,7 +1770,10 @@ def add_sky_clouds(nodes, links, split, base, cloud: dict, size_m: float):
 # (so a cloud is about the seed's ``scale_m`` wide on the layer).
 CLOUD_SKY_EDGE = 0.62
 CLOUD_SKY_SLOPE = 0.45
-CLOUD_SKY_NOISE = 1.0
+CLOUD_SKY_NOISE = 0.4
+CLOUD_SKY_DETAIL = 3.0  # fewer octaves: masses, not flecks
+CLOUD_SKY_ROUGH = 0.5
+CLOUD_SKY_SOFT = 0.2  # the width of a cloud's soft edge in noise units
 CLOUD_EDGE_RGB = (1.0, 1.0, 1.0, 1.0)
 CLOUD_CORE_RGB = (0.72, 0.75, 0.80, 1.0)  # the thick middle is greyer
 CLOUD_HEIGHT_M = 700.0
@@ -1799,7 +1803,8 @@ def build_clouds(size_m: float, cloud: dict) -> None:
     mapping.inputs["Location"].default_value = (*cloud["offset_m"], 0.0)
     links.new(where.outputs["Position"], mapping.inputs["Vector"])
     noise = nodes.new("ShaderNodeTexNoise")
-    noise.inputs["Detail"].default_value = 4.0
+    noise.inputs["Detail"].default_value = CLOUD_SKY_DETAIL
+    noise.inputs["Roughness"].default_value = CLOUD_SKY_ROUGH
     links.new(mapping.outputs["Vector"], noise.inputs["Vector"])
     edge = 1.0 - cloud["cover"]  # more cover lowers the threshold
     ramp = nodes.new("ShaderNodeMapRange")
