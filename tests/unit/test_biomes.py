@@ -63,7 +63,10 @@ def test_the_default_biome_world_is_unchanged_from_before_biomes_existed(tmp_pat
     manifest = generate_world(tmp_path, CENTER, 7, resolve(DEFAULT_BIOME, SMALL))
     assert manifest["world_id"] == "1d6ca3c86f2729a6"  # pinned before this feature
     layers = {k: v["sha256"][:12] for k, v in manifest["layers"].items()}
-    assert layers == {"road": "a6b753815513", "parcel": "d78ecedec9e2", "building": "8e572e61c253"}
+    # the layer files are hashed as bytes and pyarrow writes its own version into them (3 bytes: the
+    # created_by footer and the two metadata copies), so these move with every pyarrow release; the
+    # tables themselves were checked equal across 26.0.0 and 26.0.1 and the world id does not move
+    assert layers == {"road": "2c8d736cf817", "parcel": "b1665be6fe66", "building": "79ecff2eccda"}
     rasters = {k: v["sha256"][:12] for k, v in manifest["rasters"].items()}
     assert rasters == {"dem": "ecf34431b918", "landcover": "f498169bb554"}
     assert manifest["biome"] == DEFAULT_BIOME
