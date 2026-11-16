@@ -42,7 +42,7 @@ whole tree. Folders marked **irreplaceable** cannot be regenerated from this rep
 | Path | What it is | Rebuild |
 |---|---|---|
 | `synthetic/`, `dataset_v0/` | V1 benchmark chips (`fraktal synth`) and the first multi-biome Blender batch (6 biomes, 20 tiles each, contact sheet) | `synth`; `dataset_v0` is a pod run of `render3d-batch` per biome via `scripts/runpod/stage0_run.sh` (`MODE=batch`) |
-| `review/` | Review sheets, street strips and progress files. `review/street<N>_<biome>/` is one strip render of one commit (`scripts/runpod/city_strips.sh`). `review/city_baseline/` holds the compared sheets of the city-lookalike work, named after the card | Pod run; the commit of each strip is in its `driver.log` |
+| `review/` | Review sheets, street strips and progress files. `review/street<N>_<biome>/` is one strip render of one commit (`scripts/runpod/city_strips.sh`, or `scripts/local/city_strips.py` on this machine). `review/city_baseline/` holds the compared sheets of the city-lookalike work, named after the card | Pod run; the commit of each strip is in its `driver.log` |
 | `flights/` | Fly-through, dashcam and eye-level renders and the browser demo | Pod runs of `stage0_run.sh` with `MODE=fly` |
 | `trees1/`, `trees2/`, `trees3/`, `walls2/` | Pod artifacts behind the tree and wall work (FRK-111, 132, 134) | Pod runs; `strip.jpg` and `before-after.jpg` are the evidence |
 | `proc_review/`, `reports/` | Procedural-world review renders and the V3 realism report PDF (`fraktal report`) | `fraktal report` from an ablation result; see `scripts/runpod/ablation.sh` |

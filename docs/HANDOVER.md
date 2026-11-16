@@ -47,42 +47,39 @@ photos in `data/eval/ground-reference` (evaluation only). Three pilots first: Kh
 Manila-Quezon (`manila_quezon`), Nairobi centre (`nairobi_centre`). Per-city profiles and measured photo statistics are in
 [research/city-profiles.md](research/city-profiles.md); the harness is `fraktal streets` ([research/eval-segmentation.md](research/eval-segmentation.md)).
 
-Done on `main`: eye-level camera and review harness, segmentation for evaluation, city biomes, exposure fix
-(FRK-152), road markings and kerbs (153), street trees (154), per-city light and canopy colour (155), street life:
-jeepneys, cars with wheels, kerb stalls, overhead cables (147, code merged).
+Done on `main`: eye-level camera and review harness, segmentation for evaluation, city biomes, exposure (FRK-152), road
+markings and kerbs (153), street trees (154), per-city light and canopy colour (155), street life: jeepneys, cars, kerb stalls,
+overhead cables (147), crowns and leaf cards (156), the camera chain (165), wall speckle and denoise (166), weathering (167),
+light variety and visible clouds (168, 174), pavement and kerb wear (175), per-strip metering (171), mesh cars with Kenney's
+vehicles (169, 178), visible people and denser traffic (163), cumulus-like sky (149), and the Godot viewer and playable world
+(ADR-0012, [../godot/README.md](../godot/README.md)).
 
-Measured on current `main` (commit 5ffeebd, local GPU render, 2026-11-14; photos in brackets, z in the harness
-output): the three pilots all show the street-life code (cables, jeepneys, stalls, motorbikes), and all three share the
-same gaps.
+Measured on `main` at 1addc7d (seed 7, one strip per city, local CPU render, eye-level strips metered, mesh cars, 600 people and
+60 cars per km; photos in brackets). A strip's noise is about 0.02, so read differences under that as nothing.
 
-| | Manila-Quezon (12 photos) | Nairobi centre (18) | Khartoum city (3, a hint) |
+| | Manila-Quezon (14 photos) | Nairobi centre | Khartoum city (3, a hint) |
 |---|---|---|---|
-| road share | 0.362 (0.268) | 0.411 (0.244) | 0.365 (0.259) |
-| building share | 0.038 (0.053) | 0.331 (0.233) | 0.134 (0.107) |
-| vegetation share | 0.223 (0.337) | 0.067 (0.098) | 0.024 (0.015) |
-| vehicle share | 0.031 (0.090) | 0.011 (0.081) | 0.013 (0.031) |
-| person share | 0.000 (0.006) | 0.001 (0.017) | 0.000 (0.200, one market photo) |
-| brightness | 0.436 (0.486) | 0.466 (0.487) | 0.627 (0.540) |
+| road share | 0.344 (0.241) | 0.393 (0.244) | 0.344 (0.259) |
+| building share | 0.044 (0.089) | 0.337 (0.233) | 0.111 (0.107) |
+| vegetation share | 0.193 (0.335) | 0.034 (0.098) | 0.049 (0.015) |
+| vehicle share | 0.064 (0.077) | 0.039 (0.081) | 0.055 (0.031) |
+| person share | 0.005 (0.006) | 0.005 (0.017) | 0.008 (0.200, one market photo) |
+| brightness | 0.448 (0.480) | 0.459 (0.487) | 0.604 (0.540) |
+| edge energy | 0.024 (0.041) | 0.021 (0.021) | 0.019 (0.043) |
 
-Manila-Quezon and Nairobi above include FRK-161, 162 and 164 (Manila setback 10 m, 45% and 30% built in core and edge; it was 2.5 m and 92% and
-80%, which gave building 0.230, vegetation 0.072). Road share does not respond to road width (it stayed near 0.35
-with roads 16 m and 7 m wide); it is set by the camera and field of view, and it is already within one photo standard
-deviation for Manila (Nairobi and Khartoum are at about one). Narrower roads made building share worse.
+Most shares are inside one photo standard deviation. What is still off: Khartoum contrast (z 2.8) and vegetation (z 1.5), Manila
+saturation (z 1.0) and `seg_other` (z 0.9), edge energy in Manila and Khartoum. By eye: the road is smooth and wide (road share does
+not respond to road width, it is set by the camera and field of view), people are block figures, parked props are boxes, the crowns
+are stylised, and building faces are flat. Local CPU strips are usable for iteration, and pod and local pixels differ, so compare
+like with like.
 
-Looking at the sheets (before FRK-161 for Manila): Nairobi reads as a canyon of tall uniform blocks with sparse boxy cars and a wide empty road;
-Khartoum is closer in feel but its vehicles are blocky and its road is too wide. The local numbers for Manila-Quezon
-match the pod's from commit ac52cc5 to the third decimal, so local GPU strips are usable for iteration.
+Next, in order: the pilot cycles FRK-149 (Manila-Quezon, remainder: road surface grain and edge energy), FRK-150 (Nairobi
+centre) and FRK-148 (Khartoum: contrast and vegetation); then FRK-115 (facades and street furniture) once they show what is most
+missing; then the other eight cities (FRK-151).
 
-Next, in order:
-
-1. Finish FRK-163: vehicles are still boxes and people box figures. The mesh and leaf-card trial is FRK-169.
-2. The camera and surface realism steps from [research/hyperrealism-methods.md](research/hyperrealism-methods.md):
-   eye-level camera chain (FRK-165), wall speckle (FRK-166), weathering and decals (FRK-167), light variety (FRK-168).
-3. Pilot iteration cycles: FRK-148 (Khartoum), FRK-149 (Manila-Quezon), FRK-150 (Nairobi centre).
-4. The other eight cities (FRK-151).
-
-Parked until Jian says go: the Godot driving design (FRK-90 browser demo is the simpler route), FRK-117 (benchmark
-rebuild), FRK-45 (3D benchmark) and any GPU training. Ask before starting any of them.
+Parked until Jian says go: live agent simulation (FRK-184), zebra crossings (185), pavement as a dataset toggle (186), the SAR
+epic (FRK-179 to 182), HDRIs, the Infinigen install, FRK-176 (owned street photos), FRK-117 (benchmark rebuild), FRK-45 (3D
+benchmark) and any GPU training. Ask before starting any of them.
 
 ## 3. How a render run works
 
@@ -94,11 +91,11 @@ fraktal streets data/review/street<tag>_manila_quezon/out/review/fly/frames \
   --city 'manila-quezon' --data-dir data --limit 30 --segment --sheet <sheet>.png
 ```
 
-Locally (WSL, Windows Blender on the GPU, about 45 seconds a city), with `PATH=$PWD/.venv/bin:$PATH` and
+Locally (WSL, Windows Blender, `--device cpu` while the GPU is shared: 3 to 15 minutes a city depending on load), with `PATH=$PWD/.venv/bin:$PATH` and
 `FRAKTAL_BPY_PYTHON=$PWD/scripts/wsl/winblender.sh`:
 
 ```bash
-.venv/bin/python scripts/local/city_strips.py <tag> manila_quezon nairobi_centre khartoum_city
+.venv/bin/python scripts/local/city_strips.py <tag> manila_quezon nairobi_centre khartoum_city --device cpu
 ```
 
 `--eye-sensor phone|dashcam` (FRK-165) runs the camera chain over the frames: exposure and highlight shoulder,
@@ -128,9 +125,10 @@ Visible clouds (FRK-174): when a seed has cloud cover, the sky shader draws clou
 at the seed's scale and offset, so a cloudier seed has more of them and of their shadows. Sky light and the label and depth
 passes are unchanged. No HDRIs yet.
 
-Moving cars and people (FRK-163) are still built from boxes, but a box may now be tapered, sloped or offset to one side
-(`CAR_PARTS`, `PERSON_PARTS` in `blender_scene.py`): a car has a sloping bonnet, a tapered glass cabin, a roof panel and four
-wheels; a person has two legs, arms, shoulders and a head. Parked cars and jeepneys come from `propgen.py`, not from here.
+Moving cars and people: with `--car-meshes` (the default in `city_strips.py`) the traffic is nine CC0 models (see below); people and the
+box-car fallback are built from boxes that may be tapered, sloped or offset (`CAR_PARTS`, `PERSON_PARTS` in `blender_scene.py`). Each
+person gets a look from their index (`person_look`: height, build, skin, shirt, trousers), with no random state. Parked cars and
+jeepneys come from `propgen.py`, not from here.
 
 Poles stand clear of every road, not only the one they line (`POLE_ROAD_CLEARANCE_M`), and Manila-Quezon and Khartoum now have a pavement strip (1.8 m, 1.5 m) so the people of the Godot replay have somewhere to walk. This changes the Blender renders of those two cities slightly (a raised strip beside the kerb).
 
@@ -140,11 +138,11 @@ vegetation share went 0.136 to 0.206 (photos 0.337), building 0.064 to 0.042, an
 couches) 0.096 to 0.057, for +11% strip time. Bigger crowns made it worse (`seg_other` 0.126); more, smaller cards than cover the
 surface did nothing measurable (a strip's noise is about 0.02). Khartoum's vegetation went 0.036 to 0.043 (photos 0.015, 3 photos).
 
-Trial options (FRK-169, off by default, see [research/trial-assets.md](research/trial-assets.md)): `--car-meshes` swaps the box cars
+Render options (FRK-169, see [research/trial-assets.md](research/trial-assets.md)): `--car-meshes` (off in `render3d`) swaps the box cars
 for nine CC0 car models (six Quaternius, plus Kenney's truck, van and delivery, FRK-178; on by default in `scripts/local/city_strips.py`), `--leaf-cards` (on by default for street strips, `--no-leaf-cards` to turn it off) adds leaf quads to tree crowns; the label and depth passes cut them by the leaf alpha.
-The pilot strips default to 60 cars and 600 people per km (the pods use 25 and 30): people are spread evenly over the whole street network, so at 200 per km only 0.7 were within 15 m of the camera and person share was 0.002 to 0.003 (FRK-163). At 600 and with a per-person look (height, build, skin, shirt, trousers) person share is 0.005 and vehicle share 0.039 (Nairobi), 0.064 (Manila), 0.055 (Khartoum, a little high). Objects that exist only for
+The pilot strips default to 60 cars and 600 people per km (the pods use 25 and 30): people are spread evenly over the whole street network, so at 200 per km only 0.7 were within 15 m of the camera and person share was 0.002 to 0.003 (FRK-163). At 600 and with a per-person look (height, build, skin, shirt, trousers) person share is 0.005 and vehicle share 0.039 (Nairobi), 0.064 (Manila), 0.055 (Khartoum, a little high).
 Sky clouds (FRK-149): the sky noise is coarse with few octaves and soft edges (`CLOUD_SKY_NOISE`, `_DETAIL`, `_ROUGH`, `_SOFT` in `blender_scene.py`); at the old fine noise the sky read as hundreds of small flecks, not the photos' broad soft cumulus. The cloud shadows on the ground are separate and unchanged. Street-tree greens are 18% greyer (crowns were the most saturated class).
-the beauty pass (`haze`, `clouds`, `treecards`) must be listed in `LOOK_HIDDEN` or they smear the label and depth passes.
+Objects that exist only for the beauty pass (`haze`, `clouds`, `treecards`) must be listed in `LOOK_HIDDEN` or they smear the label and depth passes.
 
 `--override '{"buildings": {"front_setback_m": 6}}'` tries biome settings without editing `biomes.py`. It writes the same
 `data/review/street<tag>_<biome>/out/review/fly/frames` layout and a `commit.txt` per city
@@ -165,7 +163,8 @@ These are in [AGENTS.md](../AGENTS.md) too, repeated here because they bite firs
   changed files and the tests for touched code. A force-push to your own PR branch needs Jian's approval.
 - Determinism only through `fraktal.ids.substream`. New config fields go in `procedural.LATER_FIELDS`. Do not repin
   Khartoum's world id unless told.
-- `blender_scene.py` runs in Blender's Python and must not import `fraktal`. No PIL in core code or tests.
+- `blender_scene.py` runs in Blender's Python and must not import `fraktal`; its tests pull functions out of its source with `ast`. No PIL in core code or tests.
+- The GPU is shared with Jian's other jobs: `nvidia-smi` first, `--device cpu` for Blender and `FRAKTAL_SEG_DEVICE=cpu` for segmentation, GPU jobs only through `pueue` (the `gpu-job-queue` skill), and never kill or reorder a job you did not add. Never `pkill -f` or `pgrep -f` with a pattern in your own command line.
 - Assets are owned or CC0 with a manifest row. Real photos are looking-and-evaluation only.
 - No co-author or tool attributions in commits or PRs. After each PR: update the Pandan card, then report what
   changed, what was measured, what is still open and what needs deciding.

@@ -206,4 +206,4 @@ After V5 the work moved to the Blender renderer (ADR-0010, ADR-0012): organic ro
 props and traffic, drone and eye-level views, and an owned asset library (`assets/`). The current epic
 ("City lookalikes at eye level", board 41, epic 535) makes the generator produce realistic lookalikes of 11
 cities, judged by `fraktal streets` against private ground photos. State, measurements and the next steps are in
-[HANDOVER.md](HANDOVER.md); the card list is the build order (FRK-146 and 152 to 155 done, FRK-147 merged but not yet checked in every city, FRK-148 to 151 open).
+[HANDOVER.md](HANDOVER.md); the card list is the build order (the shared realism steps are done; the pilot cycles FRK-148 to 150, FRK-151 and FRK-115 are open).
