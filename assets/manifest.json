@@ -1167,6 +1167,100 @@
       "url": "https://github.com/leejianrong/fraktal",
       "sha256": "d5934855784243c1c3e8d11fde0b6fe4d96719a244fdd62a647e0dccf41445ef",
       "verified": true
+    },
+    {
+      "id": "car-kenney-truck-obj",
+      "file": "meshes/kenney-cars/truck.obj",
+      "kind": "mesh",
+      "source": "Kenney 'Car Kit' 2.0 (https://kenney.nl/assets/car-kit, also kenney-assets.itch.io/car-kit), downloaded 2026-11-16; the pack's own License.txt is Creative Commons Zero (CC0) 1.0.",
+      "licence": "CC0-1.0",
+      "author": "Kenney",
+      "url": "https://kenney.nl/assets/car-kit",
+      "sha256": "b6a7f12390075e1c464fabce471f943cc897dea651817f625edab6111dcc7630",
+      "verified": true,
+      "generator": {
+        "model": "hand-modelled by Kenney",
+        "version": "2.0 (2024-05)",
+        "seed": "n/a (not generated)",
+        "date": "2024-05",
+        "components": [
+          {
+            "name": "Car Kit 2.0 (Kenney)",
+            "version": "2.0",
+            "licence": "CC0-1.0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "car-kenney-van-obj",
+      "file": "meshes/kenney-cars/van.obj",
+      "kind": "mesh",
+      "source": "Kenney 'Car Kit' 2.0 (https://kenney.nl/assets/car-kit, also kenney-assets.itch.io/car-kit), downloaded 2026-11-16; the pack's own License.txt is Creative Commons Zero (CC0) 1.0.",
+      "licence": "CC0-1.0",
+      "author": "Kenney",
+      "url": "https://kenney.nl/assets/car-kit",
+      "sha256": "4c280894a497c80f6d96bea2e8b93e885a83b2f2dde317f037c01db5e8a01bc1",
+      "verified": true,
+      "generator": {
+        "model": "hand-modelled by Kenney",
+        "version": "2.0 (2024-05)",
+        "seed": "n/a (not generated)",
+        "date": "2024-05",
+        "components": [
+          {
+            "name": "Car Kit 2.0 (Kenney)",
+            "version": "2.0",
+            "licence": "CC0-1.0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "car-kenney-delivery-obj",
+      "file": "meshes/kenney-cars/delivery.obj",
+      "kind": "mesh",
+      "source": "Kenney 'Car Kit' 2.0 (https://kenney.nl/assets/car-kit, also kenney-assets.itch.io/car-kit), downloaded 2026-11-16; the pack's own License.txt is Creative Commons Zero (CC0) 1.0.",
+      "licence": "CC0-1.0",
+      "author": "Kenney",
+      "url": "https://kenney.nl/assets/car-kit",
+      "sha256": "51bda95ec09c56ee1025565afb74b302f0cd53cc201a6244203e2d55c45535e0",
+      "verified": true,
+      "generator": {
+        "model": "hand-modelled by Kenney",
+        "version": "2.0 (2024-05)",
+        "seed": "n/a (not generated)",
+        "date": "2024-05",
+        "components": [
+          {
+            "name": "Car Kit 2.0 (Kenney)",
+            "version": "2.0",
+            "licence": "CC0-1.0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "car-kenney-colormap",
+      "file": "meshes/kenney-cars/colormap.png",
+      "kind": "texture",
+      "source": "Kenney 'Car Kit' 2.0 (https://kenney.nl/assets/car-kit, also kenney-assets.itch.io/car-kit), downloaded 2026-11-16; the pack's own License.txt is Creative Commons Zero (CC0) 1.0.",
+      "licence": "CC0-1.0",
+      "author": "Kenney",
+      "url": "https://kenney.nl/assets/car-kit",
+      "sha256": "96b3839b65f6c58894cd693a27384d0da35807c69d72b21afe68d901ed44052e",
+      "verified": true
+    },
+    {
+      "id": "car-kenney-licence",
+      "file": "meshes/kenney-cars/License.txt",
+      "kind": "licence",
+      "source": "Kenney 'Car Kit' 2.0 (https://kenney.nl/assets/car-kit, also kenney-assets.itch.io/car-kit), downloaded 2026-11-16; the pack's own License.txt is Creative Commons Zero (CC0) 1.0.",
+      "licence": "CC0-1.0",
+      "author": "Kenney",
+      "url": "https://kenney.nl/assets/car-kit",
+      "sha256": "068ebfb25d58425afa39fe4901dc0d74b9f2155a6b1c6f0487a7e986a50c706c",
+      "verified": true
     }
   ]
 }
