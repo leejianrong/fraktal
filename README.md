@@ -13,6 +13,10 @@ flowchart LR
     W -.-> L["Later: SAR, drone views,<br/>agent simulation"]
 ```
 
+An eye-level frame from the Blender renderer (Manila-Quezon, a synthetic world, with its labels and depth rendered alongside):
+
+![A synthetic street in Manila-Quezon, rendered at eye level](docs/img/pipeline-3d/eye-level-manila-quezon.jpg)
+
 ## Quick start
 
 Requires [uv](https://docs.astral.sh/uv/), Git and Python 3.11 or newer.
@@ -43,11 +47,14 @@ $ uv run fraktal synth --regions 3       # render synthetic chips, with sample P
 $ uv run fraktal benchmark --synthetic data/synthetic/chips   # IoU for the three arms
 ```
 
+The 3D path renders eye-level, drone and satellite views with Blender (`fraktal render3d`, the product renderer, ADR-0012) and exports a tile for a real-time Godot viewer (`fraktal scene`, see [godot/README.md](godot/README.md)). Eye-level frames are compared with real street photos kept locally for evaluation only (`fraktal streets`); setup and the render workflow are in [docs/HANDOVER.md](docs/HANDOVER.md).
+
 `render` renders any building layer onto a region. `benchmark` needs PyTorch (`make install-train`) and a GPU for the full recipe. `inspect <world> --id <id>` returns a feature's geometry and provenance as JSON. Exit codes: 0 ok, 2 usage error, 3 not implemented, 4 failure.
 
 ## Documentation
 
 - [Handover](docs/HANDOVER.md): setup on a new machine, current state, how a render run works
+- [Godot viewer](godot/README.md): export a tile and drive, walk or fly over it
 - [Where data lives](docs/DATA.md): every git-ignored folder, where it came from and how to rebuild it
 - [Plan](docs/PLAN.md): problem, scope, requirements, shape, and later bets
 - [Slices](docs/SLICES.md): build order and acceptance tests

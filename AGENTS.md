@@ -18,7 +18,7 @@ make fmt               # apply ruff fixes and formatting
 
 ## Rules that are not obvious from the code
 
-- **Jian is the sole author.** No co-author trailers or tool attributions in commits, PRs or files.
+- **Jian is the sole author.** No co-author trailers or tool attributions in commits, PRs or files, except the `Claude-Session:` line the session asks for at the end of a commit message and PR body.
 - **Branch per slice, PR only, rebase-merge** so each story keeps its own commit. CI must be green.
 - **CI is the full gate; do not run the whole suite locally.** On the 8 GB dev machine `make check`
   has taken 15 min to 2 h 25 min and blocks branch switching. Locally run only `ruff check`,
@@ -35,13 +35,15 @@ make fmt               # apply ruff fixes and formatting
 - **No benchmark leakage.** Held-out test-tile footprints must never enter a world used for
   synthetic pretraining ([ADR-0006](docs/adr/0006-success-is-a-downstream-benchmark.md)).
 - **Pin GitHub Actions to full release tags** (`@v10.3.3`). Floating majors may not exist.
-- **Check licences** before adding a dependency or dataset ([ADR-0007](docs/adr/0007-sell-datasets-first-keep-the-engine-private.md)). Assets go in `assets/` with a manifest row, owned or CC0 only (`fraktal assets check`, enforced in CI; see `assets/README.md`).
+- **Check licences** before adding a dependency or dataset ([ADR-0007](docs/adr/0007-sell-datasets-first-keep-the-engine-private.md)). Assets go in `assets/` with a manifest row, owned or CC0 only (`fraktal assets`, enforced in CI; see `assets/README.md`).
 - **Tests are layered:** `tests/unit` (temp files fine) and `tests/integration`
   (`pytestmark = pytest.mark.integration`). Fix a bug with a failing test first.
 - **Long jobs report progress.** Anything that can run for minutes emits `fraktal.log.emit` lines (stderr, never stdout) so a remote run can be watched.
 - **Renderer ownership** ([ADR-0012](docs/adr/0012-blender-is-the-product-renderer-godot-is-a-demo-viewer.md)): Blender is the product renderer and gets the realism work; 2.5D is maintenance; Godot is a demo viewer, not a capture path. Judge realism by looking at samples next to the real reference board (eval only, never committed).
 - **Benchmarks steer, they do not gate** ([ADR-0009](docs/adr/0009-build-for-coverage-and-measure-to-steer.md)). The working premise is that enough realism and generator degrees of freedom make synthetic data helpful. Keep building, keep measuring, record negative results, and widen the distribution rather than polishing one look.
 - **Train only at big milestones.** Day to day, judge synthetic data with the free checks: `fraktal compare`, the distribution plots and chip strips, and looking at samples. Spend GPU on a training benchmark only when a major milestone lands (a new world generator, a large realism step, a dataset release).
+- **`src/fraktal/blender_scene.py` runs in Blender's Python:** it must not import `fraktal`, and its tests extract functions from its source with `ast` (it imports `bpy`).
+- **The GPU is shared** with Jian's other jobs: check `nvidia-smi`, use `--device cpu` for Blender and `FRAKTAL_SEG_DEVICE=cpu` for segmentation, and put GPU jobs through `pueue` (details in `docs/HANDOVER.md`).
 - **Secrets** come from environment variables only. Never commit `.env` or tokens.
 
 ## Docs
