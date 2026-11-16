@@ -1,0 +1,78 @@
+{
+ "crs": "EPSG:32636",
+ "pixel_m": 0.5,
+ "size_px": [
+  1000,
+  1000
+ ],
+ "bands": {
+  "rgb.tif": "3 x uint8",
+  "class.tif": "1 x uint8 + colour table",
+  "instance.tif": "1 x uint16"
+ },
+ "class_share": {
+  "ground": 0.8144,
+  "building": 0.0268,
+  "tree": 0.1496,
+  "vehicle": 0.0031,
+  "pole": 0.0032,
+  "person": 0.0,
+  "drone": 0.0,
+  "wall": 0.0022,
+  "yard_object": 0.0006
+ },
+ "render": {
+  "schema": 1,
+  "center_lonlat": [
+   32.5499990129783,
+   15.640000832594925
+  ],
+  "size_m": 500.0,
+  "gsd_m": 0.5,
+  "px": 1000,
+  "crs": "EPSG:32636",
+  "origin_sw": [
+   451517.5,
+   1728916.0
+  ],
+  "sun": {
+   "azimuth_deg": 135.0,
+   "elevation_deg": 50.0
+  },
+  "seed": 3,
+  "samples": 24,
+  "scene_sha256": "91ee28153a1ead74522090622dabe3754c307e5cc54427ecfd56e38cbc470d83",
+  "height_profile": "auto",
+  "prop_density": 60.0,
+  "wall_share": null,
+  "wall_textures": true,
+  "buildings": 81,
+  "trees": 3569,
+  "vehicles": 59,
+  "poles": 91,
+  "labels": {
+   "classes": {
+    "none": 0,
+    "ground": 1,
+    "building": 2,
+    "tree": 3,
+    "vehicle": 4,
+    "pole": 5,
+    "person": 6,
+    "drone": 7,
+    "wall": 8,
+    "yard_object": 9
+   },
+   "encoding": "R = class, G and B = instance + 1 as a 16-bit number (0 = none)",
+   "trees": 3569,
+   "vehicles": 59,
+   "poles": 91,
+   "people": 0,
+   "drones": 0,
+   "props": 172,
+   "walls": 41,
+   "props_first_instance": 20001
+  }
+ },
+ "note": "Synthetic. Procedural world near Khartoum, rendered with Blender. Labels come from the render camera, not a model. Assets are owned or CC0."
+}

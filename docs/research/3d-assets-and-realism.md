@@ -139,7 +139,7 @@ source; polishing one look (ADR-0009: widen the distribution).
    counts are necessary [U numbers].
 7. Benchmark leakage: held-out footprints must never enter a world (ADR-0006).
 8. Blender and GPL tooling: scripts that import GPL add-ons (BlenderProc) may carry obligations if
-   ever distributed; the engine is private, but check before open-sourcing (ADR-0007).
+   ever distributed; the repository is public (ADR-0014), so treat anything it imports as distributed and check licences before adding it.
 9. Determinism: Cycles with GPU denoising is not bit-exact across drivers [U]; define the
    contract as seeded scene equality, not pixel equality.
 

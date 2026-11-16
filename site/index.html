@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fraktal: synthetic worlds with every pixel labelled</title>
+<meta name="description" content="Fraktal generates deterministic procedural worlds of African and Southeast Asian places and renders them from satellite, drone and street cameras, with labels that come from the renderer. Download a free sample.">
+<meta property="og:title" content="Fraktal: every pixel labelled, because we drew it">
+<meta property="og:description" content="Deterministic procedural worlds, rendered from any camera with pixel-exact labels. Free sample GeoTIFFs.">
+<meta property="og:image" content="https://fraktal.abangai.dev/img/sample-rgb.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23787878'/%3E%3Crect x='8' y='8' width='26' height='26' fill='%23c83c32'/%3E%3Ccircle cx='46' cy='44' r='12' fill='%2332a03c'/%3E%3Crect x='10' y='46' width='14' height='5' fill='%23f0c828'/%3E%3C/svg%3E">
+<style>
+  /* Tokens. The accent colours are the class colours that ship in class.tif,
+     so colour on this page always labels something. */
+  :root {
+    color-scheme: light dark;
+    --paper: #f3f0e8;
+    --card: #fbf9f4;
+    --ink: #1b1f1a;
+    --muted: #5d625a;
+    --line: rgba(27, 31, 26, .14);
+    --ground: #787878;
+    --building: #c83c32;
+    --tree: #32a03c;
+    --vehicle: #f0c828;
+    --pole: #e8e8e8;
+    --focus: #1b5fd1;
+    --sans: "Avenir Next", "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, "Cascadia Code", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #141713; --card: #1b1f1a; --ink: #ece9e0; --muted: #9ea398; --line: rgba(236, 233, 224, .16);
+      --focus: #7aa7ff;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #141713; --card: #1b1f1a; --ink: #ece9e0; --muted: #9ea398; --line: rgba(236, 233, 224, .16);
+    --focus: #7aa7ff;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: var(--sans); font-size: 17px; line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  img, video, canvas { display: block; max-width: 100%; }
+  a { color: inherit; text-underline-offset: .18em; text-decoration-thickness: 1px; }
+  a:focus-visible, button:focus-visible, .wipe:focus-visible, .chip:focus-visible {
+    outline: 3px solid var(--focus); outline-offset: 3px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+  .mono { font-family: var(--mono); }
+
+  /* header */
+  header .wrap { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+  .mark { font-weight: 800; font-size: 22px; letter-spacing: -.04em; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+  .mark i { width: 22px; height: 22px; background: var(--ground); position: relative; display: block; }
+  .mark i::before { content: ""; position: absolute; left: 2px; top: 2px; width: 9px; height: 9px; background: var(--building); }
+  .mark i::after { content: ""; position: absolute; right: 2px; bottom: 2px; width: 9px; height: 9px; border-radius: 50%; background: var(--tree); }
+  header nav { display: flex; gap: 22px; font-size: 15px; }
+  header nav a { text-decoration: none; color: var(--muted); }
+  header nav a:hover { color: var(--ink); text-decoration: underline; }
+
+  /* hero */
+  .hero { padding: 36px 0 72px; }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 56px; align-items: center; }
+  h1 { font-size: clamp(40px, 5.4vw, 72px); line-height: .98; letter-spacing: -.045em; font-weight: 800; margin: 0 0 24px; text-wrap: balance; }
+  h1 .drawn { background: linear-gradient(var(--building), var(--building)) no-repeat 0 92% / 100% .11em; padding-bottom: .02em; }
+  .lede { font-size: 19px; color: var(--muted); max-width: 34em; margin: 0 0 30px; }
+  .lede strong { color: var(--ink); font-weight: 600; }
+  .cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 22px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 12px; padding: 15px 24px;
+    background: var(--ink); color: var(--paper); font-weight: 650; font-size: 17px;
+    text-decoration: none; border-radius: 4px; border: 0; cursor: pointer;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .btn:hover { transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--building); }
+  .btn small { font-family: var(--mono); font-size: 13px; font-weight: 500; opacity: .75; }
+  .quiet { font-size: 15px; color: var(--muted); }
+  .quiet:hover { color: var(--ink); }
+  .cta-note { margin: 16px 0 0; font-size: 14px; color: var(--muted); }
+
+  /* the wipe: rendered frame on one side, the exact labels of the same pixels on the other */
+  .wipe-fig { margin: 0; }
+  .wipe {
+    position: relative; aspect-ratio: 1; width: 100%; overflow: hidden; background: var(--ground);
+    cursor: ew-resize; touch-action: pan-y; user-select: none; -webkit-user-select: none;
+    border: 1px solid var(--line);
+  }
+  .wipe img, .wipe canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .wipe .mask-clip { position: absolute; inset: 0; clip-path: inset(0 0 0 var(--x, 50%)); }
+  .wipe .bar { position: absolute; top: 0; bottom: 0; left: var(--x, 50%); width: 2px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.35); }
+  .wipe .grip {
+    position: absolute; top: 50%; left: var(--x, 50%); width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%;
+    background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 4px 14px rgba(0,0,0,.3); display: grid; place-items: center; color: #222;
+    font-family: var(--mono); font-size: 14px; letter-spacing: -.1em;
+  }
+  .wipe .tag {
+    position: absolute; top: 12px; padding: 4px 9px; background: rgba(20, 23, 19, .78); color: #fff; font-family: var(--mono); font-size: 12px;
+  }
+  .wipe .tag.l { left: 12px; } .wipe .tag.r { right: 12px; }
+  figcaption { font-size: 14px; color: var(--muted); margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: space-between; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px; font: inherit; font-family: var(--mono); font-size: 13px;
+    padding: 6px 11px 6px 8px; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 999px; cursor: pointer;
+  }
+  .chip i { width: 14px; height: 14px; border-radius: 3px; background: var(--c); border: 1px solid rgba(0,0,0,.25); }
+  .chip[aria-pressed="false"] { opacity: .45; }
+  .chip[aria-pressed="false"] i { background: transparent; }
+  .chip em { font-style: normal; color: var(--muted); }
+
+  /* sections */
+  section { padding: 84px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: clamp(30px, 3.6vw, 46px); line-height: 1.04; letter-spacing: -.035em; font-weight: 800; margin: 0 0 18px; max-width: 18em; text-wrap: balance; }
+  .sec-lede { font-size: 18px; color: var(--muted); max-width: 38em; margin: 0 0 40px; }
+  h3 { font-size: 20px; letter-spacing: -.02em; margin: 0 0 8px; }
+  p { margin: 0 0 1em; }
+
+  .views { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+  .view { margin: 0; background: var(--card); border: 1px solid var(--line); }
+  .view .frame { aspect-ratio: 1; overflow: hidden; background: #222; }
+  .view .frame > * { width: 100%; height: 100%; object-fit: cover; }
+  .view figcaption { display: block; padding: 14px 16px 18px; margin: 0; font-size: 15px; }
+  .view figcaption b { color: var(--ink); display: block; font-size: 17px; margin-bottom: 4px; letter-spacing: -.01em; }
+  .views-note { margin-top: 18px; font-size: 14px; color: var(--muted); }
+
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: start; }
+  .files { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 14px; background: var(--card); border: 1px solid var(--line); }
+  .files th, .files td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .files th { font-weight: 600; white-space: nowrap; }
+  .files td { color: var(--muted); }
+  .files tr:last-child > * { border-bottom: 0; }
+  .bars { margin-top: 28px; }
+  .bar-row { display: grid; grid-template-columns: 96px 1fr 64px; align-items: center; gap: 12px; font-family: var(--mono); font-size: 13px; margin-bottom: 7px; }
+  .bar-row span.track { height: 12px; background: var(--card); border: 1px solid var(--line); position: relative; }
+  .bar-row span.track i { position: absolute; left: 0; top: 0; bottom: 0; width: var(--w); background: var(--c); min-width: 2px; }
+  .bar-row b { text-align: right; font-weight: 500; color: var(--muted); }
+
+  .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; }
+  .facts > div { border-top: 3px solid var(--ink); padding-top: 14px; }
+  .facts p { color: var(--muted); font-size: 16px; }
+
+  .status { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; }
+  .status ul { list-style: none; padding: 0; margin: 0; }
+  .status li { padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 16px; }
+  .status li:first-child { border-top: 1px solid var(--line); }
+  .status h3 { display: flex; align-items: center; gap: 10px; }
+  .dot { width: 12px; height: 12px; display: inline-block; background: var(--tree); }
+  .dot.open { background: var(--vehicle); }
+  .status .z { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+
+  .contact { text-align: left; }
+  .contact .btn { margin-top: 8px; }
+  footer { border-top: 1px solid var(--line); padding: 32px 0 56px; font-size: 14px; color: var(--muted); }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 28px; justify-content: space-between; }
+  footer a { color: inherit; }
+
+  @media (max-width: 900px) {
+    .hero-grid, .split, .status { grid-template-columns: 1fr; gap: 36px; }
+    .views, .facts { grid-template-columns: 1fr; }
+    section { padding: 60px 0; }
+    .wrap { padding: 0 16px; }
+    header nav a:not(.keep) { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .btn { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a class="mark" href="/" aria-label="Fraktal home"><i></i>fraktal</a>
+    <nav aria-label="Primary">
+      <a href="#views">Views</a>
+      <a href="#download">The sample</a>
+      <a href="#status">Status</a>
+      <a class="keep" href="https://github.com/leejianrong/fraktal">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<div class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <h1>Every pixel labelled, <span class="drawn">because we drew it.</span></h1>
+      <p class="lede">Fraktal builds procedural worlds of African and Southeast Asian places and renders them from satellite, drone and street-level cameras. <strong>The labels come from the renderer, not from annotators or a model</strong>, so they cannot drift from the pixels.</p>
+      <div class="cta-row">
+        <a class="btn" href="media/fraktal-sample.zip" download>Download the sample <small>2.9 MB</small></a>
+        <a class="quiet" href="https://github.com/leejianrong/fraktal">Read the code on GitHub</a>
+      </div>
+      <p class="cta-note">Three GeoTIFFs and a manifest: image, class labels and instance labels for one 500 m tile. No sign-up.</p>
+    </div>
+
+    <figure class="wipe-fig">
+      <div class="wipe" id="wipe" role="slider" tabindex="0" aria-label="Compare the rendered image with its labels" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+        <img src="img/sample-rgb.jpg" width="1000" height="1000" alt="Satellite-view render of a synthetic tile near Khartoum: roads, trees and buildings.">
+        <div class="mask-clip">
+          <canvas id="mask" width="1000" height="1000" role="img" aria-label="The class labels for the same tile, one flat colour per class."></canvas>
+        </div>
+        <div class="bar"></div>
+        <div class="grip" aria-hidden="true">&lt;&gt;</div>
+        <span class="tag l">rgb.tif</span><span class="tag r">class.tif</span>
+      </div>
+      <div class="legend" id="legend" role="group" aria-label="Show or hide a class in the label view"></div>
+      <figcaption>
+        <span>Drag the line, or use the arrow keys. Click a class to hide it.</span>
+        <span class="mono">500 m tile, 0.5 m pixels, EPSG:32636</span>
+      </figcaption>
+    </figure>
+  </div>
+</div>
+
+<section id="views">
+  <div class="wrap">
+    <h2>One world, any camera.</h2>
+    <p class="sec-lede">The same seeded world renders from orbit, from a drone and from the kerb. A fixed seed gives the same world and the same object IDs every time, so a car in one frame is the same car in the next.</p>
+    <div class="views">
+      <figure class="view">
+        <div class="frame"><img src="img/sample-rgb.jpg" width="1000" height="1000" loading="lazy" alt="Satellite view of the sample tile."></div>
+        <figcaption><b>Satellite</b>0.5 m pixels, GeoTIFF with a CRS. The tile you can download.</figcaption>
+      </figure>
+      <figure class="view">
+        <div class="frame"><video src="media/drone-orbit.mp4" width="720" height="720" autoplay muted loop playsinline preload="metadata" aria-label="A drone orbiting a synthetic neighbourhood with moving traffic."></video></div>
+        <figcaption><b>Drone</b>An orbit around the same kind of world, with traffic and people moving along the roads.</figcaption>
+      </figure>
+      <figure class="view">
+        <div class="frame"><img src="img/eye-level.jpg" width="512" height="512" loading="lazy" alt="An eye-level view down a tree-lined street in a synthetic Manila-Quezon, with a bus, a van and power lines."></div>
+        <figcaption><b>Street level</b>A synthetic Manila-Quezon street. Labels and depth render alongside every frame.</figcaption>
+      </figure>
+    </div>
+    <p class="views-note">Street scenes are the least finished view: roads are smooth, people are block figures and parked props are boxes. We say so in the <a href="#status">status</a> section.</p>
+  </div>
+</section>
+
+<section id="download">
+  <div class="wrap split">
+    <div>
+      <h2>What is in the download.</h2>
+      <p class="sec-lede">Real GeoTIFFs you can open in QGIS or GDAL, and a manifest that says how they were made. The imagery is rendered, not photographed.</p>
+      <table class="files">
+        <tbody>
+          <tr><th>rgb.tif</th><td>3 × uint8, the rendered image</td></tr>
+          <tr><th>class.tif</th><td>1 × uint8 with a colour table: ground, building, tree, vehicle, pole, person, drone, wall, yard object</td></tr>
+          <tr><th>instance.tif</th><td>1 × uint16, one ID per object, stable for a given seed</td></tr>
+          <tr><th>sample.json</th><td>CRS, pixel size, class shares, sun angle, seed, scene hash</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:24px"><a class="btn" href="media/fraktal-sample.zip" download>Download the sample <small>2.9 MB</small></a></p>
+    </div>
+    <div>
+      <h3>Class share in this tile</h3>
+      <p style="color:var(--muted);font-size:15px">Straight from <span class="mono">sample.json</span>. Vehicles and poles are rare, as they are in a real tile, which is why we report shares and do not hide them.</p>
+      <div class="bars" id="bars" aria-label="Class share of the tile"></div>
+    </div>
+  </div>
+</section>
+
+<section id="provenance">
+  <div class="wrap">
+    <h2>You can see where every pixel came from.</h2>
+    <p class="sec-lede">Synthetic data is only useful if you can trust what is in it. Three things are checked in the repo, not promised on a page.</p>
+    <div class="facts">
+      <div>
+        <h3>Labels by construction</h3>
+        <p>Class and instance masks are rendered by the same camera as the image. There is no annotator and no model in the loop, so there is no label noise to measure.</p>
+      </div>
+      <div>
+        <h3>Deterministic worlds</h3>
+        <p>Randomness comes from named substreams of one seed. The same seed gives the same world, and a pinned test checks a content hash of each layer.</p>
+      </div>
+      <div>
+        <h3>Licensed assets only</h3>
+        <p>46 materials, 32 textures and 9 meshes, each with a licence row checked in CI: owned, CC0, or generated by a model with permissive output terms. Marketplace assets and CC-BY are out.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="status">
+  <div class="wrap">
+    <h2>Does it help a real model? We do not know yet.</h2>
+    <p class="sec-lede">We built Fraktal on the bet that enough realism and enough variety make synthetic data useful for pretraining. No training run has been done, on purpose: we are saving the GPU for a first benchmark per biome, once the pilot cities look right. When it lands we will publish it, including if it is negative.</p>
+    <div class="status">
+      <div>
+        <h3><span class="dot"></span>Working today</h3>
+        <ul>
+          <li>Satellite, drone and eye-level renders with exact class and instance labels</li>
+          <li>Seeded, reproducible worlds with stable IDs</li>
+          <li>Moving traffic and people on the road network</li>
+          <li>A provenance manifest and a licence check on every asset</li>
+          <li>A real-time Godot viewer to drive, walk or fly a world (a demo, not a capture path)</li>
+        </ul>
+      </div>
+      <div>
+        <h3><span class="dot open"></span>Still open</h3>
+        <ul>
+          <li>Whether synthetic pretraining improves a real model: not measured</li>
+          <li>Pilot cities (Manila-Quezon, Nairobi centre, Khartoum): most class shares sit within one standard deviation of the reference photos we keep locally, but Khartoum contrast and vegetation are 2.8 and 1.5 deviations off</li>
+          <li>Road surfaces are smooth, people are block figures, parked props are boxes</li>
+          <li>Building facades and street furniture are flat</li>
+          <li>SAR is planned, not built</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="contact" class="contact">
+  <div class="wrap">
+    <h2>Need a region, sensor or camera we do not have?</h2>
+    <p class="sec-lede">Tell us the place, the sensor, the pixel size and the classes you need, and we will tell you what we can render and how long it takes. This is an early version and we are looking for people to try it on a real problem.</p>
+    <a class="btn" href="mailto:jian@abangai.dev?subject=Fraktal%3A%20dataset%20request&amp;body=Region%3A%0ASensor%20or%20camera%3A%0APixel%20size%20(GSD)%3A%0AClasses%3A%0A">Email jian@abangai.dev</a>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Fraktal, by <a href="https://abangai.dev">Abang</a>. Code under Apache-2.0.</span>
+    <span><a href="https://github.com/leejianrong/fraktal">GitHub</a> · <a href="mailto:jian@abangai.dev">jian@abangai.dev</a></span>
+  </div>
+  <div class="wrap" style="margin-top:10px">
+    <span>All images on this page are synthetic renders.</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var CLASSES = [
+    { id: 1, name: "ground",   c: [120,120,120], share: 0.8144 },
+    { id: 3, name: "tree",     c: [50,160,60],   share: 0.1496 },
+    { id: 2, name: "building", c: [200,60,50],   share: 0.0268 },
+    { id: 4, name: "vehicle",  c: [240,200,40],  share: 0.0031 },
+    { id: 5, name: "pole",     c: [240,240,240], share: 0.0032 },
+    { id: 8, name: "wall",     c: [240,140,40],  share: 0.0022 }
+  ];
+  function css(c) { return "rgb(" + c.join(",") + ")"; }
+
+  // class share bars
+  var bars = document.getElementById("bars");
+  var max = 0.82;
+  CLASSES.forEach(function (k) {
+    var row = document.createElement("div");
+    row.className = "bar-row";
+    row.innerHTML = '<span>' + k.name + '</span><span class="track"><i style="--c:' + css(k.c) + ';--w:' + Math.max(0.4, k.share / max * 100) + '%"></i></span><b>' + (k.share * 100).toFixed(1) + '%</b>';
+    bars.appendChild(row);
+  });
+
+  // label view with per-class toggles
+  var canvas = document.getElementById("mask"), ctx = canvas.getContext("2d", { willReadFrequently: true });
+  var legend = document.getElementById("legend");
+  var active = {}; CLASSES.forEach(function (k) { active[k.id] = true; });
+  var src = null, ground = [120,120,120];
+  function key(r, g, b) { return r + "," + g + "," + b; }
+  var byColour = {}; CLASSES.forEach(function (k) { byColour[key(k.c[0], k.c[1], k.c[2])] = k.id; });
+  function draw() {
+    if (!src) return;
+    var out = ctx.createImageData(src.width, src.height), d = src.data, o = out.data;
+    for (var i = 0; i < d.length; i += 4) {
+      var id = byColour[key(d[i], d[i+1], d[i+2])];
+      var on = id === undefined || active[id];
+      o[i] = on ? d[i] : ground[0]; o[i+1] = on ? d[i+1] : ground[1]; o[i+2] = on ? d[i+2] : ground[2]; o[i+3] = 255;
+    }
+    ctx.putImageData(out, 0, 0);
+  }
+  var img = new Image();
+  img.onload = function () { ctx.drawImage(img, 0, 0); src = ctx.getImageData(0, 0, canvas.width, canvas.height); };
+  img.src = "img/sample-class.png";
+  CLASSES.slice(1, 5).forEach(function (k) {
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.setAttribute("aria-pressed", "true");
+    b.style.setProperty("--c", css(k.c));
+    b.innerHTML = '<i></i>' + k.name;
+    b.addEventListener("click", function () {
+      active[k.id] = !active[k.id];
+      b.setAttribute("aria-pressed", String(active[k.id]));
+      draw();
+    });
+    legend.appendChild(b);
+  });
+
+  // the wipe
+  var wipe = document.getElementById("wipe"), pos = 50, drag = false;
+  function set(p) {
+    pos = Math.max(0, Math.min(100, p));
+    wipe.style.setProperty("--x", pos + "%");
+    wipe.setAttribute("aria-valuenow", Math.round(pos));
+  }
+  function fromEvent(e) { var r = wipe.getBoundingClientRect(); set((e.clientX - r.left) / r.width * 100); }
+  wipe.addEventListener("pointerdown", function (e) { drag = true; wipe.setPointerCapture(e.pointerId); fromEvent(e); });
+  wipe.addEventListener("pointermove", function (e) { if (drag) fromEvent(e); });
+  wipe.addEventListener("pointerup", function () { drag = false; });
+  wipe.addEventListener("keydown", function (e) {
+    var step = e.shiftKey ? 10 : 3;
+    if (e.key === "ArrowLeft") { set(pos - step); e.preventDefault(); }
+    if (e.key === "ArrowRight") { set(pos + step); e.preventDefault(); }
+    if (e.key === "Home") { set(0); e.preventDefault(); }
+    if (e.key === "End") { set(100); e.preventDefault(); }
+  });
+  // one intro sweep so the interaction is discoverable, skipped for reduced motion
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!reduce) {
+    var t0 = null, stop = false;
+    (function sweep(t) {
+      if (drag || stop) return;
+      if (t0 === null) t0 = t;
+      var k = (t - t0) / 1800;
+      if (k >= 1) { set(50); return; }
+      set(50 + 30 * Math.sin(k * Math.PI * 2) * (1 - k));
+      requestAnimationFrame(sweep);
+    })(performance.now());
+    wipe.addEventListener("pointerdown", function () { stop = true; }, { once: true });
+  }
+  set(50);
+})();
+</script>
+</body>
+</html>

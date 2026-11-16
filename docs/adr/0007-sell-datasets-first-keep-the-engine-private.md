@@ -1,6 +1,6 @@
 # ADR-0007: Sell datasets and custom data projects first; the engine stays private
 
-- Status: Accepted; amended by [ADR-0011](0011-a-data-generation-studio-as-the-product.md) (the destination is a studio; projects and datasets stay the first revenue)
+- Status: Accepted; amended by [ADR-0011](0011-a-data-generation-studio-as-the-product.md) (the destination is a studio; projects and datasets stay the first revenue) and by [ADR-0014](0014-launch-phase-public-and-loud.md) (the launch phase is public and loud; closed engine is revisited later)
 - Date: 2026-11-02
 - Deciders: Jian
 
