@@ -203,7 +203,8 @@ def generate_world(
             "file": path.name,
             "features": len(frame),
             "provenance": sorted(set(map(str, frame["provenance"]))),
-            "sha256": _sha256(path),
+            "sha256": _sha256(path),  # the file's bytes: moves with the parquet writer's version
+            "content_sha256": world.layer_content_sha256(frame, kind),  # the data: use to compare
         }
     (out_dir / MANIFEST).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     emit("generate_done", out=str(out_dir))

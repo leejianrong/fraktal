@@ -161,6 +161,7 @@ These are in [AGENTS.md](../AGENTS.md) too, repeated here because they bite firs
 
 - Branch per slice, PR only, rebase-merge when CI is green. **CI is the full gate**: locally run only ruff, mypy on
   changed files and the tests for touched code. A force-push to your own PR branch needs Jian's approval.
+- Compare worlds by `layers.*.content_sha256` in `world.json` (a hash of the data, `world.layer_content_sha256`); `sha256` is the parquet file's bytes and moves with every pyarrow release.
 - Determinism only through `fraktal.ids.substream`. New config fields go in `procedural.LATER_FIELDS`. Do not repin
   Khartoum's world id unless told.
 - `blender_scene.py` runs in Blender's Python and must not import `fraktal`; its tests pull functions out of its source with `ast`. No PIL in core code or tests.

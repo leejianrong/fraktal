@@ -17,7 +17,9 @@ from pathlib import Path
 from typing import Any
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
+import shapely
 
 from fraktal.ids import feature_id
 
@@ -147,6 +149,39 @@ def write_layer(frame: gpd.GeoDataFrame, kind: str, path: Path) -> None:
     ordered = frame.sort_values("id").reset_index(drop=True)
     path.parent.mkdir(parents=True, exist_ok=True)
     ordered.to_parquet(path, index=False, compression="zstd")
+
+
+def layer_content_sha256(frame: gpd.GeoDataFrame, kind: str) -> str:
+    """A hash of a layer's content, not of its file: the CRS, then every column by name with its
+    values in id order, geometry as WKB. The GeoParquet bytes carry the writer's own version string
+    (pyarrow puts its release into three places), so the file hash moves with every pyarrow release
+    while this one moves only when a feature, a value or the CRS does."""
+    validate_layer(frame, kind)
+    ordered = frame.sort_values("id").reset_index(drop=True)
+    optional = LAYERS[kind].optional
+    digest = hashlib.sha256()
+
+    def put(tag: str, payload: bytes) -> None:
+        digest.update(f"{tag}:{len(payload)}:".encode() + payload)
+
+    put("crs", str(ordered.crs.to_epsg() or ordered.crs.to_string()).encode())
+    put("rows", str(len(ordered)).encode())
+    for column in sorted(c for c in ordered.columns if c != ordered.geometry.name):
+        if optional.get(column) is float:
+            values = pd.to_numeric(ordered[column]).to_numpy(dtype="float64", na_value=np.nan)
+            put(column, np.where(np.isnan(values), np.nan, values).astype("<f8").tobytes())
+        else:  # ids, kinds, provenance and the string columns; a missing value is its own mark
+            put(
+                column,
+                "\x1f".join("\x00" if pd.isna(v) else str(v) for v in ordered[column]).encode(),
+            )
+    put(
+        "geometry",
+        b"".join(
+            len(w).to_bytes(4, "little") + w for w in shapely.to_wkb(ordered.geometry.to_numpy())
+        ),
+    )
+    return digest.hexdigest()
 
 
 def read_layer(path: Path, kind: str) -> gpd.GeoDataFrame:
