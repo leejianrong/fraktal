@@ -23,18 +23,10 @@
  },
  "render": {
   "schema": 1,
-  "center_lonlat": [
-   32.5499990129783,
-   15.640000832594925
-  ],
   "size_m": 500.0,
   "gsd_m": 0.5,
   "px": 1000,
   "crs": "EPSG:32636",
-  "origin_sw": [
-   451517.5,
-   1728916.0
-  ],
   "sun": {
    "azimuth_deg": 135.0,
    "elevation_deg": 50.0
@@ -74,5 +66,5 @@
    "props_first_instance": 20001
   }
  },
- "note": "Synthetic. Procedural world near Khartoum, rendered with Blender. Labels come from the render camera, not a model. Assets are owned or CC0."
+ "note": "Synthetic. A procedural world rendered with Blender. Labels come from the render camera, not a model. Assets are owned or CC0."
 }

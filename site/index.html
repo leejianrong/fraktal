@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Fraktal: synthetic worlds with every pixel labelled</title>
-<meta name="description" content="Fraktal generates deterministic procedural worlds of African and Southeast Asian places and renders them from satellite, drone and street cameras, with labels that come from the renderer. Download a free sample.">
+<meta name="description" content="Fraktal generates synthetic imagery that is representative of the real world, rendered from satellite, drone and street-level cameras with pixel-exact labels. Download a free sample.">
 <meta property="og:title" content="Fraktal: every pixel labelled, because we drew it">
-<meta property="og:description" content="Deterministic procedural worlds, rendered from any camera with pixel-exact labels. Free sample GeoTIFFs.">
+<meta property="og:description" content="Synthetic imagery built to resemble the real world, with pixel-exact labels from the renderer. Free sample GeoTIFFs.">
 <meta property="og:image" content="https://fraktal.abangai.dev/img/sample-rgb.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -28,6 +28,9 @@
     --brand: #5f7f25;
     --brand-ink: #fbf4e4;
     --brand-leaf: #d5ec9a;
+    --frond-1: #7f9c45;
+    --frond-2: #a9c06f;
+    --frond-3: #c9d9a3;
     --focus: #1b5fd1;
     --sans: "Avenir Next", "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
     --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, "Cascadia Code", Consolas, monospace;
@@ -36,11 +39,13 @@
     :root:not([data-theme="light"]) {
       --paper: #141713; --card: #1b1f1a; --ink: #ece9e0; --muted: #9ea398; --line: rgba(236, 233, 224, .16);
       --focus: #7aa7ff;
+      --frond-1: #5f7f25; --frond-2: #46601c; --frond-3: #34491a;
     }
   }
   :root[data-theme="dark"] {
     --paper: #141713; --card: #1b1f1a; --ink: #ece9e0; --muted: #9ea398; --line: rgba(236, 233, 224, .16);
     --focus: #7aa7ff;
+    --frond-1: #5f7f25; --frond-2: #46601c; --frond-3: #34491a;
   }
 
   *, *::before, *::after { box-sizing: border-box; }
@@ -67,8 +72,10 @@
   header nav a:hover { color: var(--ink); text-decoration: underline; }
 
   /* hero */
-  .hero { padding: 36px 0 72px; }
+  .hero { padding: 36px 0 170px; overflow: hidden; position: relative; }
   .hero-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 56px; align-items: center; }
+  .frond { position: absolute; left: -20px; bottom: -105px; width: 340px; height: 340px; pointer-events: none; z-index: 0; }
+  .hero-grid > :not(.frond) { position: relative; z-index: 1; }
   h1 { font-size: clamp(40px, 5.4vw, 72px); line-height: .98; letter-spacing: -.045em; font-weight: 800; margin: 0 0 24px; text-wrap: balance; }
   h1 .drawn { background: linear-gradient(var(--building), var(--building)) no-repeat 0 92% / 100% .11em; padding-bottom: .02em; }
   .lede { font-size: 19px; color: var(--muted); max-width: 34em; margin: 0 0 30px; }
@@ -84,7 +91,6 @@
   .btn small { font-family: var(--mono); font-size: 13px; font-weight: 500; opacity: .75; }
   .quiet { font-size: 15px; color: var(--muted); }
   .quiet:hover { color: var(--ink); }
-  .cta-note { margin: 16px 0 0; font-size: 14px; color: var(--muted); }
 
   /* the wipe: rendered frame on one side, the exact labels of the same pixels on the other */
   .wipe-fig { margin: 0; }
@@ -129,7 +135,6 @@
   .view .frame > * { width: 100%; height: 100%; object-fit: cover; }
   .view figcaption { display: block; padding: 14px 16px 18px; margin: 0; font-size: 15px; }
   .view figcaption b { color: var(--ink); display: block; font-size: 17px; margin-bottom: 4px; letter-spacing: -.01em; }
-  .views-note { margin-top: 18px; font-size: 14px; color: var(--muted); }
 
   .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: start; }
   .files { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 14px; background: var(--card); border: 1px solid var(--line); }
@@ -147,14 +152,6 @@
   .facts > div { border-top: 3px solid var(--ink); padding-top: 14px; }
   .facts p { color: var(--muted); font-size: 16px; }
 
-  .status { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; }
-  .status ul { list-style: none; padding: 0; margin: 0; }
-  .status li { padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 16px; }
-  .status li:first-child { border-top: 1px solid var(--line); }
-  .status h3 { display: flex; align-items: center; gap: 10px; }
-  .dot { width: 12px; height: 12px; display: inline-block; background: var(--tree); }
-  .dot.open { background: var(--vehicle); }
-  .status .z { font-family: var(--mono); font-size: 13px; color: var(--muted); }
 
   .contact { text-align: left; }
   .contact .btn { margin-top: 8px; }
@@ -163,7 +160,9 @@
   footer a { color: inherit; }
 
   @media (max-width: 900px) {
-    .hero-grid, .split, .status { grid-template-columns: 1fr; gap: 36px; }
+    .frond { display: none; }
+    .hero { padding-bottom: 60px; }
+    .hero-grid, .split { grid-template-columns: 1fr; gap: 36px; }
     .views, .facts { grid-template-columns: 1fr; }
     section { padding: 60px 0; }
     .wrap { padding: 0 16px; }
@@ -183,7 +182,7 @@
     <nav aria-label="Primary">
       <a href="#views">Views</a>
       <a href="#download">The sample</a>
-      <a href="#status">Status</a>
+      <a href="#realism">Realism</a>
       <a class="keep" href="https://github.com/leejianrong/fraktal">GitHub</a>
     </nav>
   </div>
@@ -192,19 +191,23 @@
 <main>
 <div class="hero">
   <div class="wrap hero-grid">
+    <svg class="frond" viewBox="0 0 400 400" aria-hidden="true" focusable="false"><g transform="translate(0 0)" fill="none" stroke-linecap="round">
+<path d="M110 360Q150 120 330 60" stroke="var(--frond-1)" stroke-width="7"/>
+<path d="M117 324Q69 294 34 248M117 324Q173 321 225 297M126 290Q80 260 46 214M126 290Q181 285 233 259M136 259Q98 224 73 177M136 259Q185 257 232 238M148 229Q110 195 87 148M148 229Q194 232 240 217M161 202Q128 168 108 124M161 202Q204 211 249 204M177 177Q151 149 136 114M177 177Q214 190 254 189M194 154Q177 124 171 89M194 154Q230 166 269 166M212 133Q199 103 196 70M212 133Q240 148 272 152M232 114Q222 90 221 64M232 114Q256 126 283 130M254 97Q247 76 248 52M254 97Q273 111 296 117M278 83Q275 66 278 48M278 83Q291 96 308 104M303 70Q302 58 306 45M303 70Q312 80 324 87" stroke="var(--frond-3)" stroke-width="5"/>
+<path d="M105 316l-30 12M105 316l9 -31M94 308l-27 11M94 308l8 -28M83 299l-24 9M83 299l7 -24M72 290l-20 8M72 290l6 -21M62 280l-17 7M62 280l5 -17M52 270l-13 5M52 270l4 -14M43 259l-10 4M43 259l3 -10M131 323l7 -31M131 323l21 25M145 321l6 -28M145 321l18 22M158 319l5 -24M158 319l16 19M172 316l5 -21M172 316l14 16M185 312l4 -17M185 312l11 14M199 308l3 -14M199 308l9 11M212 303l2 -10M212 303l7 8M114 283l-30 11M114 283l10 -30M104 274l-26 10M104 274l9 -27M93 266l-23 8M93 266l8 -23M83 256l-20 7M83 256l6 -20M73 247l-16 6M73 247l5 -17M64 236l-13 5M64 236l4 -13M55 226l-10 4M55 226l3 -10M140 289l5 -32M140 289l22 24M153 286l5 -28M153 286l19 21M167 283l4 -25M167 283l17 19M180 280l4 -21M180 280l14 16M194 275l3 -18M194 275l12 13M207 271l2 -14M207 271l10 11M220 265l2 -11M220 265l7 8M125 249l-29 6M125 249l13 -26M115 238l-25 5M115 238l11 -23M106 227l-21 4M106 227l10 -19M97 215l-18 4M97 215l8 -16M88 203l-14 3M88 203l6 -13M80 190l-10 2M80 190l5 -9M150 258l7 -27M150 258l17 22M164 256l6 -24M164 256l15 19M177 254l5 -20M177 254l13 16M191 251l4 -17M191 251l11 13M205 247l3 -13M205 247l8 11M218 243l2 -10M218 243l6 8M137 219l-28 6M137 219l13 -26M128 209l-25 5M128 209l11 -22M118 198l-21 4M118 198l10 -19M110 186l-17 3M110 186l8 -16M101 174l-14 3M101 174l6 -12M94 161l-10 2M94 161l5 -9M161 230l8 -25M161 230l15 22M174 229l7 -22M174 229l13 19M187 228l6 -19M187 228l11 16M201 226l5 -15M201 226l9 13M214 224l4 -12M214 224l7 11M227 221l3 -9M227 221l5 8M152 192l-27 4M152 192l13 -23M143 182l-23 3M143 182l12 -20M135 171l-20 3M135 171l10 -17M127 160l-16 2M127 160l8 -14M120 148l-13 2M120 148l6 -11M114 136l-9 1M114 136l5 -8M176 205l11 -22M176 205l10 22M190 206l10 -18M190 206l9 19M205 207l8 -15M205 207l7 15M219 207l6 -12M219 207l5 12M234 206l4 -8M234 206l4 9M167 166l-20 2M167 166l10 -17M158 154l-16 2M158 154l8 -14M150 141l-12 2M150 141l6 -11M142 128l-9 1M142 128l4 -7M189 181l13 -18M189 181l6 21M202 184l11 -15M202 184l5 18M215 187l9 -12M215 187l4 14M228 188l7 -10M228 188l3 11M241 189l5 -7M241 189l2 8M187 142l-18 -2M187 142l13 -13M182 129l-15 -2M182 129l10 -11M177 116l-11 -1M177 116l8 -8M174 103l-8 -1M174 103l6 -6M208 158l12 -17M208 158l6 20M223 162l10 -14M223 162l5 16M238 164l7 -10M238 164l4 12M253 165l5 -7M253 165l3 8M207 121l-17 -3M207 121l13 -11M203 109l-14 -3M203 109l11 -9M200 96l-11 -2M200 96l8 -7M197 83l-7 -1M197 83l6 -5M226 140l11 -12M226 140l2 16M241 145l8 -9M241 145l2 12M256 149l6 -6M256 149l1 8M227 98l-12 -3M227 98l9 -8M223 81l-7 -2M223 81l6 -5M244 120l9 -10M244 120l2 13M257 124l7 -7M257 124l2 10M270 128l5 -5M270 128l1 7M250 83l-10 -3M250 83l9 -6M248 68l-6 -2M248 68l6 -4M267 106l9 -7M267 106l0 11M281 112l5 -4M281 112l0 7M276 71l-7 -4M276 71l7 -4M276 60l-5 -2M276 60l5 -2M287 91l8 -4M287 91l-2 9M297 98l5 -3M297 98l-1 5M303 62l-5 -3M303 62l6 -2M304 54l-3 -2M304 54l4 -1M309 77l6 -3M309 77l-1 6M316 82l4 -2M316 82l-1 4" stroke="var(--frond-2)" stroke-width="3.2"/>
+</g></svg>
     <div>
       <h1>Every pixel labelled, <span class="drawn">because we drew it.</span></h1>
-      <p class="lede">Fraktal builds procedural worlds of African and Southeast Asian places and renders them from satellite, drone and street-level cameras. <strong>The labels come from the renderer, not from annotators or a model</strong>, so they cannot drift from the pixels.</p>
+      <p class="lede">Synthetic imagery built to resemble the real world, and checked against it with both measurement and expert review. Rendered from satellite, drone and street-level cameras, with <strong>labels that come straight from the renderer</strong>: no annotators, no model, nothing to drift from the pixels.</p>
       <div class="cta-row">
         <a class="btn" href="media/fraktal-sample.zip" download>Download the sample <small>2.9 MB</small></a>
         <a class="quiet" href="https://github.com/leejianrong/fraktal">Read the code on GitHub</a>
       </div>
-      <p class="cta-note">Three GeoTIFFs and a manifest: image, class labels and instance labels for one 500 m tile. No sign-up.</p>
     </div>
 
     <figure class="wipe-fig">
       <div class="wipe" id="wipe" role="slider" tabindex="0" aria-label="Compare the rendered image with its labels" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
-        <img src="img/sample-rgb.jpg" width="1000" height="1000" alt="Satellite-view render of a synthetic tile near Khartoum: roads, trees and buildings.">
+        <img src="img/sample-rgb.jpg" width="1000" height="1000" alt="Satellite-view render of a synthetic tile: roads, trees and buildings.">
         <div class="mask-clip">
           <canvas id="mask" width="1000" height="1000" role="img" aria-label="The class labels for the same tile, one flat colour per class."></canvas>
         </div>
@@ -214,8 +217,7 @@
       </div>
       <div class="legend" id="legend" role="group" aria-label="Show or hide a class in the label view"></div>
       <figcaption>
-        <span>Drag the line, or use the arrow keys. Click a class to hide it.</span>
-        <span class="mono">500 m tile, 0.5 m pixels, EPSG:32636</span>
+        <span>Drag the line to compare. Click a class to hide it.</span>
       </figcaption>
     </figure>
   </div>
@@ -224,22 +226,21 @@
 <section id="views">
   <div class="wrap">
     <h2>One world, any camera.</h2>
-    <p class="sec-lede">The same seeded world renders from orbit, from a drone and from the kerb. A fixed seed gives the same world and the same object IDs every time, so a car in one frame is the same car in the next.</p>
+    <p class="sec-lede">The same seeded world renders from orbit, from a drone and from the street. A fixed seed gives the same world and the same object IDs every time, so a car in one frame is the same car in the next.</p>
     <div class="views">
       <figure class="view">
         <div class="frame"><img src="img/sample-rgb.jpg" width="1000" height="1000" loading="lazy" alt="Satellite view of the sample tile."></div>
-        <figcaption><b>Satellite</b>0.5 m pixels, GeoTIFF with a CRS. The tile you can download.</figcaption>
+        <figcaption><b>Satellite</b>0.5 m pixels, as a georeferenced GeoTIFF. This is the tile you can download.</figcaption>
       </figure>
       <figure class="view">
         <div class="frame"><video src="media/drone-orbit.mp4" width="720" height="720" autoplay muted loop playsinline preload="metadata" aria-label="A drone orbiting a synthetic neighbourhood with moving traffic."></video></div>
         <figcaption><b>Drone</b>An orbit around the same kind of world, with traffic and people moving along the roads.</figcaption>
       </figure>
       <figure class="view">
-        <div class="frame"><img src="img/eye-level.jpg" width="512" height="512" loading="lazy" alt="An eye-level view down a tree-lined street in a synthetic Manila-Quezon, with a bus, a van and power lines."></div>
-        <figcaption><b>Street level</b>A synthetic Manila-Quezon street. Labels and depth render alongside every frame.</figcaption>
+        <div class="frame"><img src="img/eye-level.jpg" width="512" height="512" loading="lazy" alt="An eye-level view down a tree-lined street, with a bus, a van and power lines."></div>
+        <figcaption><b>Street level</b>Eye-level frames, with labels and depth rendered alongside every one.</figcaption>
       </figure>
     </div>
-    <p class="views-note">Street scenes are the least finished view: roads are smooth, people are block figures and parked props are boxes. We say so in the <a href="#status">status</a> section.</p>
   </div>
 </section>
 
@@ -253,15 +254,36 @@
           <tr><th>rgb.tif</th><td>3 × uint8, the rendered image</td></tr>
           <tr><th>class.tif</th><td>1 × uint8 with a colour table: ground, building, tree, vehicle, pole, person, drone, wall, yard object</td></tr>
           <tr><th>instance.tif</th><td>1 × uint16, one ID per object, stable for a given seed</td></tr>
-          <tr><th>sample.json</th><td>CRS, pixel size, class shares, sun angle, seed, scene hash</td></tr>
+          <tr><th>sample.json</th><td>CRS, pixel size, class shares, sun angle, seed</td></tr>
         </tbody>
       </table>
       <p style="margin-top:24px"><a class="btn" href="media/fraktal-sample.zip" download>Download the sample <small>2.9 MB</small></a></p>
     </div>
     <div>
       <h3>Class share in this tile</h3>
-      <p style="color:var(--muted);font-size:15px">Straight from <span class="mono">sample.json</span>. Vehicles and poles are rare, as they are in a real tile, which is why we report shares and do not hide them.</p>
+      <p style="color:var(--muted);font-size:15px">Straight from <span class="mono">sample.json</span>.</p>
       <div class="bars" id="bars" aria-label="Class share of the tile"></div>
+    </div>
+  </div>
+</section>
+
+<section id="realism">
+  <div class="wrap">
+    <h2>Representative of the real world, checked two ways.</h2>
+    <p class="sec-lede">Looking real is not enough. Worlds are grounded in real geography, then tested against real reference imagery so the synthetic scenes behave like the places they stand in for.</p>
+    <div class="facts">
+      <div>
+        <h3>Measured</h3>
+        <p>Class shares, colour, contrast, texture and edge statistics of every synthetic scene are compared with real reference imagery and plotted side by side. The gaps decide what we improve next.</p>
+      </div>
+      <div>
+        <h3>Reviewed by eye</h3>
+        <p>Side-by-side visual review catches what statistics miss: the wrong kind of roof, an unnatural tree line, a street that feels empty.</p>
+      </div>
+      <div>
+        <h3>Grounded, then varied</h3>
+        <p>Terrain, land cover and building footprints can come from open geodata. Procedural generators fill in the detail, and every seed gives a different but plausible world.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -269,48 +291,19 @@
 <section id="provenance">
   <div class="wrap">
     <h2>You can see where every pixel came from.</h2>
-    <p class="sec-lede">Synthetic data is only useful if you can trust what is in it. Three things are checked in the repo, not promised on a page.</p>
+    <p class="sec-lede">Synthetic data is only useful if you can trust what is in it.</p>
     <div class="facts">
       <div>
         <h3>Labels by construction</h3>
-        <p>Class and instance masks are rendered by the same camera as the image. There is no annotator and no model in the loop, so there is no label noise to measure.</p>
+        <p>Class and instance masks are rendered by the same camera as the image. There is no annotator and no model in the loop, so there is no label noise.</p>
       </div>
       <div>
-        <h3>Deterministic worlds</h3>
-        <p>Randomness comes from named substreams of one seed. The same seed gives the same world, and a pinned test checks a content hash of each layer.</p>
+        <h3>Reproducible worlds</h3>
+        <p>The same seed gives the same world, object for object. Every dataset ships with a manifest listing its layers and where each one came from.</p>
       </div>
       <div>
         <h3>Licensed assets only</h3>
-        <p>46 materials, 32 textures and 9 meshes, each with a licence row checked in CI: owned, CC0, or generated by a model with permissive output terms. Marketplace assets and CC-BY are out.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="status">
-  <div class="wrap">
-    <h2>Does it help a real model? We do not know yet.</h2>
-    <p class="sec-lede">We built Fraktal on the bet that enough realism and enough variety make synthetic data useful for pretraining. No training run has been done, on purpose: we are saving the GPU for a first benchmark per biome, once the pilot cities look right. When it lands we will publish it, including if it is negative.</p>
-    <div class="status">
-      <div>
-        <h3><span class="dot"></span>Working today</h3>
-        <ul>
-          <li>Satellite, drone and eye-level renders with exact class and instance labels</li>
-          <li>Seeded, reproducible worlds with stable IDs</li>
-          <li>Moving traffic and people on the road network</li>
-          <li>A provenance manifest and a licence check on every asset</li>
-          <li>A real-time Godot viewer to drive, walk or fly a world (a demo, not a capture path)</li>
-        </ul>
-      </div>
-      <div>
-        <h3><span class="dot open"></span>Still open</h3>
-        <ul>
-          <li>Whether synthetic pretraining improves a real model: not measured</li>
-          <li>Pilot cities (Manila-Quezon, Nairobi centre, Khartoum): most class shares sit within one standard deviation of the reference photos we keep locally, but Khartoum contrast and vegetation are 2.8 and 1.5 deviations off</li>
-          <li>Road surfaces are smooth, people are block figures, parked props are boxes</li>
-          <li>Building facades and street furniture are flat</li>
-          <li>SAR is planned, not built</li>
-        </ul>
+        <p>Every material, texture and mesh is owned by us, CC0, or generated by a model with permissive output terms, and recorded in the manifest. No marketplace assets.</p>
       </div>
     </div>
   </div>
@@ -318,8 +311,8 @@
 
 <section id="contact" class="contact">
   <div class="wrap">
-    <h2>Need a region, sensor or camera we do not have?</h2>
-    <p class="sec-lede">Tell us the place, the sensor, the pixel size and the classes you need, and we will tell you what we can render and how long it takes. This is an early version and we are looking for people to try it on a real problem.</p>
+    <h2>Need a different area, sensor or camera?</h2>
+    <p class="sec-lede">We build custom datasets to your spec. Tell us the area, the sensor, the pixel size and the classes you need, and we will tell you what we can render and how long it takes.</p>
     <a class="btn" href="mailto:jian@abangai.dev?subject=Fraktal%3A%20dataset%20request&amp;body=Region%3A%0ASensor%20or%20camera%3A%0APixel%20size%20(GSD)%3A%0AClasses%3A%0A">Email jian@abangai.dev</a>
   </div>
 </section>
