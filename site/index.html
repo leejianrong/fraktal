@@ -9,7 +9,7 @@
 <meta property="og:description" content="Deterministic procedural worlds, rendered from any camera with pixel-exact labels. Free sample GeoTIFFs.">
 <meta property="og:image" content="https://fraktal.abangai.dev/img/sample-rgb.jpg">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23787878'/%3E%3Crect x='8' y='8' width='26' height='26' fill='%23c83c32'/%3E%3Ccircle cx='46' cy='44' r='12' fill='%2332a03c'/%3E%3Crect x='10' y='46' width='14' height='5' fill='%23f0c828'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <style>
   /* Tokens. The accent colours are the class colours that ship in class.tif,
      so colour on this page always labels something. */
@@ -25,6 +25,8 @@
     --tree: #32a03c;
     --vehicle: #f0c828;
     --pole: #e8e8e8;
+    --brand: #5f7f25;
+    --brand-ink: #fbf4e4;
     --focus: #1b5fd1;
     --sans: "Avenir Next", "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
     --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, "Cascadia Code", Consolas, monospace;
@@ -58,9 +60,7 @@
   /* header */
   header .wrap { display: flex; align-items: center; justify-content: space-between; height: 68px; }
   .mark { font-weight: 800; font-size: 22px; letter-spacing: -.04em; text-decoration: none; display: flex; align-items: center; gap: 10px; }
-  .mark i { width: 22px; height: 22px; background: var(--ground); position: relative; display: block; }
-  .mark i::before { content: ""; position: absolute; left: 2px; top: 2px; width: 9px; height: 9px; background: var(--building); }
-  .mark i::after { content: ""; position: absolute; right: 2px; bottom: 2px; width: 9px; height: 9px; border-radius: 50%; background: var(--tree); }
+  .mark svg { width: 30px; height: 30px; display: block; }
   header nav { display: flex; gap: 22px; font-size: 15px; }
   header nav a { text-decoration: none; color: var(--muted); }
   header nav a:hover { color: var(--ink); text-decoration: underline; }
@@ -178,7 +178,7 @@
 
 <header>
   <div class="wrap">
-    <a class="mark" href="/" aria-label="Fraktal home"><i></i>fraktal</a>
+    <a class="mark" href="/" aria-label="Fraktal home"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="var(--brand)"/><path d="M25 56C16 52 17 44 17 33A15 15 0 0 1 47 33A10 10 0 0 1 27 33A5 5 0 0 1 37 33" fill="none" stroke="var(--brand-ink)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></svg>fraktal</a>
     <nav aria-label="Primary">
       <a href="#views">Views</a>
       <a href="#download">The sample</a>
