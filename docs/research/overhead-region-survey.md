@@ -43,8 +43,29 @@ not a fresh render of every biome.
    clean look.
 8. **Small water features:** pools and ponds.
 
+## Target looks, in build order
+
+Chosen by look, not by city: a generator that reproduces a look covers every region that shares it.
+Numbers are the cell index on `sn7_grid.jpg` (latitude and longitude are decoded from the tile
+names; the grouping is a judgement from 4 m thumbnails).
+
+| # | Look | Real examples (SN7 cells) | Needs |
+|---|---|---|---|
+| 1 | **Arid low-rise sprawl.** Sand and rock relief, flat roofs, grid or radial streets, bare plots. Next to Khartoum, so it reuses the desert palette | Cairo 34 to 36, Khartoum 37, Benghazi 30, Riyadh 40, Kuwait 41, Abu Dhabi 43, Sanaa 39, Algeria 26, Calama 22 | FRK-187 (arid relief), FRK-188 (grid and radial layouts) |
+| 2 | **Planned suburbs.** Uniform houses on curved streets, pools, large blocks | Las Vegas 09 and the Vegas close-ups, San Diego 06 and 07, Boise 08, Salt Lake 10, Mexico City 12 | FRK-188 |
+| 3 | **Industrial and farmed plain.** Blue and tin roof clusters, warehouses, rectilinear fields, rivers and canals | Chengdu 04 and 49 to 50, Guangzhou 51 to 52, Wuhan 53, Hefei 54 to 55, Shanghai 57 | FRK-107 (industrial), FRK-187 (water), FRK-189 (highways), the paddy and field cards |
+| 4 | **Dense tropical** (already covered by the dense-urban and informal biomes; check only) | Kumasi 00, Dhaka 01, Clark 03, Kampala 38, Mumbai 45 and 46, Andhra 47 and 48, Kingston 19 | None new |
+| 5 | **Temperate sprawl and ports.** Tree-heavy suburbs, field mosaics, container ports and bays | Atlanta 15, Raleigh 18, Birmingham 27, London 28, Rotterdam 29, Dakar 25, Daejeon 58 | Later |
+
+Skipped for now: snow and cloud as a look of their own (Moscow), and mountain or mining terrain beyond
+the arid relief in FRK-187.
+
+Why this order: look 1 extends the pilot we already have and needs two cards; look 2 is the most visibly
+wrong gap and only needs FRK-188; look 3 is the largest set of regions but needs the most cards, so it
+comes after its parts exist. Dense tropical is the benchmark's home ground and mostly built.
+
 ## Next
 
-Pick the target regions to widen to from the global sheet, then build the cards above in that order.
+Build the cards above in the order of the table.
 Measure with the free checks (`fraktal compare`, distribution plots, chip strips), not a training run
 (ADR-0009).
