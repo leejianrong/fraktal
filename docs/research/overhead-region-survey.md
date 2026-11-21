@@ -113,3 +113,7 @@ ripples remain; real wave geometry is not done.
 Pools and driveways (FRK-190): planned subdivisions now carry a driveway on each built lot and a
 back-yard pool on a quarter of them, as `field` rows painted as ground (class ground, no label
 change). To go: pool and driveway classes in the labels (a contract decision), kerbs and pavements.
+
+Districts (FRK-188): `planned_patchwork` cuts the region into Voronoi districts, each with its own
+angle and a grid or cul-de-sac pattern, with a collector along every shared boundary. Still one
+building style across districts, and no superblocks with commercial use.

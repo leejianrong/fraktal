@@ -84,6 +84,7 @@ SEALED_STREETS = (
     "nairobi_centre",
     "planned_suburb",
     "planned_cul_de_sac",
+    "planned_patchwork",
 )
 SEALED_LOCAL_RGB = (84.0, 82.0, 82.0)
 

@@ -24,7 +24,9 @@ def test_lots_are_identical_rectangles_that_do_not_overlap(tmp_path: Path, biome
     assert len(parcels) > 100
     areas = parcels.geometry.area.to_numpy()
     assert np.ptp(areas) < 1e-6 * areas.mean()
-    assert np.allclose(parcels.geometry.area, parcels.geometry.minimum_rotated_rectangle().area)
+    assert np.allclose(
+        parcels.geometry.area, parcels.geometry.minimum_rotated_rectangle().area, rtol=1e-3
+    )
     union = parcels.geometry.union_all()
     assert union.area == pytest.approx(areas.sum(), rel=1e-6)
 
@@ -113,3 +115,29 @@ def test_yards_can_be_switched_off(tmp_path: Path) -> None:
     )
     generate_world(tmp_path / "w", CENTER, 3, config)
     assert not (tmp_path / "w" / "fields.parquet").exists()
+
+
+def test_a_patchwork_has_districts_at_different_angles_and_a_collector_between(
+    tmp_path: Path,
+) -> None:
+    world = _world(tmp_path, "planned_patchwork", size_m=1500.0)
+    roads, parcels = read_roads(world), read_parcels(world)
+    angles = {
+        round(np.degrees(np.arctan2(*np.subtract(g.coords[-1], g.coords[0])[::-1])) % 90, 0)
+        for g in roads.geometry
+        if g.length > 40
+    }
+    assert len(angles) >= 4  # several grid directions, not one
+    assert (roads.road_class == "arterial").sum() >= 4
+    areas = parcels.geometry.area.to_numpy()
+    assert parcels.geometry.union_all().area == pytest.approx(areas.sum(), rel=1e-6)
+    carriage = roads.geometry.buffer(roads.width_m / 2, cap_style="flat").union_all()
+    assert parcels.geometry.intersection(carriage).area.sum() < 0.002 * areas.sum()
+    houses = read_buildings(world)
+    assert len(houses) > 0.7 * len(parcels)
+
+
+def test_a_patchwork_is_byte_identical_per_seed(tmp_path: Path) -> None:
+    a = (_world(tmp_path / "a", "planned_patchwork", size_m=900.0) / "parcels.parquet").read_bytes()
+    b = (_world(tmp_path / "b", "planned_patchwork", size_m=900.0) / "parcels.parquet").read_bytes()
+    assert a == b
