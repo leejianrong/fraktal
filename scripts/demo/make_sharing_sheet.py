@@ -19,10 +19,15 @@ from pathlib import Path
 import numpy as np
 import rasterio
 from PIL import Image, ImageDraw, ImageFont
+from rasterio.crs import CRS
+from rasterio.transform import from_origin
 
 from fraktal.labels3d import CLASSES, decode
 
 ROOT = Path(__file__).resolve().parents[2]
+# A sample carries no place: a local metre grid with its origin at 0, 0 instead of a UTM zone.
+PLACE_KEYS = ("crs", "center_lonlat", "origin_sw", "world")  # anything that says where
+LOCAL_CRS = CRS.from_wkt('LOCAL_CS["Fraktal local metres",UNIT["metre",1]]')
 PALETTE = {
     "none": (0, 0, 0),
     "ground": (120, 120, 120),
@@ -51,7 +56,19 @@ def write_sample(nadir: Path, out: Path) -> dict[str, object]:
         profile = src.profile
     with rasterio.open(nadir / "labels.tif") as src:
         semantic, instance = decode(src.read())
-    base = {**profile, "compress": "deflate", "tiled": True, "blockxsize": 256, "blockysize": 256}
+    pixel = abs(profile["transform"].a)
+    local = {
+        "crs": LOCAL_CRS,
+        "transform": from_origin(0.0, profile["height"] * pixel, pixel, pixel),
+    }
+    base = {
+        **profile,
+        **local,
+        "compress": "deflate",
+        "tiled": True,
+        "blockxsize": 256,
+        "blockysize": 256,
+    }
     with rasterio.open(sample / "rgb.tif", "w", **base) as dst:
         dst.write(rgb)
     with rasterio.open(sample / "class.tif", "w", **{**base, "count": 1, "dtype": "uint8"}) as dst:
@@ -64,7 +81,7 @@ def write_sample(nadir: Path, out: Path) -> dict[str, object]:
         dst.write(instance.astype("uint16")[None])
     share = {k: round(float((semantic == v).mean()), 4) for k, v in CLASSES.items() if v}
     info = {
-        "crs": str(profile["crs"]),
+        "crs": "local metres (no geographic reference)",
         "pixel_m": abs(profile["transform"].a),
         "size_px": [profile["width"], profile["height"]],
         "bands": {
@@ -73,7 +90,11 @@ def write_sample(nadir: Path, out: Path) -> dict[str, object]:
             "instance.tif": "1 x uint16",
         },
         "class_share": share,
-        "render": json.loads((nadir / "render.json").read_text()),
+        "render": {
+            k: v
+            for k, v in json.loads((nadir / "render.json").read_text()).items()
+            if k not in PLACE_KEYS
+        },
     }  # fmt: skip
     (sample / "sample.json").write_text(json.dumps(info, indent=1) + "\n")
     return info

@@ -1,5 +1,5 @@
 {
- "crs": "EPSG:32636",
+ "crs": "local metres (no geographic reference)",
  "pixel_m": 0.5,
  "size_px": [
   1000,
@@ -26,7 +26,6 @@
   "size_m": 500.0,
   "gsd_m": 0.5,
   "px": 1000,
-  "crs": "EPSG:32636",
   "sun": {
    "azimuth_deg": 135.0,
    "elevation_deg": 50.0

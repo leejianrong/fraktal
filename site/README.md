@@ -15,3 +15,9 @@ trackers), `img/` and `media/`. It imports nothing from `src/`, so it can move t
   (no local paths). Rebuild them when the sample changes; keep `site/` under a few MB.
 - **Never** put real street photos here (ADR-0006, evaluation only).
 - Decision record: [ADR-0014](../docs/adr/0014-launch-phase-public-and-loud.md).
+
+## The sample carries no place
+
+`media/fraktal-sample.zip` is written on a local metre grid (origin 0, 0, no UTM zone) and its
+`sample.json` has no location, so it does not hint where the world was made. `scripts/demo/make_sharing_sheet.py`
+now does this when it writes a sample; if you rebuild the zip by hand, keep it that way.

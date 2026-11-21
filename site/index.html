@@ -230,7 +230,7 @@
     <div class="views">
       <figure class="view">
         <div class="frame"><img src="img/sample-rgb.jpg" width="1000" height="1000" loading="lazy" alt="Satellite view of the sample tile."></div>
-        <figcaption><b>Satellite</b>0.5 m pixels, as a georeferenced GeoTIFF. This is the tile you can download.</figcaption>
+        <figcaption><b>Satellite</b>0.5 m pixels, as a GeoTIFF on a local metre grid. This is the tile you can download.</figcaption>
       </figure>
       <figure class="view">
         <div class="frame"><video src="media/drone-orbit.mp4" width="720" height="720" autoplay muted loop playsinline preload="metadata" aria-label="A drone orbiting a synthetic neighbourhood with moving traffic."></video></div>
@@ -254,7 +254,7 @@
           <tr><th>rgb.tif</th><td>3 × uint8, the rendered image</td></tr>
           <tr><th>class.tif</th><td>1 × uint8 with a colour table: ground, building, tree, vehicle, pole, person, drone, wall, yard object</td></tr>
           <tr><th>instance.tif</th><td>1 × uint16, one ID per object, stable for a given seed</td></tr>
-          <tr><th>sample.json</th><td>CRS, pixel size, class shares, sun angle, seed</td></tr>
+          <tr><th>sample.json</th><td>Grid, pixel size, class shares, sun angle, seed</td></tr>
         </tbody>
       </table>
       <p style="margin-top:24px"><a class="btn" href="media/fraktal-sample.zip" download>Download the sample <small>2.9 MB</small></a></p>
