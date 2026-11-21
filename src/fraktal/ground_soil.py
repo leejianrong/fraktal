@@ -75,7 +75,13 @@ DEFAULT_SOIL = SoilStyle(*OCHRE, share=0.4)
 # City biomes whose local streets are sealed (FRK-152). The base road colour is a pale dusty street
 # set against overhead chips; at eye level it renders about twice as bright as the photos' asphalt
 # (road brightness 0.81 against 0.44 in Manila-Quezon), so these streets take an asphalt grey.
-SEALED_STREETS = ("khartoum_city", "manila_quezon", "nairobi_centre")
+SEALED_STREETS = (
+    "khartoum_city",
+    "manila_quezon",
+    "nairobi_centre",
+    "planned_suburb",
+    "planned_cul_de_sac",
+)
 SEALED_LOCAL_RGB = (84.0, 82.0, 82.0)
 
 # Other earth tones a tile may draw instead of the biome's base one (FRK-134), set by eye.
