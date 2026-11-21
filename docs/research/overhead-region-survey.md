@@ -109,3 +109,7 @@ ripples remain; real wave geometry is not done.
   arterials) and mixed land use. Needs several districts per world.
 - **Farmed river plain:** round lakes and thin rivers over bright green noise. Real tiles have
   rectilinear fields, straight canals, dark water and blue-roofed industrial clusters.
+
+Pools and driveways (FRK-190): planned subdivisions now carry a driveway on each built lot and a
+back-yard pool on a quarter of them, as `field` rows painted as ground (class ground, no label
+change). To go: pool and driveway classes in the labels (a contract decision), kerbs and pavements.

@@ -19,8 +19,10 @@ import geopandas as gpd
 from affine import Affine
 from shapely import affinity
 from shapely.geometry import LineString, Point, Polygon, box
+from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
+from fraktal.fields import FIELD_PROVENANCE
 from fraktal.ids import substream
 from fraktal.roads import PROVENANCE as ROAD_PROVENANCE
 from fraktal.settlement import PARCEL_PROVENANCE, _cell_is_water
@@ -42,6 +44,9 @@ class SubdivisionConfig:
     collector_every: int = 4  # every Nth vertical street is a collector
     collector_width_m: float = 18.0
     bulb_radius_m: float = 11.0  # cul-de-sac turning circle
+    driveway_width_m: float = 3.2  # 0 means no driveways
+    pool_share: float = 0.25  # of the built lots with a back-yard pool
+    pool_size_m: tuple[float, float] = (3.2, 5.0)  # width and length of a pool
 
 
 def _frame(shape: tuple[int, ...], transform: Affine) -> tuple[Any, float, float, float]:
@@ -248,4 +253,72 @@ def build_subdivision(
     return roads, make_layer("parcel", parcel_world, lots, crs)
 
 
-__all__ = ["SubdivisionConfig", "build_subdivision"]
+def build_yards(
+    parcels: gpd.GeoDataFrame,
+    buildings: gpd.GeoDataFrame,
+    roads: gpd.GeoDataFrame,
+    seed: int,
+    config: SubdivisionConfig,
+    crs: str,
+    world: str = "fields",
+) -> gpd.GeoDataFrame | None:
+    """Driveways and pools as ``field`` rows (types ``driveway`` and ``pool``), or None.
+
+    Each built lot gets a strip from the street edge to the house front, on one side chosen from
+    the lot's own stream, and some get a pool behind the house. Both are painted as ground.
+    """
+    if config.driveway_width_m <= 0 and config.pool_share <= 0:
+        return None
+    carriage = unary_union(
+        [
+            g.buffer(w / 2, cap_style="flat")
+            for g, w in zip(roads.geometry, roads.width_m, strict=True)
+        ]
+    )
+    houses = {str(pid): g for pid, g in zip(buildings.parcel_id, buildings.geometry, strict=True)}
+    features: list[dict[str, Any]] = []
+    for _, lot in parcels.sort_values("id").iterrows():
+        house = houses.get(str(lot.id))
+        if house is None:
+            continue
+        (ax, ay), (bx, by), _, (dx, dy) = list(lot.geometry.exterior.coords)[:4]
+        frontage, depth = math.hypot(bx - ax, by - ay), math.hypot(dx - ax, dy - ay)
+        u, v = ((bx - ax) / frontage, (by - ay) / frontage), ((dx - ax) / depth, (dy - ay) / depth)
+
+        def to_xy(a: float, b: float) -> tuple[float, float]:
+            return (ax + u[0] * a + v[0] * b, ay + u[1] * a + v[1] * b)  # noqa: B023
+
+        vs = [(x - ax) * v[0] + (y - ay) * v[1] for x, y in house.exterior.coords]
+        rng = substream(seed, f"yard:{lot.id}")
+        side, roll, pool_w, pool_l = (
+            float(rng.uniform()), float(rng.uniform()),
+            float(rng.uniform(0.9, 1.1)), float(rng.uniform(0.9, 1.1)),
+        )  # fmt: skip
+        half = config.driveway_width_m / 2
+        if half > 0:
+            centre = frontage * (0.22 if side < 0.5 else 0.78)
+            front = min(vs)
+            if front > 1.0 and Point(to_xy(centre, 0.0)).distance(carriage) < 0.3:
+                corners = [(centre - half, 0.0), (centre + half, 0.0),
+                           (centre + half, front), (centre - half, front)]  # fmt: skip
+                features.append(
+                    {
+                        "geometry": Polygon([to_xy(a, b) for a, b in corners]),
+                        "provenance": FIELD_PROVENANCE,
+                        "field_type": "driveway",
+                    }
+                )
+        pw, pl = config.pool_size_m[0] * pool_w, config.pool_size_m[1] * pool_l
+        back = max(vs) + 1.5
+        if roll < config.pool_share and depth - 1.5 - back >= pl and frontage - 3.0 >= pw:
+            a = (frontage - pw) / 2
+            pool = Polygon([to_xy(a, back), to_xy(a + pw, back), to_xy(a + pw, back + pl),
+                            to_xy(a, back + pl)])  # fmt: skip
+            features.append({"geometry": pool, "provenance": FIELD_PROVENANCE,
+                             "field_type": "pool"})  # fmt: skip
+    if not features:
+        return None
+    return make_layer("field", world, features, crs)
+
+
+__all__ = ["SubdivisionConfig", "build_subdivision", "build_yards"]

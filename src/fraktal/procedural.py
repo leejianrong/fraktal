@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pandas as pd
 import rasterio
 from pyproj import Transformer
 from rasterio.enums import Resampling
@@ -31,7 +32,7 @@ from fraktal.log import emit
 from fraktal.render import _warp, utm_epsg
 from fraktal.rivers import WaterConfig, paint_waters
 from fraktal.roads import RoadConfig, build_roads
-from fraktal.subdivision import SubdivisionConfig, build_subdivision
+from fraktal.subdivision import SubdivisionConfig, build_subdivision, build_yards
 from fraktal.terrain_gen import STYLES, TerrainConfig, add_detail, arid_terrain, fractal_terrain
 
 GENERATOR_VERSION = "procedural-0.1"
@@ -180,6 +181,10 @@ def generate_world(
         dem=dem,
         pond_zone=None if coast is None else pond_zone(coast, land),
     )
+    if config.subdivision.enabled:
+        yards = build_yards(parcels, buildings, roads, seed, config.subdivision, crs)
+        if yards is not None:
+            fields = yards if fields is None else pd.concat([fields, yards], ignore_index=True)
     if fields is not None:
         dem = level_paddies(dem, transform, fields)
         roads = with_tracks(roads, access_tracks(fields, config.fields.track_width_m), config)
