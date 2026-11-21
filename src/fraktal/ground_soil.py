@@ -92,6 +92,8 @@ ROCKY_BIOMES = ("arid_badlands",)
 ROCK_RGB = (122.0, 96.0, 78.0)
 ROCK_FROM_DEG, ROCK_FULL_DEG = 7.0, 24.0
 STRATA_M = 4.5  # height of one rock band
+WADI_RGB = (216.0, 198.0, 166.0)  # pale dry sand on the floor of a gully
+WADI_SCALE_M = 18.0  # a cell this far below the ground around it is on a channel floor
 
 # Other earth tones a tile may draw instead of the biome's base one (FRK-134), set by eye.
 # Keep these close to TAN: the sky fill makes anything lighter clip white or turn grey-lavender
@@ -185,7 +187,8 @@ def rock_relief(
 ) -> Any:
     """``ground`` with steep bare cells turned to banded rock in a biome of ``ROCKY_BIOMES``.
 
-    The share of rock rises with slope; the bands follow height, so contours read on a scarp.
+    Channel floors (wadis) turn pale sand. The share of rock rises with slope; the bands follow
+    height, so contours read on a scarp.
     ``bare`` marks the cells that may turn to rock (bare ground, not vegetation or roads).
     """
     if biome not in ROCKY_BIOMES:
@@ -198,6 +201,14 @@ def rock_relief(
     bands = 1.0 + 0.09 * np.sin(2.0 * np.pi * np.asarray(dem, dtype="float64") / STRATA_M)
     rock = (np.array(ROCK_RGB, dtype="float64") / 255.0) * bands[..., None]
     mixed = ground * (1.0 - share[..., None]) + rock * share[..., None]
+    if (
+        blur is not None
+    ):  # wadis: cells below the surrounding ground, on gentle slope, fill with sand
+        height = np.asarray(dem, dtype="float64")
+        below = blur(height, WADI_SCALE_M / gsd_m) - height
+        sand = np.clip((below - 0.5) / 1.5, 0.0, 1.0) * (1.0 - share)
+        pale = np.array(WADI_RGB, dtype="float64") / 255.0
+        mixed = mixed * (1.0 - sand[..., None]) + pale * sand[..., None]
     return np.where(bare[..., None], mixed, ground).astype("float32")
 
 

@@ -65,3 +65,23 @@ def test_water_is_darker_with_depth_and_has_a_foam_line_and_wet_sand() -> None:
     assert not np.allclose(out[60, 50], ground[60, 50])  # land beside the water is wetted
     assert np.allclose(out[60, 5], ground[60, 5], atol=1e-3)  # far inland is untouched
     assert ground_soil.water_look(ground, ~water & False, 1.0, blur, np.zeros((120, 120))) is ground
+
+
+def test_a_channel_floor_turns_pale_sand_in_a_rocky_biome() -> None:
+    def blur(img: np.ndarray, sigma_px: float) -> np.ndarray:
+        k = max(3, int(sigma_px * 2) | 1)
+        pad = np.pad(img, k // 2, mode="edge")
+        out = np.zeros_like(img, dtype="float64")
+        for dy in range(k):
+            for dx in range(k):
+                out += pad[dy : dy + img.shape[0], dx : dx + img.shape[1]]
+        return out / k**2
+
+    dem = np.full((80, 80), 10.0)
+    dem[:, 38:42] -= 3.0  # a gully 4 m wide and 3 m deep
+    ground = np.full((80, 80, 3), 0.55, dtype="float32")
+    bare = np.ones((80, 80), dtype=bool)
+    out = ground_soil.rock_relief(ground, dem, 2.0, "arid_badlands", bare, blur)
+    pale = np.array(ground_soil.WADI_RGB) / 255.0
+    assert np.abs(out[40, 40] - pale).max() < np.abs(ground[40, 40] - pale).max()
+    assert np.allclose(out[40, 5], ground[40, 5], atol=1e-3)
