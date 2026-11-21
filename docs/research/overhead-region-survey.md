@@ -69,3 +69,12 @@ comes after its parts exist. Dense tropical is the benchmark's home ground and m
 Build the cards above in the order of the table.
 Measure with the free checks (`fraktal compare`, distribution plots, chip strips), not a training run
 (ADR-0009).
+
+## Progress: planned suburbs (FRK-188)
+
+`planned_suburb` (rigid grid) and `planned_cul_de_sac` (dead-end spurs with turning circles) now
+exist, from `src/fraktal/subdivision.py`. Rendered at 0.5 m beside the Vegas tiles, the layout and
+the near-identical houses on uniform lots read right. Still missing against those tiles: local
+streets draw as tan dirt, not dark asphalt with kerbs and pavements (FRK-149); roof colours are
+random greys and browns where a subdivision repeats one or two; no pools, driveways or street
+trees; one district per world, not the patchwork of grids and loops that real tiles show.

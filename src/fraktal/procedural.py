@@ -30,6 +30,7 @@ from fraktal.landcover_gen import generate_landcover
 from fraktal.log import emit
 from fraktal.render import _warp, utm_epsg
 from fraktal.roads import RoadConfig, build_roads
+from fraktal.subdivision import SubdivisionConfig, build_subdivision
 from fraktal.terrain_gen import add_detail, fractal_terrain
 
 GENERATOR_VERSION = "procedural-0.1"
@@ -72,6 +73,7 @@ class ProceduralConfig:
     industrial: IndustrialConfig = field(default_factory=IndustrialConfig)
     fields: FieldConfig = field(default_factory=FieldConfig)
     coast: CoastConfig = field(default_factory=CoastConfig)
+    subdivision: SubdivisionConfig = field(default_factory=SubdivisionConfig)
 
 
 def _sha256(path: Path) -> str:
@@ -131,8 +133,13 @@ def generate_world(
     if coast is not None:
         land = paint_coast(land, coast)
     emit("generate_stage", stage="terrain_and_landcover_done")
-    roads = build_roads(dem, land, config.gsd_m, transform, crs, seed, config.roads, world="roads")
-    parcels = settlement.build_parcels(roads, land, transform, seed, config.parcels)
+    if config.subdivision.enabled:
+        roads, parcels = build_subdivision(land, transform, crs, seed, config.subdivision)
+    else:
+        roads = build_roads(
+            dem, land, config.gsd_m, transform, crs, seed, config.roads, world="roads"
+        )
+        parcels = settlement.build_parcels(roads, land, transform, seed, config.parcels)
     parcels, halls = carve(parcels, roads, land, transform, seed, config.industrial)
     homes = parcels[parcels["land_use"] != INDUSTRIAL]
     lines = {r.id: r.geometry for _, r in roads.iterrows()} if config.parcels.blocks else None
@@ -216,7 +223,8 @@ def _jsonable(config: ProceduralConfig) -> dict[str, Any]:
     if out["biome"] == DEFAULT_BIOME:
         del out["biome"]  # keeps the ids of worlds made before biomes existed
     default: dict[str, Any] = json.loads(json.dumps(dataclasses.asdict(ProceduralConfig())))
-    for section in ("fields", "coast", "industrial"):  # sections added later: omitted at default
+    # sections added later: omitted at default
+    for section in ("fields", "coast", "industrial", "subdivision"):
         if out[section] == default[section]:
             del out[section]
     del out["roads"]["drive_side"]  # traffic only: it does not change the world, so not its id
