@@ -31,7 +31,7 @@ from fraktal.log import emit
 from fraktal.render import _warp, utm_epsg
 from fraktal.roads import RoadConfig, build_roads
 from fraktal.subdivision import SubdivisionConfig, build_subdivision
-from fraktal.terrain_gen import add_detail, fractal_terrain
+from fraktal.terrain_gen import STYLES, TerrainConfig, add_detail, arid_terrain, fractal_terrain
 
 GENERATOR_VERSION = "procedural-0.1"
 DEFAULT_BIOME = "khartoum"
@@ -74,6 +74,7 @@ class ProceduralConfig:
     fields: FieldConfig = field(default_factory=FieldConfig)
     coast: CoastConfig = field(default_factory=CoastConfig)
     subdivision: SubdivisionConfig = field(default_factory=SubdivisionConfig)
+    terrain: TerrainConfig = field(default_factory=TerrainConfig)
 
 
 def _sha256(path: Path) -> str:
@@ -125,11 +126,26 @@ def generate_world(
         terrain_origin = "real:copernicus-dem+procedural:detail"
         land_origin = "real:esa-worldcover+procedural:fill"
     else:
-        dem = fractal_terrain((side, side), config.gsd_m, seed, relief_m=config.relief_m) + 300.0
+        if config.terrain.style not in STYLES:
+            raise ValueError(f"terrain style must be one of {STYLES}, got {config.terrain.style!r}")
+        if config.terrain.style == "arid":
+            dem = (
+                arid_terrain(
+                    (side, side), config.gsd_m, seed, config.relief_m,
+                    config.terrain.gully_depth_share,
+                ) + 300.0
+            )  # fmt: skip
+        else:
+            dem = (
+                fractal_terrain((side, side), config.gsd_m, seed, relief_m=config.relief_m) + 300.0
+            )
         if config.coast.sea_share > 0:
             dem, coast = shape_coast(dem, config.gsd_m, seed, config.coast)
         terrain_origin = land_origin = "procedural:fractal"
-    land = generate_landcover(dem, config.gsd_m, seed, real=real_land, aridity=config.aridity)
+    land = generate_landcover(
+        dem, config.gsd_m, seed, real=real_land, aridity=config.aridity,
+        water=config.terrain.style != "arid",
+    )  # fmt: skip
     if coast is not None:
         land = paint_coast(land, coast)
     emit("generate_stage", stage="terrain_and_landcover_done")
@@ -224,7 +240,7 @@ def _jsonable(config: ProceduralConfig) -> dict[str, Any]:
         del out["biome"]  # keeps the ids of worlds made before biomes existed
     default: dict[str, Any] = json.loads(json.dumps(dataclasses.asdict(ProceduralConfig())))
     # sections added later: omitted at default
-    for section in ("fields", "coast", "industrial", "subdivision"):
+    for section in ("fields", "coast", "industrial", "subdivision", "terrain"):
         if out[section] == default[section]:
             del out[section]
     del out["roads"]["drive_side"]  # traffic only: it does not change the world, so not its id

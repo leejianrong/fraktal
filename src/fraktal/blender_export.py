@@ -35,11 +35,11 @@ from fraktal import (
 from fraktal import heights as heights_mod
 from fraktal.coast import TIDAL_FLAT
 from fraktal.fields import PADDY
-from fraktal.ground_soil import apply_soil, seal_streets, soil_style
+from fraktal.ground_soil import apply_soil, rock_relief, seal_streets, soil_style
 from fraktal.ids import substream
 from fraktal.kernels.noise import lattice_shape, value_noise
 from fraktal.kernels.paddy import paddy_tone
-from fraktal.landcover_gen import WATER
+from fraktal.landcover_gen import BARE, GRASS, SHRUB, WATER
 from fraktal.objects import CAR_COLOURS, place
 from fraktal.procedural import read_buildings, read_fields, read_parcels, read_roads
 from fraktal.render import (
@@ -373,6 +373,10 @@ def export_scene(
     biome = json.loads((world_dir / "world.json").read_text()).get("biome", "")
     ground = apply_soil(ground, surface, seed, gsd_m, soil_style(biome, seed))
     ground = seal_streets(ground, surface, biome, ROAD_LOCAL)
+    if dem is not None:
+        ground = rock_relief(
+            ground, dem, gsd_m, biome, np.isin(surface, (BARE, SHRUB, GRASS)), _blur
+        )
     if fields is not None and len(fields):
         ground = _paddy_look(ground, surface, local_fields, transform, seed, gsd_m)
     if texture > 0:

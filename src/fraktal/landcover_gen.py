@@ -32,6 +32,7 @@ def generate_landcover(
     aridity: float = 0.5,
     water_min_catchment_m2: float = 1_000.0,
     water_elevation_quantile: float = 0.15,
+    water: bool = True,
 ) -> np.ndarray[Any, Any]:
     """A uint8 WorldCover-coded raster the shape of ``dem``.
 
@@ -59,7 +60,8 @@ def generate_landcover(
     out[score > 0.75] = TREE
     out[slope > STEEP_DEG] = BARE
     low = dem <= np.quantile(dem, water_elevation_quantile)
-    out[(catchment >= water_min_catchment_m2) & low] = WATER
+    if water:
+        out[(catchment >= water_min_catchment_m2) & low] = WATER
     if real is not None:
         out = np.where(real > 0, real, out).astype(np.uint8)
     return out

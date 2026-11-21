@@ -78,3 +78,10 @@ the near-identical houses on uniform lots read right. Still missing against thos
 streets draw as tan dirt, not dark asphalt with kerbs and pavements (FRK-149); roof colours are
 random greys and browns where a subdivision repeats one or two; no pools, driveways or street
 trees; one district per world, not the patchwork of grids and loops that real tiles show.
+
+## Progress: arid relief (FRK-187, step 1)
+
+`arid_badlands` (terrain style `arid`) makes ridges, scarps and gullies, with no open water and
+little cover; steep bare ground turns to banded rock in the Blender ground colours. A 500 m tile at
+0.8 m shows no terrain blocks. Still missing: water look (shore blend, depth colour, waves) and
+rivers and lakes (steps 2 and 3), wadis drawn as pale channels, and a sheet row beside real chips.

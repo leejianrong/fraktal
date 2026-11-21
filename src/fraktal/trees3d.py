@@ -31,6 +31,7 @@ MIX: dict[str, tuple[float, float, float]] = {
     "oil_palm_plantation": (0.35, 0.55, 0.10),
     "paddy_terraces": (0.50, 0.40, 0.10),
     "mangrove_coast": (0.55, 0.35, 0.10),
+    "arid_badlands": (0.10, 0.0, 0.90),  # a few acacia over thorn scrub
 }
 DEFAULT_MIX = (0.6, 0.3, 0.1)
 
@@ -86,6 +87,7 @@ PER_HA = {  # trees and shrubs per hectare before ``density``
     "oil_palm_plantation": 25.0,
     "paddy_terraces": 40.0,
     "mangrove_coast": 90.0,
+    "arid_badlands": 6.0,  # bare ground between a few scrub clumps
 }
 DEFAULT_PER_HA = 40.0
 CLUSTER_SHARE = 0.6  # of the trees stand in thickets, the rest alone
