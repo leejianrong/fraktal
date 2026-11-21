@@ -12,14 +12,14 @@ stage, with narrow size ranges, so they come out near-identical.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import geopandas as gpd
 from affine import Affine
 from shapely import affinity
-from shapely.geometry import LineString, Point, Polygon, box
-from shapely.ops import unary_union
+from shapely.geometry import LineString, MultiPoint, Point, Polygon, box
+from shapely.ops import unary_union, voronoi_diagram
 from shapely.strtree import STRtree
 
 from fraktal.fields import FIELD_PROVENANCE
@@ -35,7 +35,8 @@ MIN_RUN_M = 30.0  # a street fragment left between water bodies is dropped
 @dataclass(frozen=True)
 class SubdivisionConfig:
     enabled: bool = False
-    pattern: str = "grid"  # "grid" or "cul_de_sac"
+    pattern: str = "grid"  # "grid", "cul_de_sac" or "mixed" (each district draws one)
+    districts: int = 1  # cells of their own angle and lots, with a collector between them
     rotation_deg: float = -1.0  # negative: drawn from the seed
     frontage_m: tuple[float, float] = (17.0, 19.0)  # one value drawn per world: lots are identical
     depth_m: float = 29.5
@@ -152,6 +153,66 @@ def _layout(
     return streets, rows, bulbs
 
 
+@dataclass(frozen=True)
+class _District:
+    area: Any  # the district's polygon, world coordinates
+    keep: Any  # the part streets and lots may use: pulled in from the boundary collector
+    angle: float
+    pattern: str
+    frontage: float
+    cx: float
+    cy: float
+    extent: float
+
+
+def _districts(region: Any, config: SubdivisionConfig, seed: int) -> list[_District]:
+    """The region cut into ``config.districts`` cells, each with its own angle, pattern and lots."""
+    rng = substream(seed, "subdivision:layout")
+    n = max(1, config.districts)
+    cells: list[Any]
+    if n == 1:
+        cells = [region]
+    else:
+        minx, miny, maxx, maxy = region.bounds
+        cols = math.ceil(math.sqrt(n))
+        step_x, step_y = (maxx - minx) / cols, (maxy - miny) / math.ceil(n / cols)
+        seeds = [
+            Point(
+                minx + (i % cols + 0.5 + float(rng.uniform(-0.3, 0.3))) * step_x,
+                miny + (i // cols + 0.5 + float(rng.uniform(-0.3, 0.3))) * step_y,
+            )
+            for i in range(n)
+        ]
+        diagram = voronoi_diagram(MultiPoint(seeds), envelope=region)
+        cells = [g.intersection(region) for g in diagram.geoms]
+        cells = [g for g in cells if isinstance(g, Polygon) and g.area > 1.0]
+        cells.sort(key=lambda g: (round(g.centroid.x, 3), round(g.centroid.y, 3)))
+    edge = 0.5 if len(cells) == 1 else config.collector_width_m / 2 + 1.0
+    out: list[_District] = []
+    for cell in cells:
+        look = substream(
+            seed, f"subdivision:district:{round(cell.centroid.x)}:{round(cell.centroid.y)}"
+        )
+        angle = float(look.uniform(0.0, 90.0)) if config.rotation_deg < 0 else config.rotation_deg
+        pattern = config.pattern
+        if pattern == "mixed":
+            pattern = PATTERNS[int(look.integers(0, 2))]
+        minx, miny, maxx, maxy = cell.bounds
+        out.append(
+            _District(
+                cell,
+                cell.buffer(-edge),
+                angle,
+                pattern,
+                float(look.uniform(*config.frontage_m)),
+                cell.centroid.x,
+                cell.centroid.y,
+                math.hypot(maxx - minx, maxy - miny),
+            )  # fmt: skip
+        )
+    return out
+
+
 def build_subdivision(
     landcover: Any,
     transform: Affine,
@@ -162,17 +223,22 @@ def build_subdivision(
     parcel_world: str = "parcels",
 ) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
     """The ``road`` and ``parcel`` layers of a planned subdivision covering the region."""
-    if config.pattern not in PATTERNS:
-        raise ValueError(f"subdivision pattern must be one of {PATTERNS}, got {config.pattern!r}")
-    rng = substream(seed, "subdivision:layout")
-    angle = float(rng.uniform(0.0, 90.0)) if config.rotation_deg < 0 else config.rotation_deg
-    frontage = float(rng.uniform(*config.frontage_m))
-    region, cx, cy, diag = _frame(landcover.shape, transform)
-    streets, rows, bulbs = _layout(config, diag, frontage)
+    if config.pattern not in (*PATTERNS, "mixed"):
+        raise ValueError(
+            f"subdivision pattern must be one of {(*PATTERNS, 'mixed')}, got {config.pattern!r}"
+        )
+    region = _frame(landcover.shape, transform)[0]
+    districts = _districts(region, config, seed)
 
     features: list[dict[str, Any]] = []
 
+    centroids: set[tuple[float, float]] = set()
+
     def add(line: Any, width: float, road_class: str) -> None:
+        # Feature ids come from the centroid, and two chords through a district's centre share it.
+        while (key := (round(line.centroid.x, 3), round(line.centroid.y, 3))) in centroids:
+            line = affinity.translate(line, 0.01, 0.0)
+        centroids.add(key)
         features.append(
             {
                 "geometry": line,
@@ -183,26 +249,39 @@ def build_subdivision(
             }
         )
 
-    for street in streets:
-        placed = _to_world(street.line, angle, cx, cy).intersection(region)
-        for part in getattr(placed, "geoms", [placed]):
+    def add_dry(line: Any, width: float, road_class: str) -> None:
+        for part in getattr(line, "geoms", [line]):
             if isinstance(part, LineString) and part.length > 1.0:
                 for run in _dry_runs(part, landcover, transform):
-                    add(run, street.width, street.road_class)
-    d = config.bulb_radius_m * 1.8
-    for bulb in bulbs:  # a turning circle: two squares, one turned 45 degrees
-        centre = _to_world(bulb, angle, cx, cy)
-        if not region.buffer(-config.bulb_radius_m).contains(centre) or _cell_is_water(
-            landcover, ~transform, centre.x, centre.y
-        ):
-            continue
-        for t, turn in enumerate((0.0, 45.0)):
-            line = LineString([(-d / 2, 0), (d / 2, 0)])
-            line = affinity.translate(
-                affinity.rotate(line, angle + turn, origin=(0, 0)),
-                centre.x + 0.01 * t, centre.y,
-            )  # fmt: skip
-            add(line, d, "local")
+                    add(run, width, road_class)
+
+    layouts = []
+    for d in districts:
+        streets, rows, bulbs = _layout(replace(config, pattern=d.pattern), d.extent, d.frontage)
+        layouts.append((rows, bulbs))
+        for street in streets:
+            add_dry(
+                _to_world(street.line, d.angle, d.cx, d.cy).intersection(d.keep),
+                street.width,
+                street.road_class,
+            )
+        size = config.bulb_radius_m * 1.8
+        for bulb in bulbs:  # a turning circle: two squares, one turned 45 degrees
+            centre = _to_world(bulb, d.angle, d.cx, d.cy)
+            if not d.keep.buffer(-config.bulb_radius_m).contains(centre) or _cell_is_water(
+                landcover, ~transform, centre.x, centre.y
+            ):
+                continue
+            for t, turn in enumerate((0.0, 45.0)):
+                line = LineString([(-size / 2, 0), (size / 2, 0)])
+                line = affinity.translate(
+                    affinity.rotate(line, d.angle + turn, origin=(0, 0)),
+                    centre.x + 0.01 * t, centre.y,
+                )  # fmt: skip
+                add(line, size, "local")
+    if len(districts) > 1:  # a collector along every shared boundary
+        edges = unary_union([d.area.exterior for d in districts]).intersection(region.buffer(-1.0))
+        add_dry(edges, config.collector_width_m, "arterial")
     roads = make_layer("road", road_world, features, crs)
 
     lines = list(roads.geometry)
@@ -212,42 +291,42 @@ def build_subdivision(
     tree = STRtree(carriage)
     line_tree = STRtree(lines)
     inverse = ~transform
-    inside = region.buffer(-0.5)
     seen: set[tuple[float, float]] = set()
     lots: list[dict[str, Any]] = []
-    for v, u0, du, count, hw, side in rows:
-        for i in range(count):
-            a, b = u0 + i * du, u0 + (i + 1) * du
-            poly = Polygon(
-                [(a, v + side * hw), (b, v + side * hw),
-                 (b, v + side * (hw + config.depth_m)), (a, v + side * (hw + config.depth_m))]
-            )  # fmt: skip
-            lot = _to_world(poly, angle, cx, cy)
-            c = lot.centroid
-            key = (round(c.x, 2), round(c.y, 2))
-            if key in seen or not inside.contains(lot):
-                continue
-            if any(
-                _cell_is_water(landcover, inverse, x, y)
-                for x, y in [*lot.exterior.coords, (c.x, c.y)]
-            ):
-                continue
-            if any(lot.intersection(carriage[j]).area > 0.5 for j in tree.query(lot)):
-                continue
-            front = Point((lot.exterior.coords[0][0] + lot.exterior.coords[1][0]) / 2,
-                          (lot.exterior.coords[0][1] + lot.exterior.coords[1][1]) / 2)  # fmt: skip
-            near = int(line_tree.nearest(front))
-            if lines[near].distance(front) > widths[near] / 2 + 0.6:
-                continue  # its street was cut by water
-            seen.add(key)
-            lots.append(
-                {
-                    "geometry": lot,
-                    "provenance": PARCEL_PROVENANCE,
-                    "land_use": "residential",
-                    "road_id": ids[near],
-                }
-            )
+    for d, (rows, _) in zip(districts, layouts, strict=True):
+        for v, u0, du, count, hw, side in rows:
+            for i in range(count):
+                a, b = u0 + i * du, u0 + (i + 1) * du
+                poly = Polygon(
+                    [(a, v + side * hw), (b, v + side * hw),
+                     (b, v + side * (hw + config.depth_m)), (a, v + side * (hw + config.depth_m))]
+                )  # fmt: skip
+                lot = _to_world(poly, d.angle, d.cx, d.cy)
+                c = lot.centroid
+                key = (round(c.x, 2), round(c.y, 2))
+                if key in seen or not d.keep.contains(lot):
+                    continue
+                if any(
+                    _cell_is_water(landcover, inverse, x, y)
+                    for x, y in [*lot.exterior.coords, (c.x, c.y)]
+                ):
+                    continue
+                if any(lot.intersection(carriage[j]).area > 0.5 for j in tree.query(lot)):
+                    continue
+                p0, p1 = lot.exterior.coords[0], lot.exterior.coords[1]
+                front = Point((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2)
+                near = int(line_tree.nearest(front))
+                if lines[near].distance(front) > widths[near] / 2 + 0.6:
+                    continue  # its street was cut by water
+                seen.add(key)
+                lots.append(
+                    {
+                        "geometry": lot,
+                        "provenance": PARCEL_PROVENANCE,
+                        "land_use": "residential",
+                        "road_id": ids[near],
+                    }
+                )
     if not lots:
         raise ValueError("no lots fit in this subdivision")
     return roads, make_layer("parcel", parcel_world, lots, crs)
