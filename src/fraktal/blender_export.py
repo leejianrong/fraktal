@@ -47,6 +47,7 @@ from fraktal.render import (
     FISHPOND_WATER,
     LANDCOVER_RGB,
     PADDY_CODES,
+    POOL,
     ROAD_ARTERIAL,
     ROAD_LOCAL,
     TEXTURE_CLASS_AMP,
@@ -62,7 +63,7 @@ from fraktal.render import (
 )
 
 SCHEMA = 1
-WET_CODES = (WATER, PADDY_CODES["flooded"], FISHPOND_WATER)  # standing water: glossy
+WET_CODES = (WATER, PADDY_CODES["flooded"], FISHPOND_WATER, POOL)  # standing water: glossy
 ROUGH_WATER, ROUGH_MUD, ROUGH_LAND = 0.06, 0.35, 0.95
 VEGETATION = (10, 20, 30, 40, 90, 95)  # classes that get patchy hue and fine grain
 EDGE_WARP = ((1.5, 0.8), (0.5, 0.3))  # (noise cell, shift) in land-cover cells, bends class edges
