@@ -19,6 +19,7 @@ from fraktal.industrial import IndustrialConfig
 from fraktal.procedural import DEFAULT_BIOME, ProceduralConfig
 from fraktal.roads import RoadConfig
 from fraktal.settlement import BuildingConfig, ParcelConfig
+from fraktal.subdivision import SubdivisionConfig
 
 
 class BiomeError(ValueError):
@@ -249,6 +250,57 @@ BIOMES: dict[str, Biome] = {
                 tin_share=0.65,
                 shape_mix=(0.14, 0.04, 0.22),
                 size_tail=0.3,
+            ),
+        ),
+    ),
+    "planned_suburb": Biome(
+        "planned_suburb",
+        "Planned subdivision (FRK-188): rigid street grid, uniform lots, near-identical houses.",
+        ProceduralConfig(
+            biome="planned_suburb",
+            relief_m=6.0,
+            aridity=0.7,
+            subdivision=SubdivisionConfig(
+                enabled=True, pattern="grid", frontage_m=(13.0, 15.0), depth_m=26.0, block_lots=10
+            ),
+            buildings=BuildingConfig(
+                built_probability_core=0.97,
+                built_probability_edge=0.97,
+                core_radius_m=40.0,
+                front_setback_m=5.0,
+                side_setback_m=1.8,
+                height_core_m=(5.0, 7.5),
+                height_edge_m=(5.0, 7.5),
+                width_share=(0.8, 0.84),
+                depth_share=(0.62, 0.68),
+            ),
+        ),
+    ),
+    "planned_cul_de_sac": Biome(
+        "planned_cul_de_sac",
+        "Planned subdivision (FRK-188): dead-end spurs with turning circles, uniform lots.",
+        ProceduralConfig(
+            biome="planned_cul_de_sac",
+            relief_m=6.0,
+            aridity=0.6,
+            subdivision=SubdivisionConfig(
+                enabled=True,
+                pattern="cul_de_sac",
+                frontage_m=(13.0, 15.0),
+                depth_m=26.0,
+                block_lots=10,
+                bulb_radius_m=12.0,
+            ),
+            buildings=BuildingConfig(
+                built_probability_core=0.97,
+                built_probability_edge=0.97,
+                core_radius_m=40.0,
+                front_setback_m=5.0,
+                side_setback_m=1.8,
+                height_core_m=(5.0, 7.5),
+                height_edge_m=(5.0, 7.5),
+                width_share=(0.8, 0.84),
+                depth_share=(0.62, 0.68),
             ),
         ),
     ),
