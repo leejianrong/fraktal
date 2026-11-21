@@ -90,3 +90,7 @@ Step 2 (water look): open water in the Blender ground colours now shades from tu
 deep blue by distance from the shore, with a foam line, wet sand on the land side and faint ripple
 streaks. It applies to every biome with open water, so older coast renders change look. Rivers and
 lakes (step 3) and the sheet row are still to do.
+
+Pools and driveways (FRK-190): planned subdivisions now carry a driveway on each built lot and a
+back-yard pool on a quarter of them, as `field` rows painted as ground (class ground, no label
+change). To go: pool and driveway classes in the labels (a contract decision), kerbs and pavements.

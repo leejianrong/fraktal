@@ -76,3 +76,40 @@ def test_houses_repeat_one_tile_roof_and_streets_get_trees(tmp_path: Path, biome
     line = [(10.0, 100.0), (190.0, 100.0)]
     trees = trees3d.street_trees([(line, 10.0)], mask, 1.0, biome, seed=1)
     assert len(trees) > 5
+
+
+def test_driveways_reach_the_street_and_pools_stay_clear_of_houses(tmp_path: Path) -> None:
+    from fraktal.procedural import read_fields
+
+    world = _world(tmp_path, "planned_suburb")
+    fields, parcels = read_fields(world), read_parcels(world)
+    houses, roads = read_buildings(world), read_roads(world)
+    assert fields is not None
+    kinds = fields.field_type.value_counts()
+    assert kinds["driveway"] > 50 and kinds["pool"] > 5
+    carriage = roads.geometry.buffer(roads.width_m / 2, cap_style="flat").union_all()
+    house_union = houses.geometry.union_all()
+    lots = parcels.geometry.union_all()
+    drives = fields[fields.field_type == "driveway"].geometry
+    pools = fields[fields.field_type == "pool"].geometry
+    assert all(d.distance(carriage) < 0.1 and lots.buffer(1e-6).contains(d) for d in drives)
+    assert all(d.intersection(house_union).area < 0.5 for d in drives)
+    assert all(
+        lots.buffer(1e-6).contains(p) and p.intersection(house_union).area == 0 for p in pools
+    )
+    assert pools.union_all().intersection(drives.union_all()).area < 0.5
+
+
+def test_yards_are_byte_identical_per_seed(tmp_path: Path) -> None:
+    a = (_world(tmp_path / "a", "planned_suburb") / "fields.parquet").read_bytes()
+    b = (_world(tmp_path / "b", "planned_suburb") / "fields.parquet").read_bytes()
+    assert a == b
+
+
+def test_yards_can_be_switched_off(tmp_path: Path) -> None:
+    config = biomes.resolve(
+        "planned_suburb",
+        {"size_m": 500.0, "subdivision": {"driveway_width_m": 0.0, "pool_share": 0.0}},
+    )
+    generate_world(tmp_path / "w", CENTER, 3, config)
+    assert not (tmp_path / "w" / "fields.parquet").exists()

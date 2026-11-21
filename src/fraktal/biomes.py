@@ -273,7 +273,7 @@ BIOMES: dict[str, Biome] = {
                 height_core_m=(5.0, 7.5),
                 height_edge_m=(5.0, 7.5),
                 width_share=(0.8, 0.84),
-                depth_share=(0.62, 0.68),
+                depth_share=(0.56, 0.6),
                 roof_materials=True,
                 tin_share=0.0,  # all tile: a subdivision repeats one roof
             ),
@@ -303,7 +303,7 @@ BIOMES: dict[str, Biome] = {
                 height_core_m=(5.0, 7.5),
                 height_edge_m=(5.0, 7.5),
                 width_share=(0.8, 0.84),
-                depth_share=(0.62, 0.68),
+                depth_share=(0.56, 0.6),
                 roof_materials=True,
                 tin_share=0.0,  # all tile: a subdivision repeats one roof
             ),
