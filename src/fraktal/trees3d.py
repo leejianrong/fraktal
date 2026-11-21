@@ -110,6 +110,8 @@ STREET_TREES: dict[str, tuple[float, float, float, str]] = {
     "manila_quezon": (11.0, 0.75, 5.0, "canopy"),  # rain trees and mahogany, crowns nearly touching
     "nairobi_centre": (16.0, 0.55, 4.0, "canopy"),  # jacaranda and other avenue trees
     "khartoum_city": (22.0, 0.30, 3.2, "canopy_dry"),  # neem; the photos are 1 to 2% vegetation
+    "planned_suburb": (14.0, 0.7, 2.6, "canopy_dry"),  # a street tree per lot or two (FRK-188)
+    "planned_cul_de_sac": (14.0, 0.7, 2.6, "canopy_dry"),
 }
 STREET_MIN_ROAD_M = 8.0  # narrower roads are lanes: no avenue
 STREET_SETBACK_M = 2.2  # trunk distance beyond the road edge
