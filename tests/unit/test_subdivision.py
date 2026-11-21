@@ -64,3 +64,15 @@ def test_an_unknown_pattern_fails_loudly(tmp_path: Path) -> None:
     config = biomes.resolve("planned_suburb", {"subdivision": {"pattern": "spiral"}})
     with pytest.raises(ValueError, match="pattern"):
         generate_world(tmp_path / "w", CENTER, 3, config)
+
+
+@pytest.mark.parametrize("biome", ["planned_suburb", "planned_cul_de_sac"])
+def test_houses_repeat_one_tile_roof_and_streets_get_trees(tmp_path: Path, biome: str) -> None:
+    from fraktal import trees3d
+
+    houses = read_buildings(_world(tmp_path, biome))
+    assert set(houses.roof_material) == {"tile"}
+    mask = np.zeros((200, 200), dtype="uint8")
+    line = [(10.0, 100.0), (190.0, 100.0)]
+    trees = trees3d.street_trees([(line, 10.0)], mask, 1.0, biome, seed=1)
+    assert len(trees) > 5
