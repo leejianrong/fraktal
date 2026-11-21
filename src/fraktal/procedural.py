@@ -29,6 +29,7 @@ from fraktal.industrial import IndustrialConfig, carve
 from fraktal.landcover_gen import generate_landcover
 from fraktal.log import emit
 from fraktal.render import _warp, utm_epsg
+from fraktal.rivers import WaterConfig, paint_waters
 from fraktal.roads import RoadConfig, build_roads
 from fraktal.subdivision import SubdivisionConfig, build_subdivision
 from fraktal.terrain_gen import STYLES, TerrainConfig, add_detail, arid_terrain, fractal_terrain
@@ -75,6 +76,7 @@ class ProceduralConfig:
     coast: CoastConfig = field(default_factory=CoastConfig)
     subdivision: SubdivisionConfig = field(default_factory=SubdivisionConfig)
     terrain: TerrainConfig = field(default_factory=TerrainConfig)
+    water: WaterConfig = field(default_factory=WaterConfig)
 
 
 def _sha256(path: Path) -> str:
@@ -148,6 +150,7 @@ def generate_world(
     )  # fmt: skip
     if coast is not None:
         land = paint_coast(land, coast)
+    dem, land = paint_waters(dem, land, config.gsd_m, seed, config.water, config.aridity)
     emit("generate_stage", stage="terrain_and_landcover_done")
     if config.subdivision.enabled:
         roads, parcels = build_subdivision(land, transform, crs, seed, config.subdivision)
@@ -240,7 +243,7 @@ def _jsonable(config: ProceduralConfig) -> dict[str, Any]:
         del out["biome"]  # keeps the ids of worlds made before biomes existed
     default: dict[str, Any] = json.loads(json.dumps(dataclasses.asdict(ProceduralConfig())))
     # sections added later: omitted at default
-    for section in ("fields", "coast", "industrial", "subdivision", "terrain"):
+    for section in ("fields", "coast", "industrial", "subdivision", "terrain", "water"):
         if out[section] == default[section]:
             del out[section]
     del out["roads"]["drive_side"]  # traffic only: it does not change the world, so not its id

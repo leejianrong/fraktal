@@ -90,3 +90,8 @@ Step 2 (water look): open water in the Blender ground colours now shades from tu
 deep blue by distance from the shore, with a foam line, wet sand on the land side and faint ripple
 streaks. It applies to every biome with open water, so older coast renders change look. Rivers and
 lakes (step 3) and the sheet row are still to do.
+
+Step 3 (rivers and lakes): `river_plain` and the `water` setting (`rivers`, `lakes`) carve meandering
+channels and rounded basins into the height field and paint them as water (class ground), with a
+green bank in non-dry climates. Roads are built afterwards, so arterials bridge them. Colour-only
+ripples remain; real wave geometry is not done.
