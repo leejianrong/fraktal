@@ -43,6 +43,7 @@ ROAD_TRACK = 204  # plantation access track
 PADDY_CODES = {"flooded": 205, "planted": 206, "harvested": 207}
 PADDY_BUND = 208
 FISHPOND_WATER = 212
+DRIVEWAY, POOL = 213, 214  # yard ground in planned subdivisions (FRK-190); both stay class ground
 TERRACE_A, TERRACE_B, TERRACE_RISER = 209, 210, 211  # alternate steps, and the edge between
 BUND_WIDTH_M = 0.9
 AMBIENT = 0.35  # share of direct light that reaches a shadowed pixel
@@ -76,6 +77,8 @@ LANDCOVER_RGB: dict[int, tuple[float, float, float]] = {
     PADDY_CODES["harvested"]: (190.0, 170.0, 112.0),  # stubble and dry mud
     PADDY_BUND: (146.0, 132.0, 98.0),  # earth bund between plots
     FISHPOND_WATER: (72.0, 96.0, 84.0),  # murky green pond water
+    DRIVEWAY: (188.0, 184.0, 176.0),  # pale concrete
+    POOL: (58.0, 170.0, 190.0),  # a lit swimming pool
     TERRACE_A: (118.0, 154.0, 66.0),
     TERRACE_B: (92.0, 130.0, 58.0),
     TERRACE_RISER: (78.0, 92.0, 48.0),  # the shaded edge of a step
@@ -248,6 +251,10 @@ def _field_raster(fields: gpd.GeoDataFrame, transform: Affine, side: int, dem: A
             shapes.append((f.geometry, PADDY_CODES.get(str(f.state), PADDY_CODES["planted"])))
         elif f.field_type == FISHPOND:
             shapes.append((f.geometry, FISHPOND_WATER))
+        elif f.field_type == "driveway":
+            shapes.append((f.geometry, DRIVEWAY))
+        elif f.field_type == "pool":
+            shapes.append((f.geometry, POOL))
     if shapes:
         out = rasterize(shapes, (side, side), transform=transform, dtype="uint8")
     bunds = [
