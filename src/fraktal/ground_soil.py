@@ -182,6 +182,34 @@ def seal_streets(ground: Any, surface: Any, biome: str, local_code: int) -> Any:
     return np.where((surface == local_code)[..., None], asphalt, ground).astype("float32")
 
 
+# Streets with a kerb and a pavement (FRK-188): a pale strip beside the carriageway, set against it
+# by a thin lighter kerb line. Only the planned subdivisions, where the reference tiles show them.
+PAVED_STREETS = ("planned_suburb", "planned_cul_de_sac", "planned_patchwork")
+PAVEMENT_RGB = (186.0, 182.0, 174.0)
+KERB_RGB = (222.0, 219.0, 212.0)
+PAVEMENT_M, KERB_M = 1.8, 0.5
+
+
+def pavements(
+    ground: Any, surface: Any, building: Any, biome: str, gsd_m: float, road_codes: Any
+) -> Any:
+    """``ground`` with a kerb line and pavement beside each street in a biome of ``PAVED_STREETS``.
+
+    ``building`` marks footprint cells, which stay as they are; ``road_codes`` are the surface
+    codes of carriageways.
+    """
+    if biome not in PAVED_STREETS:
+        return ground
+    from fraktal.coast import box_any
+
+    road = np.isin(surface, road_codes)
+    verge = box_any(road, max(1, round(PAVEMENT_M / gsd_m))) & ~road & ~(building > 0)
+    kerb = box_any(road, max(1, round(KERB_M / gsd_m))) & ~road & verge
+    out = np.where(verge[..., None], np.array(PAVEMENT_RGB, dtype="float32") / 255.0, ground)
+    out = np.where(kerb[..., None], np.array(KERB_RGB, dtype="float32") / 255.0, out)
+    return out.astype("float32")
+
+
 def rock_relief(
     ground: Any, dem: Any, gsd_m: float, biome: str, bare: Any, blur: Any = None
 ) -> Any:

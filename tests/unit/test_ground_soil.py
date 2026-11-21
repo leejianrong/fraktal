@@ -103,3 +103,20 @@ def test_planned_subdivisions_have_sealed_streets() -> None:
     from fraktal import ground_soil
 
     assert {"planned_suburb", "planned_cul_de_sac"} <= set(ground_soil.SEALED_STREETS)
+
+
+def test_paved_biomes_get_a_kerb_and_pavement_beside_the_road_only() -> None:
+    from fraktal import ground_soil
+
+    surface = np.full((60, 60), 30, dtype="uint8")
+    surface[:, 28:32] = 201  # a 4 m road at 1 m cells
+    building = np.zeros((60, 60), dtype="uint8")
+    building[10:14, 33:40] = 1
+    ground = np.full((60, 60, 3), 0.4, dtype="float32")
+    out = ground_soil.pavements(ground, surface, building, "planned_suburb", 1.0, (201, 202))
+    pave = np.array(ground_soil.PAVEMENT_RGB) / 255.0
+    kerb = np.array(ground_soil.KERB_RGB) / 255.0
+    assert np.allclose(out[40, 32], kerb) and np.allclose(out[40, 33], pave)
+    assert np.allclose(out[40, 5], ground[40, 5]) and np.allclose(out[40, 30], ground[40, 30])
+    assert np.allclose(out[11, 34], ground[11, 34])  # a footprint is left alone
+    assert ground_soil.pavements(ground, surface, building, "khartoum", 1.0, (201, 202)) is ground
