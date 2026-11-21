@@ -95,3 +95,17 @@ Step 3 (rivers and lakes): `river_plain` and the `water` setting (`rivers`, `lak
 channels and rounded basins into the height field and paint them as water (class ground), with a
 green bank in non-dry climates. Roads are built afterwards, so arterials bridge them. Colour-only
 ripples remain; real wave geometry is not done.
+
+## Look sheet (FRK-187 close-out)
+
+`scripts/refboard/look_sheet.py` renders one world per look at 4 m next to three real SN7 cells
+(eval only, written under `data/review/regions/looks.jpg`). First run, what is still off:
+
+- **Arid:** ours is an even speckle; relief does not read at 4 m. Real tiles have bold scarps and
+  quarry cuts, highways and interchanges, planned estates and strong contrast. Needs a stronger
+  relief signal (more relief, darker rock) and FRK-189.
+- **Planned suburb:** one rigid grid at one spacing, with a green stripe where a collector runs.
+  Real tiles are patchworks of districts (loops, grids, superblocks of 500 to 800 m with big
+  arterials) and mixed land use. Needs several districts per world.
+- **Farmed river plain:** round lakes and thin rivers over bright green noise. Real tiles have
+  rectilinear fields, straight canals, dark water and blue-roofed industrial clusters.
