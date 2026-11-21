@@ -45,7 +45,10 @@ MUD_DARK = ((84 / 255, 72 / 255, 58 / 255), (104 / 255, 90 / 255, 72 / 255))  # 
 # dry Sahelian red-brown earth
 TAN = ((150 / 255, 108 / 255, 86 / 255), (172 / 255, 128 / 255, 102 / 255))
 
+PALE = ((158 / 255, 126 / 255, 94 / 255), (176 / 255, 144 / 255, 108 / 255))  # dry wadi sand
+
 BIOME_SOIL: dict[str, SoilStyle] = {
+    "arid_badlands": SoilStyle(*PALE, share=0.95, green_mute=0.9, bare_is_soil=True, speckle=0.18),
     "khartoum": SoilStyle(
         *TAN, share=0.9, green_mute=0.8, bare_is_soil=True, mute_tree_cover=True, speckle=0.22
     ),
@@ -83,6 +86,12 @@ SEALED_STREETS = (
     "planned_cul_de_sac",
 )
 SEALED_LOCAL_RGB = (84.0, 82.0, 82.0)
+
+# Biomes with exposed rock (FRK-187): steep ground turns to banded rock; flat ground stays soil.
+ROCKY_BIOMES = ("arid_badlands",)
+ROCK_RGB = (122.0, 96.0, 78.0)
+ROCK_FROM_DEG, ROCK_FULL_DEG = 7.0, 24.0
+STRATA_M = 4.5  # height of one rock band
 
 # Other earth tones a tile may draw instead of the biome's base one (FRK-134), set by eye.
 # Keep these close to TAN: the sky fill makes anything lighter clip white or turn grey-lavender
@@ -169,3 +178,24 @@ def seal_streets(ground: Any, surface: Any, biome: str, local_code: int) -> Any:
         return ground
     asphalt = np.array(SEALED_LOCAL_RGB, dtype="float32") / 255.0
     return np.where((surface == local_code)[..., None], asphalt, ground).astype("float32")
+
+
+def rock_relief(
+    ground: Any, dem: Any, gsd_m: float, biome: str, bare: Any, blur: Any = None
+) -> Any:
+    """``ground`` with steep bare cells turned to banded rock in a biome of ``ROCKY_BIOMES``.
+
+    The share of rock rises with slope; the bands follow height, so contours read on a scarp.
+    ``bare`` marks the cells that may turn to rock (bare ground, not vegetation or roads).
+    """
+    if biome not in ROCKY_BIOMES:
+        return ground
+    dy, dx = np.gradient(np.asarray(dem, dtype="float64"), gsd_m)
+    slope = np.degrees(np.arctan(np.hypot(dx, dy)))
+    share = np.clip((slope - ROCK_FROM_DEG) / (ROCK_FULL_DEG - ROCK_FROM_DEG), 0.0, 1.0)
+    if blur is not None:  # the DEM cell is metres wide: soften the stair-steps in the slope
+        share = blur(share, 4.0 / gsd_m)
+    bands = 1.0 + 0.09 * np.sin(2.0 * np.pi * np.asarray(dem, dtype="float64") / STRATA_M)
+    rock = (np.array(ROCK_RGB, dtype="float64") / 255.0) * bands[..., None]
+    mixed = ground * (1.0 - share[..., None]) + rock * share[..., None]
+    return np.where(bare[..., None], mixed, ground).astype("float32")

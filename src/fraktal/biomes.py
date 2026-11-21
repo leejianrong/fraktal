@@ -20,6 +20,7 @@ from fraktal.procedural import DEFAULT_BIOME, ProceduralConfig
 from fraktal.roads import RoadConfig
 from fraktal.settlement import BuildingConfig, ParcelConfig
 from fraktal.subdivision import SubdivisionConfig
+from fraktal.terrain_gen import TerrainConfig
 
 
 class BiomeError(ValueError):
@@ -306,6 +307,18 @@ BIOMES: dict[str, Biome] = {
                 roof_materials=True,
                 tin_share=0.0,  # all tile: a subdivision repeats one roof
             ),
+        ),
+    ),
+    "arid_badlands": Biome(
+        "arid_badlands",
+        "Dry badlands (FRK-187): ridges and gullies, bare rock and pale wadis, almost no cover.",
+        ProceduralConfig(
+            biome="arid_badlands",
+            relief_m=90.0,
+            aridity=0.97,
+            terrain=TerrainConfig(style="arid"),
+            roads=RoadConfig(centres_per_km2=1.0, local_probability=0.3, max_local_slope_deg=12.0),
+            buildings=BuildingConfig(built_probability_core=0.8, built_probability_edge=0.3),
         ),
     ),
     "oil_palm_plantation": Biome(
