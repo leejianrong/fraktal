@@ -97,3 +97,9 @@ def test_sealed_city_streets_take_asphalt_and_other_biomes_keep_their_road() -> 
     assert (sealed[0, 1] == 0.6).all() and (sealed[1, 0] == 0.6).all()  # arterial, grass: unchanged
     assert ground_soil.seal_streets(ground, surface, "khartoum", ROAD_LOCAL) is ground
     assert max(ground_soil.SEALED_LOCAL_RGB) / 255.0 < 0.4  # darker than the dusty street colour
+
+
+def test_planned_subdivisions_have_sealed_streets() -> None:
+    from fraktal import ground_soil
+
+    assert {"planned_suburb", "planned_cul_de_sac"} <= set(ground_soil.SEALED_STREETS)
