@@ -94,3 +94,8 @@ lakes (step 3) and the sheet row are still to do.
 Pools and driveways (FRK-190): planned subdivisions now carry a driveway on each built lot and a
 back-yard pool on a quarter of them, as `field` rows painted as ground (class ground, no label
 change). To go: pool and driveway classes in the labels (a contract decision), kerbs and pavements.
+
+Step 3 (rivers and lakes): `river_plain` and the `water` setting (`rivers`, `lakes`) carve meandering
+channels and rounded basins into the height field and paint them as water (class ground), with a
+green bank in non-dry climates. Roads are built afterwards, so arterials bridge them. Colour-only
+ripples remain; real wave geometry is not done.
