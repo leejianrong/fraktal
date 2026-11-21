@@ -199,3 +199,38 @@ def rock_relief(
     rock = (np.array(ROCK_RGB, dtype="float64") / 255.0) * bands[..., None]
     mixed = ground * (1.0 - share[..., None]) + rock * share[..., None]
     return np.where(bare[..., None], mixed, ground).astype("float32")
+
+
+# Open water (FRK-187): colour by distance from the shore, a foam line, wet sand, and ripples.
+SHALLOW_RGB = (74.0, 146.0, 142.0)
+DEEP_RGB = (24.0, 56.0, 100.0)
+FOAM_RGB = (226.0, 234.0, 230.0)
+WET_SAND_RGB = (122.0, 106.0, 84.0)
+SHORE_BLUR_M = 14.0  # width over which the depth colour and the wet band fade
+RIPPLE_M = 7.0
+
+
+def water_look(
+    ground: Any, water: Any, gsd_m: float, blur: Any, ripple: Any, tide: bool = True
+) -> Any:
+    """``ground`` with open water shaded by depth, a foam line at the shore and wet sand beside it.
+
+    ``water`` marks the water cells. ``blur(image, sigma_px)`` is a Gaussian-like blur and
+    ``ripple`` a noise field in [-1, 1] that breaks the surface into wave streaks. The blurred
+    water mask is about one half at the shore, so it stands in for distance from the shore.
+    """
+    if not water.any():
+        return ground
+    near = blur(water.astype("float32"), SHORE_BLUR_M / gsd_m)
+    depth = np.clip((near - 0.5) * 2.0, 0.0, 1.0)[..., None]
+    shallow = np.array(SHALLOW_RGB, dtype="float32") / 255.0
+    deep = np.array(DEEP_RGB, dtype="float32") / 255.0
+    sea = shallow * (1.0 - depth) + deep * depth
+    sea = sea * (1.0 + 0.07 * ripple[..., None])
+    foam = np.exp(-(((near - 0.5) / 0.05) ** 2))[..., None] * 0.55
+    sea = sea * (1.0 - foam) + (np.array(FOAM_RGB, dtype="float32") / 255.0) * foam
+    out = np.where(water[..., None], sea, ground)
+    wet = np.clip((near - 0.12) / 0.38, 0.0, 1.0)[..., None] * 0.7  # land within a few metres
+    sand = np.array(WET_SAND_RGB, dtype="float32") / 255.0
+    out = np.where(water[..., None], out, ground * (1.0 - wet) + sand * wet)
+    return out.astype("float32")
