@@ -35,7 +35,7 @@ from fraktal import (
 from fraktal import heights as heights_mod
 from fraktal.coast import TIDAL_FLAT
 from fraktal.fields import PADDY
-from fraktal.ground_soil import apply_soil, rock_relief, seal_streets, soil_style
+from fraktal.ground_soil import apply_soil, rock_relief, seal_streets, soil_style, water_look
 from fraktal.ids import substream
 from fraktal.kernels.noise import lattice_shape, value_noise
 from fraktal.kernels.paddy import paddy_tone
@@ -373,6 +373,8 @@ def export_scene(
     biome = json.loads((world_dir / "world.json").read_text()).get("biome", "")
     ground = apply_soil(ground, surface, seed, gsd_m, soil_style(biome, seed))
     ground = seal_streets(ground, surface, biome, ROAD_LOCAL)
+    ripple = _smooth(seed, "ground:ripple", side, 5.0 / gsd_m)
+    ground = water_look(ground, surface == WATER, gsd_m, _blur, ripple)
     if dem is not None:
         ground = rock_relief(
             ground, dem, gsd_m, biome, np.isin(surface, (BARE, SHRUB, GRASS)), _blur

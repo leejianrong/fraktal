@@ -85,3 +85,8 @@ trees; one district per world, not the patchwork of grids and loops that real ti
 little cover; steep bare ground turns to banded rock in the Blender ground colours. A 500 m tile at
 0.8 m shows no terrain blocks. Still missing: water look (shore blend, depth colour, waves) and
 rivers and lakes (steps 2 and 3), wadis drawn as pale channels, and a sheet row beside real chips.
+
+Step 2 (water look): open water in the Blender ground colours now shades from turquoise shallows to
+deep blue by distance from the shore, with a foam line, wet sand on the land side and faint ripple
+streaks. It applies to every biome with open water, so older coast renders change look. Rivers and
+lakes (step 3) and the sheet row are still to do.

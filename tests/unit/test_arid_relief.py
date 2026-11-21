@@ -44,3 +44,24 @@ def test_rock_shows_on_steep_bare_ground_only_in_a_rocky_biome() -> None:
     assert rocky.mean() < ground.mean() - 0.1
     assert ground_soil.rock_relief(ground, dem, 2.0, "khartoum", bare) is ground
     assert (ground_soil.rock_relief(ground, dem, 2.0, "arid_badlands", ~bare) == ground).all()
+
+
+def test_water_is_darker_with_depth_and_has_a_foam_line_and_wet_sand() -> None:
+    def blur(img: np.ndarray, sigma_px: float) -> np.ndarray:  # a box blur is enough here
+        k = max(3, int(sigma_px * 2) | 1)
+        pad = np.pad(img, k // 2, mode="edge")
+        c = np.cumsum(np.cumsum(pad, 0), 1)
+        c = np.pad(c, ((1, 0), (1, 0)))
+        return (c[k:, k:] - c[:-k, k:] - c[k:, :-k] + c[:-k, :-k])[
+            : img.shape[0], : img.shape[1]
+        ] / k**2
+
+    water = np.zeros((120, 120), dtype=bool)
+    water[:, 60:] = True  # land on the left, sea on the right
+    ground = np.full((120, 120, 3), 0.6, dtype="float32")
+    out = ground_soil.water_look(ground, water, 1.0, blur, np.zeros((120, 120), dtype="float32"))
+    assert out[60, 115].sum() < out[60, 64].sum()  # deep water is darker than the shallows
+    assert out[60, 60:62].mean() > out[60, 100].mean()  # a bright foam line at the edge
+    assert not np.allclose(out[60, 50], ground[60, 50])  # land beside the water is wetted
+    assert np.allclose(out[60, 5], ground[60, 5], atol=1e-3)  # far inland is untouched
+    assert ground_soil.water_look(ground, ~water & False, 1.0, blur, np.zeros((120, 120))) is ground
