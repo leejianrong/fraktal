@@ -15,6 +15,7 @@ from typing import Any
 
 from fraktal.coast import CoastConfig
 from fraktal.fields import FieldConfig
+from fraktal.highways import HighwayConfig
 from fraktal.industrial import IndustrialConfig
 from fraktal.procedural import DEFAULT_BIOME, ProceduralConfig
 from fraktal.rivers import WaterConfig
@@ -330,6 +331,7 @@ BIOMES: dict[str, Biome] = {
             relief_m=14.0,
             aridity=0.35,
             water=WaterConfig(rivers=2, lakes=2),
+            highways=HighwayConfig(count=1),
         ),
     ),
     "oil_palm_plantation": Biome(

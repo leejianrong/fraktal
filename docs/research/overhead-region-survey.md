@@ -113,3 +113,10 @@ ripples remain; real wave geometry is not done.
 Pools and driveways (FRK-190): planned subdivisions now carry a driveway on each built lot and a
 back-yard pool on a quarter of them, as `field` rows painted as ground (class ground, no label
 change). To go: pool and driveway classes in the labels (a contract decision), kerbs and pavements.
+
+Highways (FRK-189, first slice): the `highways` setting adds a 28 m arterial across the tile that
+bridges water and gets a cloverleaf (four 270 degree loops of 9 m) at its first crossing with
+another arterial; `river_plain` uses one. Rendered, it reads as an interchange. Still to do: a
+divided carriageway with a median, grade separation drawn as a bridge over the other road, ramps
+that merge instead of touching, an empty infield (houses still appear inside the loops), and car
+parks.
