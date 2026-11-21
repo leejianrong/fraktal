@@ -117,3 +117,10 @@ change). To go: pool and driveway classes in the labels (a contract decision), k
 Districts (FRK-188): `planned_patchwork` cuts the region into Voronoi districts, each with its own
 angle and a grid or cul-de-sac pattern, with a collector along every shared boundary. Still one
 building style across districts, and no superblocks with commercial use.
+
+Highways (FRK-189, first slice): the `highways` setting adds a 28 m arterial across the tile that
+bridges water and gets a cloverleaf (four 270 degree loops of 9 m) at its first crossing with
+another arterial; `river_plain` uses one. Rendered, it reads as an interchange. Still to do: a
+divided carriageway with a median, grade separation drawn as a bridge over the other road, ramps
+that merge instead of touching, an empty infield (houses still appear inside the loops), and car
+parks.
