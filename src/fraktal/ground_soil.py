@@ -222,7 +222,7 @@ def water_look(
     if not water.any():
         return ground
     near = blur(water.astype("float32"), SHORE_BLUR_M / gsd_m)
-    depth = np.clip((near - 0.5) * 2.0, 0.0, 1.0)[..., None]
+    depth = np.clip((near - 0.5) / 0.3, 0.0, 1.0)[..., None]  # a narrow river never gets deeper
     shallow = np.array(SHALLOW_RGB, dtype="float32") / 255.0
     deep = np.array(DEEP_RGB, dtype="float32") / 255.0
     sea = shallow * (1.0 - depth) + deep * depth

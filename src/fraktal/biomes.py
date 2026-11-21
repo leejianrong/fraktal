@@ -17,6 +17,7 @@ from fraktal.coast import CoastConfig
 from fraktal.fields import FieldConfig
 from fraktal.industrial import IndustrialConfig
 from fraktal.procedural import DEFAULT_BIOME, ProceduralConfig
+from fraktal.rivers import WaterConfig
 from fraktal.roads import RoadConfig
 from fraktal.settlement import BuildingConfig, ParcelConfig
 from fraktal.subdivision import SubdivisionConfig
@@ -319,6 +320,16 @@ BIOMES: dict[str, Biome] = {
             terrain=TerrainConfig(style="arid"),
             roads=RoadConfig(centres_per_km2=1.0, local_probability=0.3, max_local_slope_deg=12.0),
             buildings=BuildingConfig(built_probability_core=0.8, built_probability_edge=0.3),
+        ),
+    ),
+    "river_plain": Biome(
+        "river_plain",
+        "Temperate river plain (FRK-187): meandering rivers and lakes with green banks, farmland.",
+        ProceduralConfig(
+            biome="river_plain",
+            relief_m=14.0,
+            aridity=0.35,
+            water=WaterConfig(rivers=2, lakes=2),
         ),
     ),
     "oil_palm_plantation": Biome(
