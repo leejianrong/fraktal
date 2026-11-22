@@ -316,7 +316,7 @@ BIOMES: dict[str, Biome] = {
         "Dry badlands (FRK-187): ridges and gullies, bare rock and pale wadis, almost no cover.",
         ProceduralConfig(
             biome="arid_badlands",
-            relief_m=90.0,
+            relief_m=170.0,
             aridity=0.97,
             terrain=TerrainConfig(style="arid"),
             roads=RoadConfig(centres_per_km2=1.0, local_probability=0.3, max_local_slope_deg=12.0),
