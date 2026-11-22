@@ -100,7 +100,7 @@ def arid_terrain(
     so slopes run from flat wadi floors to steep scarps.
     """
     broad = octave_noise(shape, gsd_m, seed, "arid:broad", 900.0, 60.0, 0.5)
-    ridge = 1.0 - 2.0 * np.abs(octave_noise(shape, gsd_m, seed, "arid:ridge", 500.0, 16.0, 0.55))
+    ridge = 1.0 - 2.0 * np.abs(octave_noise(shape, gsd_m, seed, "arid:ridge", 700.0, 30.0, 0.55))
     height = 0.55 * np.clip(ridge, 0.0, 1.0) ** 1.6 + 0.45 * (broad + 0.5)
     fold = np.abs(octave_noise(shape, gsd_m, seed, "arid:gully", 140.0, 5.0, 0.55))
     gully = np.exp(-((fold / 0.035) ** 2))  # 1 on the gully axis, 0 a few metres away

@@ -90,8 +90,8 @@ SEALED_LOCAL_RGB = (84.0, 82.0, 82.0)
 
 # Biomes with exposed rock (FRK-187): steep ground turns to banded rock; flat ground stays soil.
 ROCKY_BIOMES = ("arid_badlands",)
-ROCK_RGB = (122.0, 96.0, 78.0)
-ROCK_FROM_DEG, ROCK_FULL_DEG = 7.0, 24.0
+ROCK_RGB = (92.0, 70.0, 58.0)
+ROCK_FROM_DEG, ROCK_FULL_DEG = 4.0, 16.0
 STRATA_M = 4.5  # height of one rock band
 WADI_RGB = (216.0, 198.0, 166.0)  # pale dry sand on the floor of a gully
 WADI_SCALE_M = 18.0  # a cell this far below the ground around it is on a channel floor
