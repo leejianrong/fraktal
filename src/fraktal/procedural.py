@@ -60,6 +60,11 @@ LATER_FIELDS = (
     ("roads", "footpath_rate"),
     ("roads", "footpath_length_m"),
     ("roads", "footpath_width_m"),
+    ("fields", "crop_zones"),
+    ("fields", "crop_zone_radius_m"),
+    ("fields", "crop_cell_m"),
+    ("fields", "crop_max_slope_deg"),
+    ("fields", "canal_share"),
 )
 
 
@@ -256,7 +261,7 @@ def _jsonable(config: ProceduralConfig) -> dict[str, Any]:
             del out[section]
     del out["roads"]["drive_side"]  # traffic only: it does not change the world, so not its id
     for section, key in LATER_FIELDS:  # settings added after worlds existed: omitted at default
-        if out[section][key] == default[section][key]:
+        if section in out and out[section][key] == default[section][key]:
             del out[section][key]
     return out
 

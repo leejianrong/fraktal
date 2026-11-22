@@ -365,6 +365,20 @@ BIOMES: dict[str, Biome] = {
             ),
         ),
     ),
+    "farmed_plain": Biome(
+        "farmed_plain",
+        "Farmed plain (FRK-187, FRK-136): rectilinear crop blocks with rows, canals, a river.",
+        ProceduralConfig(
+            biome="farmed_plain",
+            relief_m=5.0,
+            aridity=0.4,
+            roads=RoadConfig(centres_per_km2=1.2, local_probability=0.5, local_wander_deg=4.0),
+            fields=FieldConfig(
+                crop_zones=8, crop_zone_radius_m=900.0, crop_cell_m=(60.0, 170.0), canal_share=0.3
+            ),
+            water=WaterConfig(rivers=1),
+        ),
+    ),
     "oil_palm_plantation": Biome(
         "oil_palm_plantation",
         "Estate land: big oil palm blocks in staggered rows with access tracks, few settlements.",

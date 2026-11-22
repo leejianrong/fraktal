@@ -43,6 +43,9 @@ ROAD_TRACK = 204  # plantation access track
 PADDY_CODES = {"flooded": 205, "planted": 206, "harvested": 207}
 PADDY_BUND = 208
 FISHPOND_WATER = 212
+CROP_CODES = {"green": 215, "gold": 216, "fallow": 217, "plough": 218, "stubble": 219}
+CROP_STRIPE = 5  # a stripe's code is its crop's plus this: the alternate row of the same field
+CANAL_WATER = 225
 DRIVEWAY, POOL = 213, 214  # yard ground in planned subdivisions (FRK-190); both stay class ground
 TERRACE_A, TERRACE_B, TERRACE_RISER = 209, 210, 211  # alternate steps, and the edge between
 BUND_WIDTH_M = 0.9
@@ -79,6 +82,17 @@ LANDCOVER_RGB: dict[int, tuple[float, float, float]] = {
     FISHPOND_WATER: (72.0, 96.0, 84.0),  # murky green pond water
     DRIVEWAY: (188.0, 184.0, 176.0),  # pale concrete
     POOL: (58.0, 170.0, 190.0),  # a lit swimming pool
+    CROP_CODES["green"]: (118.0, 160.0, 70.0),  # young crop
+    CROP_CODES["gold"]: (196.0, 176.0, 96.0),  # ripe grain
+    CROP_CODES["fallow"]: (170.0, 150.0, 112.0),  # bare fallow
+    CROP_CODES["plough"]: (112.0, 86.0, 62.0),  # turned earth
+    CROP_CODES["stubble"]: (180.0, 162.0, 120.0),  # cut stalks
+    CROP_CODES["green"] + CROP_STRIPE: (96.0, 140.0, 58.0),
+    CROP_CODES["gold"] + CROP_STRIPE: (176.0, 154.0, 80.0),
+    CROP_CODES["fallow"] + CROP_STRIPE: (152.0, 132.0, 98.0),
+    CROP_CODES["plough"] + CROP_STRIPE: (92.0, 70.0, 50.0),
+    CROP_CODES["stubble"] + CROP_STRIPE: (162.0, 144.0, 106.0),
+    CANAL_WATER: (52.0, 82.0, 92.0),  # dark canal water
     TERRACE_A: (118.0, 154.0, 66.0),
     TERRACE_B: (92.0, 130.0, 58.0),
     TERRACE_RISER: (78.0, 92.0, 48.0),  # the shaded edge of a step
@@ -255,6 +269,8 @@ def _field_raster(fields: gpd.GeoDataFrame, transform: Affine, side: int, dem: A
             shapes.append((f.geometry, DRIVEWAY))
         elif f.field_type == "pool":
             shapes.append((f.geometry, POOL))
+        elif f.field_type == "crop":
+            shapes.append((f.geometry, CROP_CODES.get(str(f.state), CROP_CODES["fallow"])))
     if shapes:
         out = rasterize(shapes, (side, side), transform=transform, dtype="uint8")
     bunds = [
@@ -266,11 +282,41 @@ def _field_raster(fields: gpd.GeoDataFrame, transform: Affine, side: int, dem: A
         edge = rasterize(bunds, (side, side), transform=transform, dtype="uint8")
         out = np.where(edge > 0, edge, out).astype("uint8")
     for _, f in ordered.iterrows():
+        if f.field_type == "crop":  # alternate rows of the field's own colour
+            out = _crop_rows(out, f, transform)
+    canals = [(f.geometry, CANAL_WATER) for _, f in ordered.iterrows() if f.field_type == "canal"]
+    if canals:
+        water = rasterize(canals, (side, side), transform=transform, dtype="uint8")
+        out = np.where(water > 0, water, out).astype("uint8")
+    for _, f in ordered.iterrows():
         if f.field_type == TERRACE:
             inside = rasterize([(f.geometry, 1)], (side, side), transform=transform, dtype="uint8")
             out = np.where(inside > 0, terrace_bands(dem, float(f.row_spacing_m)), out).astype(
                 "uint8"
             )
+    return out
+
+
+def _crop_rows(out: Any, field: Any, transform: Affine) -> Any:
+    """``out`` with every other row of a crop field painted in the stripe colour of its crop."""
+    side = out.shape[0]
+    inverse = ~transform
+    minx, miny, maxx, maxy = field.geometry.bounds
+    (c0, r1), (c1, r0) = inverse @ (minx, miny), inverse @ (maxx, maxy)
+    r0, r1 = max(int(r0) - 1, 0), min(int(r1) + 2, side)
+    c0, c1 = max(int(c0) - 1, 0), min(int(c1) + 2, side)
+    if r1 <= r0 or c1 <= c0:
+        return out
+    rows, cols = np.mgrid[r0:r1, c0:c1]
+    x, y = transform @ (cols + 0.5, rows + 0.5)
+    theta = math.radians(float(field.row_angle_deg))
+    phase = (np.asarray(x) * math.sin(theta) - np.asarray(y) * math.cos(theta)) / float(
+        field.row_spacing_m
+    )
+    stripe = (phase % 1.0) < 0.45
+    window = out[r0:r1, c0:c1]
+    base = CROP_CODES.get(str(field.state), CROP_CODES["fallow"])
+    out[r0:r1, c0:c1] = np.where((window == base) & stripe, base + CROP_STRIPE, window)
     return out
 
 
