@@ -29,6 +29,11 @@ OIL_PALM = "oil_palm"
 PADDY = "paddy"
 TERRACE = "terrace"
 FISHPOND = "fishpond"
+CROP = "crop"  # rectilinear arable blocks: one crop state each, with rows
+CANAL = "canal"  # a narrow straight waterway along a block edge
+CROP_STATES = ("green", "gold", "fallow", "plough", "stubble")
+CROP_STATE_SHARES = (0.30, 0.25, 0.20, 0.15, 0.10)
+CANAL_WIDTH_M = 4.0
 PADDY_STATES = ("flooded", "planted", "harvested")
 PADDY_STATE_SHARES = (0.35, 0.4, 0.25)
 
@@ -51,6 +56,11 @@ class FieldConfig:
     pond_zones: int = 0  # areas of the coastal zone tiled with fish ponds
     pond_zone_radius_m: float = 450.0
     pond_cell_m: tuple[float, float] = (45.0, 100.0)
+    crop_zones: int = 0  # areas of flat land tiled with arable blocks on one rotated grid
+    crop_zone_radius_m: float = 500.0
+    crop_cell_m: tuple[float, float] = (70.0, 220.0)  # block side lengths on the shared grid
+    crop_max_slope_deg: float = 5.0
+    canal_share: float = 0.0  # of the blocks, the share with a canal along one long edge
 
 
 def _blocked(local: gpd.GeoDataFrame | None, pad: float) -> list[Any]:
@@ -95,7 +105,10 @@ def build_fields(
     pond_zone: Any = None,
 ) -> gpd.GeoDataFrame | None:
     """A ``field`` layer (oil palm, paddy, terraces), or None when the config asks for none."""
-    wanted = config.palm_count + config.paddy_zones + config.terrace_count + config.pond_zones
+    wanted = (
+        config.palm_count + config.paddy_zones + config.terrace_count + config.pond_zones
+        + config.crop_zones
+    )  # fmt: skip
     if wanted <= 0:
         return None
     height, width = landcover.shape
@@ -127,6 +140,8 @@ def build_fields(
         box_xy = (x0, y0, x1, y1)
         _terraces(features, placed, free, slope, transform, seed, config, box_xy)
         _paddies(features, placed, free, slope, landcover, transform, seed, config, box_xy)
+    if slope is not None:
+        _crops(features, placed, free, slope, landcover, transform, seed, config, (x0, y0, x1, y1))
     _ponds(features, placed, free, pond_zone, transform, seed, config, (x0, y0, x1, y1))
     if not features:
         return None
@@ -202,6 +217,53 @@ def _paddies(
             continue
         placed.append(cell)
         features.append(_feature(cell, PADDY, angle, 0.0, str(state)))
+
+
+def _crops(
+    features: list[dict[str, Any]],
+    placed: list[Polygon],
+    free: Any,
+    slope: Any,
+    landcover: Any,
+    transform: Affine,
+    seed: int,
+    config: FieldConfig,
+    bounds: tuple[float, float, float, float],
+) -> None:
+    """Arable blocks on flat dry land near a few zone centres, one crop state and row angle each,
+    and for some a canal along a long edge. Canals are not in ``placed``: they sit on block edges.
+    """
+    if config.crop_zones <= 0:
+        return
+    rng = substream(seed, f"fields:{CROP}")
+    cells, angle = _grid_cells(
+        rng, bounds, config.crop_cell_m, config.crop_zones, config.crop_zone_radius_m
+    )
+    states = rng.choice(CROP_STATES, size=len(cells), p=CROP_STATE_SHARES)
+    canal_edges: set[tuple[float, float]] = set()
+    for cell, state in zip(cells, states, strict=True):
+        along, spacing, canal = (
+            float(rng.uniform()),
+            float(rng.uniform(2.5, 5.0)),
+            float(rng.uniform()),
+        )
+        if not free(cell, -0.05) or not _mostly_dry(cell, landcover, transform, 10.0):
+            continue
+        if not _flat_enough(cell, slope, transform, 0.0, config.crop_max_slope_deg):
+            continue
+        placed.append(cell)
+        features.append(
+            _feature(cell, CROP, angle + (90.0 if along < 0.5 else 0.0), spacing, str(state))
+        )
+        if canal < config.canal_share:  # two blocks can share an edge: one canal per edge
+            ring = list(cell.exterior.coords)[:5]  # five points: the ring closes on the first
+            edges = [(ring[i], ring[i + 1]) for i in range(4)]
+            a, b = max(edges, key=lambda e: math.hypot(e[1][0] - e[0][0], e[1][1] - e[0][1]))
+            strip = LineString([a, b]).buffer(CANAL_WIDTH_M / 2, cap_style="flat")
+            key = (round(strip.centroid.x, 2), round(strip.centroid.y, 2))
+            if key not in canal_edges:
+                canal_edges.add(key)
+                features.append(_feature(strip, CANAL, angle, 0.0, "water"))
 
 
 def _ponds(

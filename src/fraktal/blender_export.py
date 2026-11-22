@@ -50,6 +50,7 @@ from fraktal.landcover_gen import BARE, GRASS, SHRUB, WATER
 from fraktal.objects import CAR_COLOURS, place
 from fraktal.procedural import read_buildings, read_fields, read_parcels, read_roads
 from fraktal.render import (
+    CANAL_WATER,
     DEFAULT_HEIGHT_M,
     FISHPOND_WATER,
     LANDCOVER_RGB,
@@ -70,7 +71,13 @@ from fraktal.render import (
 )
 
 SCHEMA = 1
-WET_CODES = (WATER, PADDY_CODES["flooded"], FISHPOND_WATER, POOL)  # standing water: glossy
+WET_CODES = (
+    WATER,
+    PADDY_CODES["flooded"],
+    FISHPOND_WATER,
+    POOL,
+    CANAL_WATER,
+)  # standing water: glossy
 ROUGH_WATER, ROUGH_MUD, ROUGH_LAND = 0.06, 0.35, 0.95
 VEGETATION = (10, 20, 30, 40, 90, 95)  # classes that get patchy hue and fine grain
 EDGE_WARP = ((1.5, 0.8), (0.5, 0.3))  # (noise cell, shift) in land-cover cells, bends class edges

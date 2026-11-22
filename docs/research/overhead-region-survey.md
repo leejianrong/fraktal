@@ -124,3 +124,9 @@ another arterial; `river_plain` uses one. Rendered, it reads as an interchange. 
 divided carriageway with a median, grade separation drawn as a bridge over the other road, ramps
 that merge instead of touching, an empty infield (houses still appear inside the loops), and car
 parks.
+
+Crop fields and canals (FRK-136, FRK-187): `farmed_plain` tiles flat dry land with rectilinear
+blocks on one rotated grid, each a crop state (green, gold, fallow, plough, stubble) with alternate
+rows painted in a darker shade, and canals along some block edges (dark water, class ground). Still
+off against real tiles: blocks are flat tints, there are no field boundaries of hedge or track,
+and the surrounding land cover is noisier than real farmland.
