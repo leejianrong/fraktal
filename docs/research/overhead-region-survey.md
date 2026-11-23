@@ -148,3 +148,8 @@ Planned subdivisions now take near-black asphalt on local and arterial roads and
 darker. Brightness is now 0.50 (suburb) and 0.54 (farm), against 0.32 to 0.47 in the cells. Still
 bright: the arid tile (0.55), and still no pixel below 0.2 in any tile. Next: roof colour,
 variety in the suburb and structure in the arid tile.
+Structure and variety (FRK-187, FRK-188): `arid_badlands` now carries a highway and industrial sites
+along its roads, so the tile has man-made focal points like SN7 cells 34 and 37; the suburb row of
+the look sheet uses `planned_patchwork` (several districts, angles and patterns) instead of the
+single-angle `planned_suburb`. Still to do: quarry pits, cut-and-fill scars beside the highway,
+parks and commercial blocks inside the suburbs.

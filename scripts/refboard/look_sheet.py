@@ -29,7 +29,7 @@ from pull_spacenet_regions import to_image  # noqa: E402
 # (label, biome, centre lon/lat, SN7 cells). The centre only places the world; it is not the place.
 LOOKS = [
     ("arid sprawl and relief", "arid_badlands", (32.5, 15.6), (34, 37, 30)),
-    ("planned suburb", "planned_suburb", (-115.1, 36.1), (9, 6, 8)),
+    ("planned suburb", "planned_patchwork", (-115.1, 36.1), (9, 6, 8)),
     ("farmed plain", "farmed_plain", (-1.5, 52.0), (53, 54, 57)),
 ]
 SIZE_M, GSD_M, TILE = 1800.0, 4.0, 300  # a little under the 2 km world, so it covers the tile
