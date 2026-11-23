@@ -68,3 +68,10 @@ def test_a_lower_sun_is_warmer_and_khartoum_is_hazier() -> None:
     hazy = [lighting.variety(s, 50.0, "khartoum_city")["haze_density"] for s in range(30)]
     assert min(hazy) >= lighting.HAZY_DENSITY["khartoum_city"][0]
     assert min(hazy) > max(plain)  # even the clearest Khartoum day is hazier than any other city's
+
+
+def test_overhead_light_carries_a_lower_fill_and_a_stronger_sun() -> None:
+    from fraktal import lighting
+
+    sky = lighting.draw(7, 50.0)
+    assert sky["overhead_fill"] < 1.0 < sky["overhead_sun"]

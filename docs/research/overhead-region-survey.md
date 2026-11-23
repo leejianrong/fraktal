@@ -153,3 +153,10 @@ along its roads, so the tile has man-made focal points like SN7 cells 34 and 37;
 the look sheet uses `planned_patchwork` (several districts, angles and patterns) instead of the
 single-angle `planned_suburb`. Still to do: quarry pits, cut-and-fill scars beside the highway,
 parks and commercial blocks inside the suburbs.
+
+Global contrast (FRK-187): overhead frames now use 0.45 of the sky fill and 1.5 times the sun
+(`lighting.OVERHEAD_FILL`, `OVERHEAD_SUN`; eye-level frames keep their own exposure). On the look
+sheet brightness fell to 0.39 to 0.40 (cells: 0.31 to 0.47), dark pixels rose from 0% to 2 to 6%
+(cells: 4 to 45%), and relief and rooftops read with real shading. Contrast (std 0.10 to 0.14,
+cells 0.19 to 0.26) is still low, and saturation is a little high: next is material reflectance
+and a darker, more varied ground. The cells are shown stretched 2 to 98%, ours are not.
