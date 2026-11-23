@@ -120,3 +120,17 @@ def test_paved_biomes_get_a_kerb_and_pavement_beside_the_road_only() -> None:
     assert np.allclose(out[40, 5], ground[40, 5]) and np.allclose(out[40, 30], ground[40, 30])
     assert np.allclose(out[11, 34], ground[11, 34])  # a footprint is left alone
     assert ground_soil.pavements(ground, surface, building, "khartoum", 1.0, (201, 202)) is ground
+
+
+def test_planned_subdivisions_get_near_black_asphalt_on_local_and_arterial_roads() -> None:
+    from fraktal.ground_soil import DARK_ASPHALT_RGB, seal_streets
+
+    ground = np.full((4, 4, 3), 0.7, dtype="float32")
+    surface = np.zeros((4, 4), dtype="uint8")
+    surface[0], surface[1] = 201, 202
+    out = seal_streets(ground, surface, "planned_suburb", 201, 202)
+    assert np.allclose(out[0, 0], np.array(DARK_ASPHALT_RGB) / 255.0)
+    assert np.allclose(out[1, 0], np.array(DARK_ASPHALT_RGB) / 255.0)
+    assert np.allclose(out[2, 0], 0.7)
+    city = seal_streets(ground, surface, "manila_quezon", 201, 202)  # cities keep the old grey
+    assert city[0, 0, 0] > 0.3 and np.allclose(city[1, 0], 0.7)
