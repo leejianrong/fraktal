@@ -140,3 +140,11 @@ Field strips and tracks (FRK-187): `farmed_plain` cuts each crop block into stri
 each with its own crop state, and lays a 3 m dirt track along half the block edges (painted as the
 access-track colour, class ground). It reads as strip farmland next to SN7 cells 53 and 54. Still
 to do: hedges, a clearer track tint at 4 m, and calmer scrub between the blocks.
+
+Tone calibration (FRK-188, FRK-187): measured on the look sheet, our tiles were too bright and had no
+dark pixels (0%, against 4 to 45% in the SN7 cells; farm row brightness 0.76 against about 0.32).
+Planned subdivisions now take near-black asphalt on local and arterial roads and dry-lawn ground,
+`farmed_plain` takes dark loam, the crop palette is darker and less pastel, and shallow water is
+darker. Brightness is now 0.50 (suburb) and 0.54 (farm), against 0.32 to 0.47 in the cells. Still
+bright: the arid tile (0.55), and still no pixel below 0.2 in any tile. Next: roof colour,
+variety in the suburb and structure in the arid tile.

@@ -82,16 +82,16 @@ LANDCOVER_RGB: dict[int, tuple[float, float, float]] = {
     FISHPOND_WATER: (72.0, 96.0, 84.0),  # murky green pond water
     DRIVEWAY: (188.0, 184.0, 176.0),  # pale concrete
     POOL: (58.0, 170.0, 190.0),  # a lit swimming pool
-    CROP_CODES["green"]: (118.0, 160.0, 70.0),  # young crop
-    CROP_CODES["gold"]: (196.0, 176.0, 96.0),  # ripe grain
-    CROP_CODES["fallow"]: (170.0, 150.0, 112.0),  # bare fallow
-    CROP_CODES["plough"]: (112.0, 86.0, 62.0),  # turned earth
-    CROP_CODES["stubble"]: (180.0, 162.0, 120.0),  # cut stalks
-    CROP_CODES["green"] + CROP_STRIPE: (96.0, 140.0, 58.0),
-    CROP_CODES["gold"] + CROP_STRIPE: (176.0, 154.0, 80.0),
-    CROP_CODES["fallow"] + CROP_STRIPE: (152.0, 132.0, 98.0),
-    CROP_CODES["plough"] + CROP_STRIPE: (92.0, 70.0, 50.0),
-    CROP_CODES["stubble"] + CROP_STRIPE: (162.0, 144.0, 106.0),
+    CROP_CODES["green"]: (92.0, 124.0, 56.0),  # young crop
+    CROP_CODES["gold"]: (166.0, 140.0, 78.0),  # ripe grain
+    CROP_CODES["fallow"]: (128.0, 106.0, 80.0),  # bare fallow
+    CROP_CODES["plough"]: (78.0, 58.0, 44.0),  # turned earth
+    CROP_CODES["stubble"]: (146.0, 128.0, 94.0),  # cut stalks
+    CROP_CODES["green"] + CROP_STRIPE: (74.0, 108.0, 46.0),
+    CROP_CODES["gold"] + CROP_STRIPE: (146.0, 120.0, 62.0),
+    CROP_CODES["fallow"] + CROP_STRIPE: (110.0, 90.0, 66.0),
+    CROP_CODES["plough"] + CROP_STRIPE: (62.0, 46.0, 34.0),
+    CROP_CODES["stubble"] + CROP_STRIPE: (126.0, 108.0, 78.0),
     CANAL_WATER: (52.0, 82.0, 92.0),  # dark canal water
     TERRACE_A: (118.0, 154.0, 66.0),
     TERRACE_B: (92.0, 130.0, 58.0),

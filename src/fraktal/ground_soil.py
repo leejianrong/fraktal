@@ -47,7 +47,18 @@ TAN = ((150 / 255, 108 / 255, 86 / 255), (172 / 255, 128 / 255, 102 / 255))
 
 PALE = ((158 / 255, 126 / 255, 94 / 255), (176 / 255, 144 / 255, 108 / 255))  # dry wadi sand
 
+LAWN = ((104 / 255, 100 / 255, 66 / 255), (92 / 255, 98 / 255, 62 / 255))  # dry lawn and verge
+LOAM = ((86 / 255, 68 / 255, 52 / 255), (100 / 255, 80 / 255, 58 / 255))  # dark farmed earth
+
 BIOME_SOIL: dict[str, SoilStyle] = {
+    "planned_suburb": SoilStyle(*LAWN, share=0.9, green_mute=0.4, bare_is_soil=True, speckle=0.1),
+    "planned_cul_de_sac": SoilStyle(
+        *LAWN, share=0.9, green_mute=0.4, bare_is_soil=True, speckle=0.1
+    ),
+    "planned_patchwork": SoilStyle(
+        *LAWN, share=0.9, green_mute=0.4, bare_is_soil=True, speckle=0.1
+    ),
+    "farmed_plain": SoilStyle(*LOAM, share=0.93, green_mute=0.6, bare_is_soil=True, speckle=0.05),
     "arid_badlands": SoilStyle(*PALE, share=0.95, green_mute=0.9, bare_is_soil=True, speckle=0.18),
     "khartoum": SoilStyle(
         *TAN, share=0.9, green_mute=0.8, bare_is_soil=True, mute_tree_cover=True, speckle=0.22
@@ -87,6 +98,8 @@ SEALED_STREETS = (
     "planned_patchwork",
 )
 SEALED_LOCAL_RGB = (84.0, 82.0, 82.0)
+PLANNED_BIOMES = ("planned_suburb", "planned_cul_de_sac", "planned_patchwork")
+DARK_ASPHALT_RGB = (40.0, 40.0, 42.0)  # new asphalt in a planned subdivision (FRK-188)
 
 # Biomes with exposed rock (FRK-187): steep ground turns to banded rock; flat ground stays soil.
 ROCKY_BIOMES = ("arid_badlands",)
@@ -175,12 +188,22 @@ def apply_soil(ground: Array, surface: Array, seed: int, gsd_m: float, style: So
     return np.asarray(np.clip(out, 0.0, 1.0), dtype="float32")
 
 
-def seal_streets(ground: Any, surface: Any, biome: str, local_code: int) -> Any:
-    """``ground`` with the local-road cells recoloured asphalt in a biome of ``SEALED_STREETS``."""
+def seal_streets(
+    ground: Any, surface: Any, biome: str, local_code: int, arterial_code: int | None = None
+) -> Any:
+    """``ground`` with the local-road cells recoloured asphalt in a biome of ``SEALED_STREETS``.
+
+    The planned subdivisions take near-black asphalt on arterials too (``arterial_code``): in the
+    reference tiles the road network is the darkest thing in them.
+    """
     if biome not in SEALED_STREETS:
         return ground
-    asphalt = np.array(SEALED_LOCAL_RGB, dtype="float32") / 255.0
-    return np.where((surface == local_code)[..., None], asphalt, ground).astype("float32")
+    dark = biome in PLANNED_BIOMES
+    asphalt = np.array(DARK_ASPHALT_RGB if dark else SEALED_LOCAL_RGB, dtype="float32") / 255.0
+    paved = surface == local_code
+    if dark and arterial_code is not None:
+        paved = paved | (surface == arterial_code)
+    return np.where(paved[..., None], asphalt, ground).astype("float32")
 
 
 # Streets with a kerb and a pavement (FRK-188): a pale strip beside the carriageway, set against it
@@ -242,7 +265,7 @@ def rock_relief(
 
 
 # Open water (FRK-187): colour by distance from the shore, a foam line, wet sand, and ripples.
-SHALLOW_RGB = (74.0, 146.0, 142.0)
+SHALLOW_RGB = (52.0, 96.0, 94.0)
 DEEP_RGB = (24.0, 56.0, 100.0)
 FOAM_RGB = (226.0, 234.0, 230.0)
 WET_SAND_RGB = (122.0, 106.0, 84.0)

@@ -387,7 +387,7 @@ def export_scene(
     ground = np.where(green, ground * (1.0 + GRAIN_STRENGTH * grain), ground)
     biome = json.loads((world_dir / "world.json").read_text()).get("biome", "")
     ground = apply_soil(ground, surface, seed, gsd_m, soil_style(biome, seed))
-    ground = seal_streets(ground, surface, biome, ROAD_LOCAL)
+    ground = seal_streets(ground, surface, biome, ROAD_LOCAL, ROAD_ARTERIAL)
     ground = pavements(ground, surface, mask, biome, gsd_m, (ROAD_LOCAL, ROAD_ARTERIAL))
     ripple = _smooth(seed, "ground:ripple", side, 5.0 / gsd_m)
     ground = water_look(ground, surface == WATER, gsd_m, _blur, ripple)
