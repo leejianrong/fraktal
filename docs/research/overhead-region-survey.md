@@ -140,3 +140,9 @@ Field strips and tracks (FRK-187): `farmed_plain` cuts each crop block into stri
 each with its own crop state, and lays a 3 m dirt track along half the block edges (painted as the
 access-track colour, class ground). It reads as strip farmland next to SN7 cells 53 and 54. Still
 to do: hedges, a clearer track tint at 4 m, and calmer scrub between the blocks.
+
+Structure and variety (FRK-187, FRK-188): `arid_badlands` now carries a highway and industrial sites
+along its roads, so the tile has man-made focal points like SN7 cells 34 and 37; the suburb row of
+the look sheet uses `planned_patchwork` (several districts, angles and patterns) instead of the
+single-angle `planned_suburb`. Still to do: quarry pits, cut-and-fill scars beside the highway,
+parks and commercial blocks inside the suburbs.
