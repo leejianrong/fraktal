@@ -18,6 +18,11 @@ SUN_HIGH = (1.0, 0.93, 0.82)  # a high sun: warm white
 ZENITH = (0.30, 0.46, 0.80)  # a clear zenith
 DUST = (0.86, 0.78, 0.64)  # the horizon with dust in the air
 SUN_STRENGTH = 2.3
+# Overhead views (FRK-187): at 4 m our tiles had no dark pixels at all while the reference cells
+# are 4 to 45 percent dark, because the sky fill lifts every shadow. Overhead frames use this share
+# of the fill; eye-level frames keep their own exposure.
+OVERHEAD_FILL = 0.45
+OVERHEAD_SUN = 1.5  # and this multiple of the sun, so lit ground keeps its highlights
 FILL_RANGE = (1.3, 1.9)  # sky fill: shadows keep texture because the sky lights them
 DUST_RANGE = (0.2, 0.8)  # how much of the horizon is dust rather than blue sky
 GLOW_RANGE = (0.2, 0.7)  # the warm bloom around the sun
@@ -104,6 +109,8 @@ def draw(seed: int, sun_elevation_deg: float, biome: str = "") -> dict[str, Any]
         "glow": _mix((1.0, 0.85, 0.62), SUN_LOW, warm),
         "glow_amount": round(float(rng.uniform(*GLOW_RANGE)) * (0.6 + 0.8 * dust), 3),
         "fill": round(float(rng.uniform(*FILL_RANGE)), 3),
+        "overhead_fill": OVERHEAD_FILL,
+        "overhead_sun": OVERHEAD_SUN,
         "eye_level": dict(EYE_LEVEL_BY_BIOME.get(biome, EYE_LEVEL)),
         "variety": variety(seed, sun_elevation_deg, biome),
     }

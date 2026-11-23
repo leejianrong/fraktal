@@ -1569,6 +1569,8 @@ def build_light(scene: dict, eye_level: bool = False) -> None:
     sun.energy = sky.get("sun_strength", 2.6)  # about 0.6 of reflectance at 50 degrees elevation
     if eye:
         sun.energy *= eye["sun"]
+    elif not eye_level:
+        sun.energy *= sky.get("overhead_sun", 1.0)
     sun.color = sky.get("sun_colour", (1.0, 1.0, 1.0))
     if var:  # a higher or lower sun, and the colour that goes with its height
         el = max(8.0, el + var["sun_offset_deg"])
@@ -1638,7 +1640,9 @@ def build_light(scene: dict, eye_level: bool = False) -> None:
     if var and var["cloud"]["cover"] > 0.02:  # the clouds that cast the shadows are seen in the sky
         sky_colour = add_sky_clouds(nodes, links, split, sky_colour, var["cloud"], scene["size_m"])
     links.new(sky_colour, bg.inputs["Color"])
-    bg.inputs["Strength"].default_value = sky["fill"]
+    bg.inputs["Strength"].default_value = sky["fill"] * (
+        1.0 if eye_level else sky.get("overhead_fill", 1.0)
+    )
     if eye:  # light the scene at ``fill`` and show the sky to the camera at ``sky_seen``
         ray = nodes.new("ShaderNodeLightPath")
         mix = nodes.new("ShaderNodeMath")  # camera ray: sky_seen, any other ray: fill
