@@ -321,6 +321,10 @@ BIOMES: dict[str, Biome] = {
             terrain=TerrainConfig(style="arid"),
             roads=RoadConfig(centres_per_km2=1.0, local_probability=0.3, max_local_slope_deg=12.0),
             buildings=BuildingConfig(built_probability_core=0.8, built_probability_edge=0.3),
+            highways=HighwayConfig(count=1),
+            industrial=IndustrialConfig(
+                sites_per_km=2.0, frontage_m=(60.0, 110.0), depth_m=(40.0, 70.0)
+            ),
         ),
     ),
     "river_plain": Biome(
