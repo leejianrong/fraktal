@@ -70,3 +70,29 @@ def test_crop_fields_are_byte_identical_per_seed_and_off_by_default(tmp_path: Pa
     assert plain.fields.crop_zones == 0
     with pytest.raises(ValueError):
         biomes.resolve("farmed_plain", {"fields": {"canal_share": "many"}})
+
+
+def test_blocks_are_cut_into_narrow_strips_with_tracks_on_some_edges(tmp_path: Path) -> None:
+    from fraktal.fields import TRACK_WIDTH_M
+    from fraktal.render import ROAD_TRACK
+
+    fields = read_fields(_world(tmp_path))
+    assert fields is not None
+    crops, tracks = fields[fields.field_type == "crop"], fields[fields.field_type == "track"]
+    assert len(tracks) > 3
+    widths = crops.geometry.minimum_rotated_rectangle().apply(
+        lambda r: min(
+            np.hypot(*np.subtract(r.exterior.coords[i + 1], r.exterior.coords[i])) for i in range(2)
+        )
+    )
+    assert widths.median() < 35.0  # strips, not the 80 m or wider blocks
+    assert np.allclose(tracks.geometry.area / tracks.geometry.length, TRACK_WIDTH_M / 2, rtol=0.1)
+    from affine import Affine
+
+    t = tracks.iloc[0]
+    w, n = t.geometry.bounds[0] - 20, t.geometry.bounds[3] + 20
+    side = int(max(t.geometry.bounds[2] - w, n - t.geometry.bounds[1]) + 40)
+    painted = _field_raster(
+        fields.iloc[[t.name]], Affine(1.0, 0, w, 0, -1.0, n), side, np.zeros((side, side))
+    )
+    assert (painted == ROAD_TRACK).any()

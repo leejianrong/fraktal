@@ -65,6 +65,8 @@ LATER_FIELDS = (
     ("fields", "crop_cell_m"),
     ("fields", "crop_max_slope_deg"),
     ("fields", "canal_share"),
+    ("fields", "strip_m"),
+    ("fields", "track_share"),
 )
 
 
