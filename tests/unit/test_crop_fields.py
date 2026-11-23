@@ -96,3 +96,12 @@ def test_blocks_are_cut_into_narrow_strips_with_tracks_on_some_edges(tmp_path: P
         fields.iloc[[t.name]], Affine(1.0, 0, w, 0, -1.0, n), side, np.zeros((side, side))
     )
     assert (painted == ROAD_TRACK).any()
+
+
+def test_industrial_halls_include_blue_and_white_sheet_roofs() -> None:
+    from fraktal.building_grammar import HALL_ROOF_WEIGHTS, HALL_ROOFS
+
+    assert abs(sum(HALL_ROOF_WEIGHTS) - 1.0) < 1e-9
+    share = dict(zip(HALL_ROOFS, HALL_ROOF_WEIGHTS, strict=True))
+    assert share["roof-tin-blue"] + share["roof-tin-white"] >= 0.5
+    assert biomes.resolve("farmed_plain").industrial.sites_per_km > 0
