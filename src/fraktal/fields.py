@@ -34,6 +34,8 @@ CANAL = "canal"  # a narrow straight waterway along a block edge
 CROP_STATES = ("green", "gold", "fallow", "plough", "stubble")
 CROP_STATE_SHARES = (0.30, 0.25, 0.20, 0.15, 0.10)
 CANAL_WIDTH_M = 4.0
+TRACK = "track"  # a farm track along a block edge
+TRACK_WIDTH_M = 3.0
 PADDY_STATES = ("flooded", "planted", "harvested")
 PADDY_STATE_SHARES = (0.35, 0.4, 0.25)
 
@@ -61,6 +63,8 @@ class FieldConfig:
     crop_cell_m: tuple[float, float] = (70.0, 220.0)  # block side lengths on the shared grid
     crop_max_slope_deg: float = 5.0
     canal_share: float = 0.0  # of the blocks, the share with a canal along one long edge
+    strip_m: float = 0.0  # crop blocks are cut into strips this wide, each its own state (0: none)
+    track_share: float = 0.0  # of the block edges, the share with a farm track along them
 
 
 def _blocked(local: gpd.GeoDataFrame | None, pad: float) -> list[Any]:
@@ -252,9 +256,28 @@ def _crops(
         if not _flat_enough(cell, slope, transform, 0.0, config.crop_max_slope_deg):
             continue
         placed.append(cell)
-        features.append(
-            _feature(cell, CROP, angle + (90.0 if along < 0.5 else 0.0), spacing, str(state))
-        )
+        if config.strip_m > 0:
+            ring = list(cell.exterior.coords)[:4]
+            for strip, strip_angle in _strips(ring, config.strip_m):
+                turn = 90.0 if along < 0.25 else 0.0
+                state = str(rng.choice(CROP_STATES, p=CROP_STATE_SHARES))
+                features.append(_feature(strip, CROP, strip_angle + turn, spacing, state))
+        else:
+            features.append(
+                _feature(cell, CROP, angle + (90.0 if along < 0.5 else 0.0), spacing, str(state))
+            )
+        if config.track_share > 0:
+            ring = list(cell.exterior.coords)[:5]
+            for i in range(4):
+                if float(rng.uniform()) >= config.track_share:
+                    continue
+                strip = LineString([ring[i], ring[i + 1]]).buffer(
+                    TRACK_WIDTH_M / 2, cap_style="flat"
+                )
+                key = (round(strip.centroid.x, 2), round(strip.centroid.y, 2))
+                if key not in canal_edges:
+                    canal_edges.add(key)
+                    features.append(_feature(strip, TRACK, angle, 0.0, "dirt"))
         if canal < config.canal_share:  # two blocks can share an edge: one canal per edge
             ring = list(cell.exterior.coords)[:5]  # five points: the ring closes on the first
             edges = [(ring[i], ring[i + 1]) for i in range(4)]
@@ -264,6 +287,23 @@ def _crops(
             if key not in canal_edges:
                 canal_edges.add(key)
                 features.append(_feature(strip, CANAL, angle, 0.0, "water"))
+
+
+def _strips(ring: list[Any], strip_m: float) -> list[tuple[Polygon, float]]:
+    """A rectangle (its four corners) cut across its short side into strips ``strip_m`` wide, each
+    with the angle of the long side."""
+    p0, p1, _, p3 = (np.array(p, dtype=float) for p in ring)
+    u, v = p1 - p0, p3 - p0
+    if np.hypot(*u) < np.hypot(*v):
+        u, v = v, u
+    n = max(1, round(float(np.hypot(*v)) / strip_m))
+    angle = math.degrees(math.atan2(u[1], u[0])) % 180.0
+    out = []
+    for k in range(n):
+        a, b = v * (k / n), v * ((k + 1) / n)
+        corners = [p0 + a, p0 + u + a, p0 + u + b, p0 + b]
+        out.append((Polygon(corners), angle))
+    return out
 
 
 def _ponds(

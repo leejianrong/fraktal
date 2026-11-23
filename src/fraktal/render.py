@@ -284,6 +284,10 @@ def _field_raster(fields: gpd.GeoDataFrame, transform: Affine, side: int, dem: A
     for _, f in ordered.iterrows():
         if f.field_type == "crop":  # alternate rows of the field's own colour
             out = _crop_rows(out, f, transform)
+    tracks = [(f.geometry, ROAD_TRACK) for _, f in ordered.iterrows() if f.field_type == "track"]
+    if tracks:
+        dirt = rasterize(tracks, (side, side), transform=transform, dtype="uint8")
+        out = np.where(dirt > 0, dirt, out).astype("uint8")
     canals = [(f.geometry, CANAL_WATER) for _, f in ordered.iterrows() if f.field_type == "canal"]
     if canals:
         water = rasterize(canals, (side, side), transform=transform, dtype="uint8")

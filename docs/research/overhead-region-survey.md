@@ -135,3 +135,8 @@ Arid relief at 4 m (FRK-187): `arid_badlands` now uses wider ridges (smallest ce
 rock tone, rock showing from 4 degrees of slope and 170 m of relief, so the tile shows banded
 scarps and pale channel floors like the SN7 desert cells instead of an even speckle. Still to do:
 quarries, interchanges and tracks on the arid row.
+
+Field strips and tracks (FRK-187): `farmed_plain` cuts each crop block into strips about 22 m wide,
+each with its own crop state, and lays a 3 m dirt track along half the block edges (painted as the
+access-track colour, class ground). It reads as strip farmland next to SN7 cells 53 and 54. Still
+to do: hedges, a clearer track tint at 4 m, and calmer scrub between the blocks.
