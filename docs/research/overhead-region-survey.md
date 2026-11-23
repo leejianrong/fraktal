@@ -130,3 +130,8 @@ blocks on one rotated grid, each a crop state (green, gold, fallow, plough, stub
 rows painted in a darker shade, and canals along some block edges (dark water, class ground). Still
 off against real tiles: blocks are flat tints, there are no field boundaries of hedge or track,
 and the surrounding land cover is noisier than real farmland.
+
+Arid relief at 4 m (FRK-187): `arid_badlands` now uses wider ridges (smallest cell 30 m), a darker
+rock tone, rock showing from 4 degrees of slope and 170 m of relief, so the tile shows banded
+scarps and pale channel floors like the SN7 desert cells instead of an even speckle. Still to do:
+quarries, interchanges and tracks on the arid row.
