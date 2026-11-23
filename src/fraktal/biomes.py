@@ -382,6 +382,9 @@ BIOMES: dict[str, Biome] = {
                 track_share=0.5,
             ),
             water=WaterConfig(rivers=1),
+            industrial=IndustrialConfig(
+                sites_per_km=3.0, frontage_m=(60.0, 110.0), depth_m=(40.0, 70.0)
+            ),
         ),
     ),
     "oil_palm_plantation": Biome(

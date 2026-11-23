@@ -58,6 +58,10 @@ TIN_MIXES: dict[str, tuple[float, ...]] = {
     "khartoum": (0.30, 0.08, 0.38, 0.10, 0.05, 0.0, 0.09, 0.0),
     "khartoum_city": (0.30, 0.08, 0.38, 0.10, 0.05, 0.0, 0.09, 0.0),
 }
+# Industrial hall roofs: factories in the reference tiles are mostly painted blue or white sheet,
+# with some silver and rust (FRK-187).
+HALL_ROOFS = ("roof-tin", "roof-tin-rust", "roof-tin-blue", "roof-tin-white", "roof-tin-red")
+HALL_ROOF_WEIGHTS = (0.2, 0.1, 0.4, 0.2, 0.1)
 SOLAR_SHARE, BRICK_SHARE, EXTRA_TANK_SHARE = 0.20, 0.15, 0.20  # of flat roofs, assumed shares
 TIN_MIX_TROPICAL = (0.12, 0.20, 0.22, 0.08, 0.16, 0.08, 0.10, 0.04)
 ROOF_CLUTTER = ("solar-panel", "brick-stack", "tank-black", "tank-blue")
@@ -488,7 +492,8 @@ def build(
         if shed is not None:
             return shed
     elif typology == "industrial_hall":
-        tin = TIN_ROOFS[int(look.integers(0, 3))]
+        pick = float(substream(seed, f"hallroof:{building_id}").uniform())
+        tin = HALL_ROOFS[int(np.searchsorted(np.cumsum(HALL_ROOF_WEIGHTS), pick, side="right"))]
         hall = _gable(poly, pts, height, "wall-concrete", tin, rng, 1, height, rollers=True)
         if hall is not None:
             hall.typology = "industrial_hall"
